@@ -31,6 +31,7 @@ type Conf struct {
 	AuthTokens             []string         `json:"authTokens"`
 	LogFile                string           `json:"logFile"`
 	LogLevel               logging.LogLevel `json:"logLevel"`
+	WorkingDBPath          string           `json:"workingDbPath"`
 }
 
 func LoadConfig(path string) *Conf {
