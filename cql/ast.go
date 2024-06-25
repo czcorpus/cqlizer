@@ -2,25 +2,6 @@ package cql
 
 import "encoding/json"
 
-// Query
-//
-//	Sequence (_ BINAND _ GlobPart)? (_ WithinOrContaining)* EOF {
-type Query struct {
-	Sequence           *Sequence
-	GlobPart           *GlobPart
-	WithinOrContaining []*WithinOrContaining
-}
-
-func (q *Query) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Expansion Query
-		RuleName  string
-	}{
-		RuleName:  "Query",
-		Expansion: *q,
-	})
-}
-
 // Seq (_ BINOR _ Seq)* / Seq
 type Sequence struct {
 	Seq []*Seq
@@ -35,6 +16,15 @@ func (q *Sequence) MarshalJSON() ([]byte, error) {
 		Expansion: *q,
 	})
 }
+
+func (q *Sequence) ForEachElement(fn func(v any)) {
+	fn(q)
+	for _, item := range q.Seq {
+		item.ForEachElement(fn)
+	}
+}
+
+// -----------------------------------------------------
 
 // GlobPart
 // gc:GlobCond gc2:(_ BINAND _ GlobCond)*
@@ -51,6 +41,15 @@ func (g *GlobPart) MarshalJSON() ([]byte, error) {
 		Expansion: *g,
 	})
 }
+
+func (q *GlobPart) ForEachElement(fn func(v any)) {
+	fn(q)
+	for _, item := range q.GlobCond {
+		item.ForEachElement(fn)
+	}
+}
+
+// ---------------------------------------
 
 // WithinOrContaining
 //
@@ -70,6 +69,15 @@ func (w *WithinOrContaining) MarshalJSON() ([]byte, error) {
 		Expansion: *w,
 	})
 }
+
+func (w *WithinOrContaining) ForEachElement(fn func(v any)) {
+	fn(w)
+	fn(w.KwWithin)
+	fn(w.KwContaining)
+	w.WithinContainingPart.ForEachElement(fn)
+}
+
+// -----------------------------------------------------
 
 type withinContainingPartVariant1 struct {
 	Sequence *Sequence
@@ -118,6 +126,21 @@ func (wcp *WithinContainingPart) MarshalJSON() ([]byte, error) {
 	}
 }
 
+func (wcp *WithinContainingPart) ForEachElement(fn func(v any)) {
+	fn(wcp)
+	if wcp.variant1 != nil {
+		wcp.variant1.Sequence.ForEachElement(fn)
+
+	} else if wcp.variant2 != nil {
+		fn(wcp.variant2.WithinNumber.Value)
+
+	} else if wcp.variant3 != nil {
+		wcp.variant3.AlignedPart.ForEachElement(fn)
+	}
+}
+
+// --------------------------------------------------
+
 // GlobCond
 //
 // v1: NUMBER DOT AttName _ NOT? EQ _ NUMBER DOT AttName {
@@ -137,7 +160,7 @@ type globCondVariant2 struct {
 	KwFreq1   string
 	Number2   string
 	AttName3  string
-	Not4      bool
+	Not4      string
 	Operator5 string
 	Number6   string
 }
@@ -172,6 +195,12 @@ func (gc *GlobCond) MarshalJSON() ([]byte, error) {
 	}
 }
 
+func (gc *GlobCond) ForEachElement(fn func(v any)) {
+
+}
+
+// ----------------------------------------------------
+
 // Structure
 //
 // AttName _ AttValList?
@@ -190,12 +219,24 @@ func (s *Structure) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (s *Structure) ForEachElement(fn func(v any)) {
+
+}
+
+// ---------------------------------------------------------
+
 // AttValList
 //
 //	av1:AttValAnd av2:(_ BINOR _ AttValAnd)*
 type AttValList struct {
 	AttValAnd []*AttValAnd
 }
+
+func (a *AttValList) ForEachElement(fn func(v any)) {
+
+}
+
+// -----------------------------------------------------------
 
 // NumberedPosition
 //
@@ -205,6 +246,12 @@ type NumberedPosition struct {
 	Colon       string
 	OnePosition *OnePosition
 }
+
+func (n *NumberedPosition) ForEachElement(fn func(v any)) {
+
+}
+
+// --------------------------------------------------
 
 type onePositionVariant1 struct {
 	AttValList *AttValList
@@ -261,6 +308,12 @@ func (op *OnePosition) MarshalJSON() ([]byte, error) {
 	}
 }
 
+func (op *OnePosition) ForEachElement(fn func(v any)) {
+
+}
+
+// -----------------------------------------------------
+
 type positionVariant1 struct {
 	OnePosition *OnePosition
 }
@@ -290,26 +343,52 @@ func (p *Position) MarshalJSON() ([]byte, error) {
 	}
 }
 
+func (p *Position) ForEachElement(fn func(v any)) {
+
+}
+
+// -------------------------------------------------------
+
 type RegExp struct {
 	RegExpRaw *RegExpRaw
 }
 
+func (r *RegExp) ForEachElement(fn func(v any)) {
+
+}
+
+// --------------------------------------------------------
+
 type MuPart struct {
 }
+
+// --------------------------------------------------------------
 
 type UnionOp struct {
 }
 
+// ---------------------------------------------------------------
+
 type MeetOp struct {
 }
 
+// --------------------------------------------------------------------------
+
 type Integer struct {
 }
+
+// --------------------------------------------------------------------
 
 type Seq struct {
 	Not        bool
 	Repetition []*Repetition
 }
+
+func (s *Seq) ForEachElement(fn func(v any)) {
+
+}
+
+// ------------------------------------------------------------
 
 type repetitionVariant1 struct {
 	RepOpt    string
@@ -345,6 +424,12 @@ func (r *Repetition) MarshalJSON() ([]byte, error) {
 	}
 }
 
+func (r *Repetition) ForEachElement(fn func(v any)) {
+
+}
+
+// ----------------------------------------------------------------
+
 type atomQueryVariant1 struct {
 	Position *Position
 }
@@ -374,8 +459,16 @@ func (aq *AtomQuery) MarshalJSON() ([]byte, error) {
 	}
 }
 
+func (aq *AtomQuery) ForEachElement(fn func(v any)) {
+
+}
+
+// --------------------------------------------------------------
+
 type RepOpt struct {
 }
+
+// ----------------------------------------------------------------
 
 type OpenStructTag struct {
 	Structure *Structure
@@ -391,6 +484,12 @@ func (ost *OpenStructTag) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (ost *OpenStructTag) ForEachElement(fn func(v any)) {
+
+}
+
+// --------------------------------------------------------------
+
 type CloseStructTag struct {
 	Structure *Structure
 }
@@ -405,8 +504,20 @@ func (ost *CloseStructTag) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (ost *CloseStructTag) ForEachElement(fn func(v any)) {
+
+}
+
+// ---------------------------------------------------------
+
 type AlignedPart struct {
 }
+
+func (a *AlignedPart) ForEachElement(fn func(v any)) {
+
+}
+
+// -----------------------------------------------------------
 
 // AttValAnd
 //
@@ -414,6 +525,12 @@ type AlignedPart struct {
 type AttValAnd struct {
 	AttVal []*AttVal
 }
+
+func (a *AttValAnd) ForEachElement(fn func(v any)) {
+
+}
+
+// --------------------------------------------------------------
 
 // AttName _ (NOT)? EEQ _ RawString
 type attValVariant1 struct {
@@ -504,11 +621,17 @@ func (r *AttVal) MarshalJSON() ([]byte, error) {
 	}
 }
 
-type WithinNumber struct {
+func (a *AttVal) ForEachElement(fn func(v any)) {
+
 }
 
-type PhraseQuery struct {
+// ---------------------------------------------------
+
+type WithinNumber struct {
+	Value string
 }
+
+// ----------------------------------------------------------
 
 type RegExpRaw struct {
 
@@ -526,6 +649,12 @@ func (r *RegExpRaw) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (r *RegExpRaw) ForEachElement(fn func(v any)) {
+
+}
+
+// ------------------------------------------------------------------
+
 type RawString struct {
 	SimpleString *SimpleString
 }
@@ -540,9 +669,21 @@ func (r *RawString) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (r *RawString) ForEachElement(fn func(v any)) {
+
+}
+
+// ------------------------------------------------------------------------
+
 type SimpleString struct {
 	Values []string
 }
+
+func (r *SimpleString) ForEachElement(fn func(v any)) {
+
+}
+
+// -------------------------------------------------
 
 type RgGrouped struct {
 	Value *RegExpRaw
@@ -557,6 +698,12 @@ func (r *RgGrouped) MarshalJSON() ([]byte, error) {
 		Expansion: *r,
 	})
 }
+
+func (r *RgGrouped) ForEachElement(fn func(v any)) {
+
+}
+
+// ---------------------------------------------------------
 
 type RgSimple struct {
 	// RgRange / RgChar / RgAlt / RgPosixClass
@@ -573,14 +720,26 @@ func (r *RgSimple) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (r *RgSimple) ForEachElement(fn func(v any)) {
+
+}
+
+// ----------------------------------------------------
+
 type RgPosixClass struct {
 }
+
+// ----------------------------------------------------
 
 type RgLook struct {
 }
 
+// ----------------------------------------------------
+
 type RgLookOperator struct {
 }
+
+// -----------------------------------------------------
 
 type RgAlt struct {
 	Values []*RgAltVal
@@ -595,6 +754,12 @@ func (r *RgAlt) MarshalJSON() ([]byte, error) {
 		Expansion: *r,
 	})
 }
+
+func (r *RgAlt) ForEachElement(fn func(v any)) {
+
+}
+
+// --------------------------------------------------------
 
 type rgCharVariant1 struct {
 	Value string
@@ -633,6 +798,12 @@ func (rc *RgChar) MarshalJSON() ([]byte, error) {
 	}
 }
 
+func (r *RgChar) ForEachElement(fn func(v any)) {
+
+}
+
+// -----------------------------------------------------------
+
 type RgRange struct {
 	RgRangeSpec *RgRangeSpec
 }
@@ -646,6 +817,12 @@ func (r *RgRange) MarshalJSON() ([]byte, error) {
 		Expansion: *r,
 	})
 }
+
+func (r *RgRange) ForEachElement(fn func(v any)) {
+
+}
+
+// -------------------------------------------------------------
 
 type RgRangeSpec struct {
 	Number1 string
@@ -661,6 +838,12 @@ func (r *RgRangeSpec) MarshalJSON() ([]byte, error) {
 		Expansion: *r,
 	})
 }
+
+func (r *RgRangeSpec) ForEachElement(fn func(v any)) {
+
+}
+
+// -------------------------------------------------------------
 
 type AnyLetter struct {
 }
@@ -678,6 +861,12 @@ func (r *RgOp) MarshalJSON() ([]byte, error) {
 		Expansion: *r,
 	})
 }
+
+func (r *RgOp) ForEachElement(fn func(v any)) {
+
+}
+
+// ----------------------------------------------------------------
 
 type rgAltValVariant1 struct {
 	RgChar *RgChar
@@ -714,4 +903,8 @@ func (rc *RgAltVal) MarshalJSON() ([]byte, error) {
 	} else {
 		return json.Marshal(struct{}{})
 	}
+}
+
+func (r *RgAltVal) ForEachElement(fn func(v any)) {
+
 }

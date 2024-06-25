@@ -33,7 +33,9 @@
 
 Query <-
     sq:Sequence gp:(_ BINAND _ GlobPart)? wc:(_ WithinOrContaining)* EOF {
-        ans := &Query{}
+        ans := &Query{
+            origValue: string(c.text),
+        }
 
         ans.Sequence = typedOrPanic[*Sequence](sq)
 

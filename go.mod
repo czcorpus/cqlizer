@@ -5,6 +5,7 @@ go 1.21.5
 require (
 	github.com/czcorpus/cnc-gokit v0.9.4
 	github.com/gin-gonic/gin v1.10.0
+	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/mna/pigeon v1.2.1
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0
