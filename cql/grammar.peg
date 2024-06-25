@@ -47,7 +47,7 @@ Query <-
         ans.WithinOrContaining = make([]*WithinOrContaining, 0, 10)
         for _, item := range wcSl {
             tItem := typedOrPanic[*WithinOrContaining](fromIdxOfUntypedSlice[*WithinOrContaining](item, 1))
-            fmt.Println(">>>>>> tItem: ", tItem)
+            ans.WithinOrContaining = append(ans.WithinOrContaining, tItem)
         }
 
         return ans, nil

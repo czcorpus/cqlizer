@@ -160,14 +160,12 @@ func runApiServer(
 		syscallChan <- syscall.SIGTERM
 	}()
 
-	select {
-	case <-exitEvent:
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		err := srv.Shutdown(ctx)
-		if err != nil {
-			log.Info().Err(err).Msg("Shutdown request error")
-		}
+	<-exitEvent
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := srv.Shutdown(ctx)
+	if err != nil {
+		log.Info().Err(err).Msg("Shutdown request error")
 	}
 }
 
@@ -203,11 +201,8 @@ func main() {
 	signal.Notify(syscallChan, os.Interrupt)
 	signal.Notify(syscallChan, syscall.SIGTERM)
 	exitEvent := make(chan os.Signal)
-	testConnCancel := make(chan bool)
 	go func() {
 		evt := <-syscallChan
-		testConnCancel <- true
-		close(testConnCancel)
 		exitEvent <- evt
 		close(exitEvent)
 	}()
