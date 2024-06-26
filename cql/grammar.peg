@@ -56,11 +56,30 @@ Query <-
     }
 
 WithinOrContaining <-
-    NOT? tp:(KW_WITHIN / KW_CONTAINING) _ w:WithinContainingPart {
-        return &WithinOrContaining{
+    n:NOT? tp:(KW_WITHIN / KW_CONTAINING) _ w:WithinContainingPart {
+        ans := &WithinOrContaining{
             WithinContainingPart: typedOrPanic[*WithinContainingPart](w),
             KwWithin: ASTString(typedOrPanic[string](tp)),
-        }, nil
+        }
+
+        if n != nil {
+            if tp == "within" {
+                ans.numNegWithinParts++
+
+            } else if tp == "containing" {
+                ans.numNegContainingParts++
+            }
+
+        } else {
+            if tp == "within" {
+                ans.numWithinParts++
+
+            } else if tp == "containing" {
+                ans.numContainingParts++
+            }
+        }
+
+        return ans, nil
     }
 
 
@@ -354,6 +373,29 @@ AtomQuery <-
             variant2: &atomQueryVariant2 {
                 Sequence: typedOrPanic[*Sequence](seq),
             },
+        }
+
+        for _, item := range anyToSlice(wcp) {
+            tmp := anyToSlice(item)
+            fmt.Println("!!!!!!!!!! TMP: ", tmp)
+            neg := tmp[1]
+            tp := typedOrPanic[string](tmp[2])
+            if neg != nil {
+                if tp == "within" {
+                    ans.numNegWithinParts++
+
+                } else if tp == "containing" {
+                    ans.numNegContainingParts++
+                }
+
+            } else {
+                if tp == "within" {
+                    ans.numWithinParts++
+
+                } else if tp == "containing" {
+                    ans.numContainingParts++
+                }
+            }
         }
 
         return ans, nil

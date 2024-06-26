@@ -93,9 +93,29 @@ func (q *GlobPart) Text() string {
 //
 //	NOT? (KW_WITHIN / KW_CONTAINING) _ WithinContainingPart {
 type WithinOrContaining struct {
-	KwWithin             ASTString
-	KwContaining         ASTString
-	WithinContainingPart *WithinContainingPart
+	numWithinParts        int
+	numNegWithinParts     int
+	numContainingParts    int
+	numNegContainingParts int
+	KwWithin              ASTString
+	KwContaining          ASTString
+	WithinContainingPart  *WithinContainingPart
+}
+
+func (w *WithinOrContaining) NumWithinParts() int {
+	return w.numWithinParts
+}
+
+func (w *WithinOrContaining) NumNegWithinParts() int {
+	return w.numNegWithinParts
+}
+
+func (w *WithinOrContaining) NumContainingParts() int {
+	return w.numContainingParts
+}
+
+func (w *WithinOrContaining) NumNegContainingParts() int {
+	return w.numNegContainingParts
 }
 
 func (w *WithinOrContaining) MarshalJSON() ([]byte, error) {
@@ -624,9 +644,13 @@ type atomQueryVariant2 struct {
 // var1: Position
 // var2: LPAREN _ Sequence (_ NOT? (KW_WITHIN / KW_CONTAINING) _ WithinContainingPart)* _ RPAREN {
 type AtomQuery struct {
-	origValue string
-	variant1  *atomQueryVariant1
-	variant2  *atomQueryVariant2
+	origValue             string
+	variant1              *atomQueryVariant1
+	variant2              *atomQueryVariant2
+	numWithinParts        int
+	numNegWithinParts     int
+	numContainingParts    int
+	numNegContainingParts int
 }
 
 func (aq *AtomQuery) Text() string {
@@ -643,6 +667,22 @@ func (aq *AtomQuery) MarshalJSON() ([]byte, error) {
 	} else {
 		return json.Marshal(struct{}{})
 	}
+}
+
+func (aq *AtomQuery) NumWithinParts() int {
+	return aq.numWithinParts
+}
+
+func (aq *AtomQuery) NumNegWithinParts() int {
+	return aq.numNegWithinParts
+}
+
+func (aq *AtomQuery) NumContainingParts() int {
+	return aq.numContainingParts
+}
+
+func (aq *AtomQuery) NumNegContainingParts() int {
+	return aq.numNegContainingParts
 }
 
 func (aq *AtomQuery) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {

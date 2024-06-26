@@ -28,7 +28,11 @@ type Record struct {
 
 	NumContaining int `json:"numContaining"`
 
+	NumNegContaining int `json:"numNegContaining"`
+
 	NumWithin int `json:"numWithin"`
+
+	NumNegWithin int `json:"numNegWithin"`
 }
 
 func (rec Record) AsVector() []float64 {
@@ -77,6 +81,10 @@ func (rec *Record) ImportFrom(query *cql.Query, corpusSize int) {
 		case *cql.AtomQuery:
 			fmt.Println("##### <AtomQuery>: ", tNode.Text())
 			fmt.Println("   his parent: ", reflect.TypeOf(parent), parent.Text())
+			rec.NumWithin += tNode.NumWithinParts()
+			rec.NumNegWithin += tNode.NumNegWithinParts()
+			rec.NumContaining += tNode.NumContainingParts()
+			rec.NumNegContaining += tNode.NumNegContainingParts()
 		case *cql.Repetition:
 			fmt.Println("### <Repetition>: ", tNode.Text())
 			if parent == rootSeq {
@@ -93,6 +101,11 @@ func (rec *Record) ImportFrom(query *cql.Query, corpusSize int) {
 
 		case *cql.GlobCond:
 			rec.NumGlobCond++
+		case *cql.WithinOrContaining:
+			rec.NumWithin += tNode.NumWithinParts()
+			rec.NumNegWithin += tNode.NumNegWithinParts()
+			rec.NumContaining += tNode.NumContainingParts()
+			rec.NumNegContaining += tNode.NumNegContainingParts()
 		}
 	})
 	rec.NumDisjunctElementsPerSequence = (float64(rec.NumPositions) + float64(numOrChainedSeq)) / float64(rec.NumPositions)
