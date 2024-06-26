@@ -44,6 +44,8 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 		)
 		return
 	}
+	var features feats.Record
+	features.ImportFrom(parsed, 10000000) // TODO
 	uniresp.WriteJSONResponse(ctx.Writer, parsed)
 }
 

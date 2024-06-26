@@ -26,11 +26,19 @@ func (q *Query) Len() int {
 	return len(q.origValue)
 }
 
-func (q *Query) ForEachElement(fn func(v any)) {
-	fn(q)
-	q.Sequence.ForEachElement(fn)
-	q.GlobPart.ForEachElement(fn)
+func (q *Query) Text() string {
+	return q.origValue
+}
+
+func (q *Query) ForEachElement(fn func(parent, v ASTNode)) {
+	fn(nil, q)
+	if q.Sequence != nil {
+		q.Sequence.ForEachElement(q, fn)
+	}
+	if q.GlobPart != nil {
+		q.GlobPart.ForEachElement(q, fn)
+	}
 	for _, item := range q.WithinOrContaining {
-		item.ForEachElement(fn)
+		item.ForEachElement(q, fn)
 	}
 }
