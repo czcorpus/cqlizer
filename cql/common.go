@@ -23,6 +23,16 @@ import (
 	"reflect"
 )
 
+type ASTString string
+
+func (s ASTString) Text() string {
+	return string(s)
+}
+
+type ASTNode interface {
+	Text() string
+}
+
 func fromIdxOfUntypedSlice[T any](arr any, idx int) T {
 	if arr == nil {
 		var t T
@@ -33,6 +43,10 @@ func fromIdxOfUntypedSlice[T any](arr any, idx int) T {
 		panic("value must be a slice")
 	}
 	v := tmp[idx]
+	if v == nil {
+		var t T
+		return t
+	}
 	vt, ok := v.(T)
 	if !ok {
 		panic(fmt.Sprintf("value with idx %d has invalid type %s", idx, reflect.TypeOf(v)))

@@ -16,22 +16,26 @@
 //  You should have received a copy of the GNU General Public License
 //  along with CQLIZER.  If not, see <https://www.gnu.org/licenses/>.
 
-package cql
+package main
 
 import (
 	"fmt"
 	"net/http"
 
 	"github.com/czcorpus/cnc-gokit/uniresp"
+	"github.com/czcorpus/cqlizer/cql"
+	"github.com/czcorpus/cqlizer/feats"
+	"github.com/czcorpus/cqlizer/stats"
 	"github.com/gin-gonic/gin"
 )
 
 type Actions struct {
+	StatsDB *stats.Database
 }
 
 func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 	q := ctx.Query("q")
-	parsed, err := ParseCQL("#", q)
+	parsed, err := cql.ParseCQL("#", q)
 	if err != nil {
 		uniresp.RespondWithErrorJSON(
 			ctx,
@@ -40,5 +44,37 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 		)
 		return
 	}
+	var features feats.Record
+	features.ImportFrom(parsed, 10000000) // TODO
 	uniresp.WriteJSONResponse(ctx.Writer, parsed)
+}
+
+type storeQueryBody struct {
+	Query      string  `json:"query"`
+	CorpusSize int     `json:"corpusSize"`
+	ProcTime   float64 `json:"procTime"`
+}
+
+func (a *Actions) StoreQuery(ctx *gin.Context) {
+	var data storeQueryBody
+	if err := ctx.BindJSON(&data); err != nil {
+		uniresp.RespondWithErrorJSON(ctx, err, http.StatusBadRequest)
+		return
+	}
+	parsed, err := cql.ParseCQL("#", data.Query)
+	fmt.Println("data: ", data)
+	fmt.Println("parsed: ", parsed)
+	if err != nil {
+		uniresp.RespondWithErrorJSON(ctx, err, http.StatusUnprocessableEntity)
+		return
+	}
+	var features feats.Record
+	features.ImportFrom(parsed, data.CorpusSize)
+	newID, err := a.StatsDB.AddRecord(data.Query, features, data.ProcTime)
+	if err != nil {
+		uniresp.RespondWithErrorJSON(ctx, err, http.StatusInternalServerError)
+		return
+	}
+
+	uniresp.WriteJSONResponse(ctx.Writer, map[string]any{"newID": newID})
 }

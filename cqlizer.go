@@ -20,6 +20,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"net/http"
@@ -30,11 +31,13 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/czcorpus/cnc-gokit/collections"
 	"github.com/czcorpus/cnc-gokit/logging"
 	"github.com/czcorpus/cnc-gokit/uniresp"
 	"github.com/czcorpus/cqlizer/cnf"
-	"github.com/czcorpus/cqlizer/cql"
+	"github.com/czcorpus/cqlizer/stats"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 )
@@ -131,6 +134,18 @@ func runApiServer(
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	dbConn, err := sql.Open("sqlite3", "file:"+conf.WorkingDBPath)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to open working database")
+		syscallChan <- syscall.SIGTERM
+	}
+	statsDB := stats.NewDatabase(dbConn)
+	err = statsDB.Init()
+	if err != nil {
+		log.Error().Err(err).Msg("failed to initialize working database")
+		syscallChan <- syscall.SIGTERM
+	}
+
 	engine := gin.New()
 	engine.Use(gin.Recovery())
 	engine.Use(additionalLogEvents())
@@ -140,10 +155,13 @@ func runApiServer(
 	engine.NoMethod(uniresp.NoMethodHandler)
 	engine.NoRoute(uniresp.NotFoundHandler)
 
-	cqlActions := cql.Actions{}
+	cqlActions := Actions{StatsDB: statsDB}
 
 	engine.GET(
-		"/cql/analyze", cqlActions.AnalyzeQuery)
+		"/analyze", cqlActions.AnalyzeQuery)
+
+	engine.PUT(
+		"/query", cqlActions.StoreQuery)
 
 	log.Info().Msgf("starting to listen at %s:%d", conf.ListenAddress, conf.ListenPort)
 	srv := &http.Server{
@@ -160,14 +178,12 @@ func runApiServer(
 		syscallChan <- syscall.SIGTERM
 	}()
 
-	select {
-	case <-exitEvent:
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		err := srv.Shutdown(ctx)
-		if err != nil {
-			log.Info().Err(err).Msg("Shutdown request error")
-		}
+	<-exitEvent
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err = srv.Shutdown(ctx)
+	if err != nil {
+		log.Info().Err(err).Msg("Shutdown request error")
 	}
 }
 
@@ -203,11 +219,8 @@ func main() {
 	signal.Notify(syscallChan, os.Interrupt)
 	signal.Notify(syscallChan, syscall.SIGTERM)
 	exitEvent := make(chan os.Signal)
-	testConnCancel := make(chan bool)
 	go func() {
 		evt := <-syscallChan
-		testConnCancel <- true
-		close(testConnCancel)
 		exitEvent <- evt
 		close(exitEvent)
 	}()
