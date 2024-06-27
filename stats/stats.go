@@ -61,6 +61,10 @@ func (database *Database) AddRecord(query string, rec feats.Record, procTime flo
 	return lastID, err
 }
 
-func NewDatabase(db *sql.DB) *Database {
-	return &Database{db: db}
+func NewDatabase(path string) (*Database, error) {
+	dbConn, err := sql.Open("sqlite3", "file:"+path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open stats datase: %w", err)
+	}
+	return &Database{db: dbConn}, nil
 }

@@ -20,7 +20,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"flag"
 	"fmt"
 	"net/http"
@@ -134,12 +133,12 @@ func runApiServer(
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	dbConn, err := sql.Open("sqlite3", "file:"+conf.WorkingDBPath)
+	statsDB, err := stats.NewDatabase(conf.WorkingDBPath)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to open working database")
 		syscallChan <- syscall.SIGTERM
 	}
-	statsDB := stats.NewDatabase(dbConn)
+
 	err = statsDB.Init()
 	if err != nil {
 		log.Error().Err(err).Msg("failed to initialize working database")
