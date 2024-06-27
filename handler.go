@@ -28,10 +28,26 @@ import (
 	"github.com/czcorpus/cqlizer/feats"
 	"github.com/czcorpus/cqlizer/stats"
 	"github.com/gin-gonic/gin"
+	randomforest "github.com/malaschitz/randomForest"
 )
 
 type Actions struct {
 	StatsDB *stats.Database
+	rfModel randomforest.Forest
+}
+
+func (a *Actions) ParseQuery(ctx *gin.Context) {
+	q := ctx.Query("q")
+	parsed, err := cql.ParseCQL("#", q)
+	if err != nil {
+		uniresp.RespondWithErrorJSON(
+			ctx,
+			fmt.Errorf("failed to parse query: %w", err),
+			http.StatusUnprocessableEntity,
+		)
+		return
+	}
+	uniresp.WriteJSONResponse(ctx.Writer, parsed)
 }
 
 func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
@@ -45,9 +61,12 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 		)
 		return
 	}
-	var features feats.Record
-	features.ImportFrom(parsed, a.StatsDB.GetCorpusSize(ctx.Query("corpname")))
-	uniresp.WriteJSONResponse(ctx.Writer, parsed)
+	features := feats.NewRecord()
+	features.ImportFrom(parsed)
+
+	ans := a.rfModel.Vote(features.AsVector())
+
+	uniresp.WriteJSONResponse(ctx.Writer, map[string]float64{"no": ans[0], "yes": ans[1]})
 }
 
 type storeQueryBody struct {
@@ -70,7 +89,7 @@ func (a *Actions) StoreQuery(ctx *gin.Context) {
 		return
 	}
 	var features feats.Record
-	features.ImportFrom(parsed, a.StatsDB.GetCorpusSize(data.CorpusName))
+	features.ImportFrom(parsed)
 	newID, err := a.StatsDB.AddRecord(data.Query, data.CorpusName, features, time.Now(), data.ProcTime)
 	if err != nil {
 		uniresp.RespondWithErrorJSON(ctx, err, http.StatusInternalServerError)

@@ -1,122 +1,172 @@
 package feats
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 
 	"github.com/czcorpus/cqlizer/cql"
-	"github.com/davecgh/go-spew/spew"
+	"github.com/sjwhitworth/golearn/pca"
+	"gonum.org/v1/gonum/mat"
 )
 
-// RepOpts score: for each operation like '.*', '.+', we add 100 points and
-// for each preceding constant string (e.g. 'a.+', 'hit.*') we divide the initial score
-// by the [prefix length]. So e.g. for 'work.*' will get 100 / 4
-
 type Record struct {
-	CorpusSize                     int     `json:"corpusSize"`
-	TextLen                        int     `json:"textLen"`
-	NumPositions                   int     `json:"numAtomQueries"`
-	NumRepOpts                     int     `json:"numRepOpts"`
-	AvgConstStringSize             float64 `json:"avgConstStringSize"`
-	NumDisjunctElementsPerSequence float64 `json:"numDisjunctElementsPerSequence"`
+	matrix         *mat.Dense
+	fullWHSize     int
+	numReducedCols int
+}
 
-	// NumExpensiveRgOp (e.g. RgRange, .*, .+)
-	NumExpensiveRgOp int `json:"numExpensiveRgOp"`
+func NewRecord() Record {
+	ans := Record{}
+	ans.fullWHSize = 36
+	ans.numReducedCols = 4
 
-	NumGlobCond int `json:"numGlobCond"`
+	return ans
+}
 
-	NumContaining int `json:"numContaining"`
-
-	NumNegContaining int `json:"numNegContaining"`
-
-	NumWithin int `json:"numWithin"`
-
-	NumNegWithin int `json:"numNegWithin"`
+func (rec Record) ReduceDim(from *mat.Dense) *mat.Dense {
+	p := pca.NewPCA(4)
+	p.Fit(from)
+	return p.Transform(from)
 }
 
 func (rec Record) AsVector() []float64 {
-	return []float64{
-		float64(rec.CorpusSize),
-		float64(rec.TextLen),
-		float64(rec.NumPositions),
-		float64(rec.NumRepOpts),
-		rec.AvgConstStringSize,
-		float64(rec.NumExpensiveRgOp),
-		float64(rec.NumGlobCond),
-		float64(rec.NumContaining),
-		float64(rec.NumWithin),
+	ans := make([]float64, rec.fullWHSize*rec.numReducedCols)
+	for i := 0; i < rec.fullWHSize; i++ {
+		for j := 0; j < rec.numReducedCols; j++ {
+			ans[i*rec.numReducedCols+j] = rec.matrix.At(i, j)
+		}
+	}
+	return ans
+}
+
+// GetNodeTypeIdx
+// For each AST node type, we want to create a [node]->[parent] record
+// in our "transition heatmap matrix"
+func (rec *Record) GetNodeTypeIdx(v any) int {
+	switch v.(type) {
+	case *cql.Sequence:
+		return 0
+	case *cql.Seq:
+		return 1
+	case *cql.GlobPart:
+		return 2
+	case *cql.WithinOrContaining:
+		return 3
+	case *cql.WithinContainingPart:
+		return 4
+	case *cql.GlobCond:
+		return 5
+	case *cql.Structure:
+		return 6
+	case *cql.AttValList:
+		return 7
+	case *cql.NumberedPosition:
+		return 8
+	case *cql.OnePosition:
+		return 9
+	case *cql.Position:
+		return 10
+	case *cql.RegExp:
+		return 11
+	case *cql.MuPart:
+		return 12
+	case *cql.Repetition:
+		return 13
+	case *cql.AtomQuery:
+		return 14
+	case *cql.RepOpt:
+		return 15
+	case *cql.OpenStructTag:
+		return 16
+	case *cql.CloseStructTag:
+		return 17
+	case *cql.AlignedPart:
+		return 18
+	case *cql.AttValAnd:
+		return 19
+	case *cql.AttVal:
+		return 20
+	case *cql.WithinNumber:
+		return 21
+	case *cql.RegExpRaw:
+		return 22
+	case *cql.RawString:
+		return 23
+	case *cql.SimpleString:
+		return 24
+	case *cql.RgGrouped:
+		return 25
+	case *cql.RgSimple:
+		return 26
+	case *cql.RgPosixClass:
+		return 27
+	case *cql.RgLook:
+		return 28
+	case *cql.RgAlt:
+		return 29
+	case *cql.RgRange:
+		return 30
+	case *cql.RgRangeSpec:
+		return 31
+	case *cql.AnyLetter:
+		return 32
+	case *cql.RgOp:
+		return 33
+	case *cql.RgAltVal:
+		return 34
+	case *cql.MeetOp:
+		return 35
+	default:
+		panic(fmt.Sprintf("unsupported node type: %s", reflect.TypeOf(v)))
 	}
 }
 
-func (rec *Record) ImportFrom(query *cql.Query, corpusSize int) {
-	rec.CorpusSize = corpusSize
-	rec.TextLen = query.Len()
-	var rootSequence *cql.Sequence
-	var rootSeq *cql.Seq
-	var numOrChainedSeq int
+func (rec *Record) ImportFrom(query *cql.Query) {
+	largeMatrix := mat.NewDense(rec.fullWHSize, rec.fullWHSize, nil)
 	query.ForEachElement(func(parent, v cql.ASTNode) {
+		switch parent.(type) {
+		case *cql.Query, *cql.RgChar:
+			return
+		}
 		switch tNode := v.(type) {
-		case *cql.Query:
-			if tNode.GlobPart != nil {
-				fmt.Println("########## WE HAVE GLOB")
+		case cql.ASTString:
+			// NOP (mostly attribute names)
+		case *cql.Query, *cql.RgChar:
+			// NOP (the matrix itself)
+		case *cql.RegExpRaw:
+			i1 := rec.GetNodeTypeIdx(tNode)
+			i2 := rec.GetNodeTypeIdx(parent)
+			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+tNode.ExhaustionScore())
+		case *cql.AttVal:
+			i1 := rec.GetNodeTypeIdx(tNode)
+			i2 := rec.GetNodeTypeIdx(parent)
+			v := 1.0
+			if tNode.IsProblematicAttrSearch() {
+				v = 20.0
 			}
-		case *cql.Sequence:
-			fmt.Println("##### <Sequence>: ", tNode.Text())
-			if parent == query {
-				fmt.Println("   @@@@@@@@ we have a root ...")
-				rootSequence = tNode
-			}
-			fmt.Println("   his parent: ", reflect.TypeOf(parent), parent.Text())
-		case *cql.Seq:
-			fmt.Println("##### <Seq>: ", tNode.Text())
-			if parent == rootSequence {
-				rootSeq = tNode
-			}
-			fmt.Println("   or chained? ", tNode.IsOrChained())
-			if tNode.IsOrChained() {
-				numOrChainedSeq++
-			}
-			fmt.Println("   his parent: ", reflect.TypeOf(parent), parent.Text())
-		case *cql.AtomQuery:
-			fmt.Println("##### <AtomQuery>: ", tNode.Text())
-			fmt.Println("   his parent: ", reflect.TypeOf(parent), parent.Text())
-			rec.NumWithin += tNode.NumWithinParts()
-			rec.NumNegWithin += tNode.NumNegWithinParts()
-			rec.NumContaining += tNode.NumContainingParts()
-			rec.NumNegContaining += tNode.NumNegContainingParts()
+			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+v)
 		case *cql.Repetition:
-			fmt.Println("### <Repetition>: ", tNode.Text())
-			if parent == rootSeq {
-				fmt.Println("   we have a POSITION Repetition!!!")
-				rec.NumPositions++
+			i1 := rec.GetNodeTypeIdx(tNode)
+			i2 := rec.GetNodeTypeIdx(parent)
+			v := 1.0
+			if tNode.IsAnyPosition() {
+				v = 100.0
 			}
-			fmt.Println("   RepOpt: ", tNode.GetRepOpt())
-			fmt.Println("   tail position? ", tNode.IsTailPosition())
-			fmt.Println("   his parent: ", reflect.TypeOf(parent), parent.Text())
-			if tNode.GetRepOpt() != "" {
-				rec.NumRepOpts++
-			}
-		case *cql.RgSimple:
+			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+v)
+		case *cql.Structure:
+			i1 := rec.GetNodeTypeIdx(tNode)
+			i2 := rec.GetNodeTypeIdx(parent)
+			if tNode.IsBigStructure() {
+				largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+10)
 
-		case *cql.GlobCond:
-			rec.NumGlobCond++
-		case *cql.WithinOrContaining:
-			rec.NumWithin += tNode.NumWithinParts()
-			rec.NumNegWithin += tNode.NumNegWithinParts()
-			rec.NumContaining += tNode.NumContainingParts()
-			rec.NumNegContaining += tNode.NumNegContainingParts()
+			} else {
+				largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+1)
+			}
+		default:
+			i1 := rec.GetNodeTypeIdx(tNode)
+			i2 := rec.GetNodeTypeIdx(parent)
+			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+1)
 		}
 	})
-	rec.NumDisjunctElementsPerSequence = (float64(rec.NumPositions) + float64(numOrChainedSeq)) / float64(rec.NumPositions)
-	spew.Dump(rec)
-
-}
-
-func (rec Record) AsJSONString() string {
-	ans, err := json.Marshal(rec)
-	if err != nil {
-		panic(fmt.Sprintf("failed to serialize feats.Record: %s", err))
-	}
-	return string(ans)
+	rec.matrix = rec.ReduceDim(largeMatrix)
 }

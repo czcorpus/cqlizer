@@ -12,13 +12,24 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type DBRecord struct {
+	ID           string
+	Datetime     int
+	Query        string
+	Corpname     string
+	ProcTime     float64
+	PTPercentile int
+	BenchTime    float64
+	FeatsJSON    string
+}
+
 type Database struct {
 	db         *sql.DB
 	tx         *sql.Tx
 	sizesCache map[string]int
 }
 
-func (database *Database) CreateQueryStatsTable() error {
+func (database *Database) createQueryStatsTable() error {
 	_, err := database.db.Exec(
 		"CREATE TABLE query_stats (" +
 			"id TEXT PRIMARY KEY NOT NULL, " +
@@ -26,6 +37,8 @@ func (database *Database) CreateQueryStatsTable() error {
 			"query TEXT NOT NULL, " +
 			"corpname TEXT NOT NULL, " +
 			"procTime FLOAT NOT NULL," +
+			"ptPercentile INTEGER, " +
+			"benchTime FLOAT, " +
 			"featsJSON TEXT" +
 			")",
 	)
@@ -36,7 +49,7 @@ func (database *Database) CreateQueryStatsTable() error {
 	return nil
 }
 
-func (database *Database) CreateCorpusSizeTable() error {
+func (database *Database) createCorpusSizeTable() error {
 	_, err := database.db.Exec(
 		"CREATE TABLE corpus_size (" +
 			"id TEXT PRIMARY KEY NOT NULL, " +
@@ -51,34 +64,196 @@ func (database *Database) CreateCorpusSizeTable() error {
 	return nil
 }
 
-func (database *Database) Init() error {
+func (database *Database) AddBenchmarkResult(id string, dur time.Duration) error {
+	tx, err := database.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to add benchmark result: %w", err)
+	}
+	_, err = tx.Exec(
+		"UPDATE query_stats SET benchTime = ? WHERE id = ?",
+		dur.Seconds(),
+		id,
+	)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to add benchmark result: %w", err)
+	}
+	err = tx.Commit()
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to add benchmark result: %w", err)
+	}
+	return nil
+}
+
+func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
+	query := "SELECT id, datetime, query, corpname, procTime, ptPercentile, benchTime, featsJSON " +
+		"FROM query_stats " +
+		"ORDER BY benchTime"
+	rows, err := database.db.Query(query)
+	if err != nil {
+		return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+	}
+	ans := make([]DBRecord, 0, 500)
+	for rows.Next() {
+		var rec DBRecord
+		var pTPercentile sql.NullInt64
+		var benchTime sql.NullFloat64
+		var featsJSON sql.NullString
+		err := rows.Scan(
+			&rec.ID,
+			&rec.Datetime,
+			&rec.Query,
+			&rec.Corpname,
+			&rec.ProcTime,
+			&pTPercentile,
+			&benchTime,
+			&featsJSON,
+		)
+		if err != nil {
+			return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+		}
+		if pTPercentile.Valid {
+			rec.PTPercentile = int(pTPercentile.Int64)
+		}
+		if benchTime.Valid {
+			rec.BenchTime = benchTime.Float64
+		}
+		if featsJSON.Valid {
+			rec.FeatsJSON = featsJSON.String
+		}
+		ans = append(ans, rec)
+	}
+	return ans, nil
+}
+
+func (database *Database) GetAllRecords(onlyWithoutBenchmark bool) ([]DBRecord, error) {
+	qTpl := "SELECT id, datetime, query, corpname, procTime, ptPercentile, benchTime, featsJSON " +
+		"FROM query_stats %s ORDER BY benchTime"
+	var query string
+	if onlyWithoutBenchmark {
+		query = fmt.Sprintf(qTpl, "WHERE benchTime IS NULL")
+
+	} else {
+		query = fmt.Sprintf(qTpl, "")
+	}
+	rows, err := database.db.Query(query)
+	if err != nil {
+		return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+	}
+	ans := make([]DBRecord, 0, 500)
+	for rows.Next() {
+		var rec DBRecord
+		var pTPercentile sql.NullInt64
+		var benchTime sql.NullFloat64
+		var featsJSON sql.NullString
+		err := rows.Scan(
+			&rec.ID,
+			&rec.Datetime,
+			&rec.Query,
+			&rec.Corpname,
+			&rec.ProcTime,
+			&pTPercentile,
+			&benchTime,
+			&featsJSON,
+		)
+		if err != nil {
+			return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+		}
+		if pTPercentile.Valid {
+			rec.PTPercentile = int(pTPercentile.Int64)
+		}
+		if benchTime.Valid {
+			rec.BenchTime = benchTime.Float64
+		}
+		if featsJSON.Valid {
+			rec.FeatsJSON = featsJSON.String
+		}
+		ans = append(ans, rec)
+	}
+	return ans, nil
+}
+
+func (database *Database) tableExists(tn string) (bool, error) {
 	ans := database.db.QueryRow(
-		"SELECT name FROM sqlite_master WHERE type='table' AND name='query_stats'")
+		fmt.Sprintf("SELECT name FROM sqlite_master WHERE type='table' AND name='%s'", tn))
 	var nm sql.NullString
 	err := ans.Scan(&nm)
 	if err == sql.ErrNoRows {
-		if err := database.CreateQueryStatsTable(); err != nil {
-			return fmt.Errorf("failed to create table `query_stats`: %w", err)
+		return false, nil
+
+	} else if err != nil {
+		return false, fmt.Errorf("failed to determine existence of table %s: %w", tn, err)
+	}
+	return true, nil
+}
+
+func (database *Database) Init() error {
+	ex, err := database.tableExists("query_stats")
+	if err != nil {
+		return fmt.Errorf("failed to init table query_stats: %w", err)
+	}
+	if ex {
+		log.Info().Str("table", "query_stats").Msg("table already exists")
+
+	} else {
+		if err := database.createQueryStatsTable(); err != nil {
+			return fmt.Errorf("failed to create table query_stats: %w", err)
 		}
-
-	} else if err != nil {
-		return fmt.Errorf("failed to determine existence of `query_stats`: %w", err)
-	}
-	log.Info().Msg("table `query_stats` already exists")
-
-	ans = database.db.QueryRow(
-		"SELECT name FROM sqlite_master WHERE type='table' AND name='corpus_size'")
-	err = ans.Scan(&nm)
-	if err == sql.ErrNoRows {
-		return database.CreateCorpusSizeTable()
-
-	} else if err != nil {
-		return fmt.Errorf("failed to determine existence of `corpus_size`: %w", err)
 	}
 
-	log.Info().Msg("table `corpus_size` already exists")
+	ex, err = database.tableExists("corpus_size")
+	if err != nil {
+		return fmt.Errorf("failed to init table corpus_size: %w", err)
+	}
+	if ex {
+		log.Info().Str("table", "corpus_size").Msg("table already exists")
+
+	} else {
+		if err := database.createCorpusSizeTable(); err != nil {
+			return fmt.Errorf("failed to create table corpus_size: %w", err)
+		}
+	}
+
+	ex, err = database.tableExists("training")
+	if err != nil {
+		return fmt.Errorf("failed to init table training: %w", err)
+	}
+	if ex {
+		log.Info().Str("table", "training").Msg("table already exists")
+
+	} else {
+		if err := database.createTrainingTable(); err != nil {
+			return fmt.Errorf("failed to create table training: %w", err)
+		}
+	}
+
+	ex, err = database.tableExists("training_query_stats")
+	if err != nil {
+		return fmt.Errorf("failed to init table training_query_stats: %w", err)
+	}
+	if ex {
+		log.Info().Str("table", "training_query_stats").Msg("table already exists")
+
+	} else {
+		if err := database.createTrainingQSTable(); err != nil {
+			return fmt.Errorf("failed to create table training_query_stats: %w", err)
+		}
+	}
 
 	return nil
+}
+
+func (database *Database) GetQueryAvgBenchTime(q string) (float64, error) {
+	rows := database.db.QueryRow("SELECT AVG(benchTime) FROM query_stats WHERE query = ?", q)
+	var ans sql.NullFloat64
+	if err := rows.Scan(&ans); err != nil {
+		return -1, err
+	}
+	if ans.Valid {
+		return ans.Float64, nil
+	}
+	return -1, nil
 }
 
 func (database *Database) GetCorpusSize(corpname string) int {
@@ -135,13 +310,10 @@ func (database *Database) RollbackTx() error {
 }
 
 func (database *Database) AddRecord(query, corpname string, rec feats.Record, dt time.Time, procTime float64) (int64, error) {
-	if rec.CorpusSize == 0 {
-		rec.CorpusSize = database.GetCorpusSize(corpname)
-	}
 	ans, err := database.db.Exec(
-		"INSERT OR REPLACE INTO query_stats (id, datetime, query, corpname, procTime, featsJSON) "+
+		"INSERT OR REPLACE INTO query_stats (id, datetime, query, corpname, procTime) "+
 			"VALUES (?, ?, ?, ?, ?, ?)",
-		IdempotentID(dt, query), dt.Unix(), query, corpname, procTime, rec.AsJSONString())
+		IdempotentID(dt, query), dt.Unix(), query, corpname, procTime)
 	if err != nil {
 		return -1, fmt.Errorf("failed to add record: %w", err)
 	}
