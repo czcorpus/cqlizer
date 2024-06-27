@@ -98,7 +98,11 @@ func (rec *Record) ImportFrom(query *cql.Query, corpusSize int) {
 				rec.NumRepOpts++
 			}
 		case *cql.RgSimple:
-
+			for _, eop := range tNode.ExpensiveOps() {
+				if eop == ".+" || eop == ".*" {
+					rec.NumExpensiveRgOp++
+				}
+			}
 		case *cql.GlobCond:
 			rec.NumGlobCond++
 		case *cql.WithinOrContaining:

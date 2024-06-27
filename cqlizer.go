@@ -147,6 +147,21 @@ func runSizesImport(conf *cnf.Conf, path string) {
 	}
 }
 
+func runRecalcPercentiles(conf *cnf.Conf) {
+	db, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+	}
+	err = db.Init()
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+	}
+	err = db.RecalculatePercentiles()
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+	}
+}
+
 func runApiServer(
 	conf *cnf.Conf,
 	syscallChan chan os.Signal,
@@ -254,6 +269,8 @@ func main() {
 		runKontextImport(conf, flag.Arg(2))
 	case "corpsizes":
 		runSizesImport(conf, flag.Arg(2))
+	case "percentiles":
+		runRecalcPercentiles(conf)
 	default:
 		log.Fatal().Msgf("Unknown action %s", action)
 	}

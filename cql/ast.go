@@ -1124,9 +1124,13 @@ func (r *RgSimple) Text() string {
 	return "#RgSimple"
 }
 
+// ExpensiveOps
+// TODO consider whether the .* etc are at the beginning or end
+// as it matters in index search
 func (r *RgSimple) ExpensiveOps() []string {
 	var state int
 	ans := make([]string, 0, 10)
+	fmt.Println("============== ANALYZING EXPENSIVE VALUES: ", r.Values)
 	for _, val := range r.Values {
 		switch tVal := val.(type) {
 		case *RgChar:

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"database/sql"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -26,6 +27,7 @@ func (database *Database) CreateQueryStatsTable() error {
 			"query TEXT NOT NULL, " +
 			"corpname TEXT NOT NULL, " +
 			"procTime FLOAT NOT NULL," +
+			"ptPercentile INTEGER, " +
 			"featsJSON TEXT" +
 			")",
 	)
@@ -150,6 +152,39 @@ func (database *Database) AddRecord(query, corpname string, rec feats.Record, dt
 		return -1, fmt.Errorf("failed to add record: %w", err)
 	}
 	return lastID, err
+}
+
+func (database *Database) RecalculatePercentiles() error {
+	tx, err := database.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to recalculate percentiles: %w", err)
+	}
+
+	row := tx.QueryRow("SELECT COUNT(*) FROM query_stats")
+	var total int
+	err = row.Scan(&total)
+	if err != nil {
+		return fmt.Errorf("failed to recalculate percentiles: %w", err)
+	}
+
+	rows, err := tx.Query("SELECT id FROM query_stats ORDER BY procTime DESC")
+	if err != nil {
+		return fmt.Errorf("failed to recalculate percentiles: %w", err)
+	}
+	var i int
+	for rows.Next() {
+		var id string
+		err := rows.Scan(&id)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to recalculate percentiles: %w", err)
+		}
+		perc := int(math.RoundToEven(float64(i) / float64(total) * 100))
+		fmt.Println(">>> ABOUTTO UPD ", id, perc)
+		tx.Exec("UPDATE query_stats SET ptPercentile = ? WHERE id = ?", perc, id)
+		i++
+	}
+	return tx.Commit()
 }
 
 func (database *Database) ImportCorpusSizesFromCSV(path string) error {
