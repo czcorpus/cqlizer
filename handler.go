@@ -21,6 +21,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/czcorpus/cnc-gokit/uniresp"
 	"github.com/czcorpus/cqlizer/cql"
@@ -45,13 +46,13 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 		return
 	}
 	var features feats.Record
-	features.ImportFrom(parsed, 10000000) // TODO
+	features.ImportFrom(parsed, a.StatsDB.GetCorpusSize(ctx.Query("corpname")))
 	uniresp.WriteJSONResponse(ctx.Writer, parsed)
 }
 
 type storeQueryBody struct {
 	Query      string  `json:"query"`
-	CorpusSize int     `json:"corpusSize"`
+	CorpusName string  `json:"corpname"`
 	ProcTime   float64 `json:"procTime"`
 }
 
@@ -69,8 +70,8 @@ func (a *Actions) StoreQuery(ctx *gin.Context) {
 		return
 	}
 	var features feats.Record
-	features.ImportFrom(parsed, data.CorpusSize)
-	newID, err := a.StatsDB.AddRecord(data.Query, features, data.ProcTime)
+	features.ImportFrom(parsed, a.StatsDB.GetCorpusSize(data.CorpusName))
+	newID, err := a.StatsDB.AddRecord(data.Query, data.CorpusName, features, time.Now(), data.ProcTime)
 	if err != nil {
 		uniresp.RespondWithErrorJSON(ctx, err, http.StatusInternalServerError)
 		return

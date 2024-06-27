@@ -32,6 +32,7 @@ type Conf struct {
 	LogFile                string           `json:"logFile"`
 	LogLevel               logging.LogLevel `json:"logLevel"`
 	WorkingDBPath          string           `json:"workingDbPath"`
+	CorporaSizes           map[string]int   `json:"corporaSizes"`
 }
 
 func LoadConfig(path string) *Conf {

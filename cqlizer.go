@@ -36,6 +36,7 @@ import (
 	"github.com/czcorpus/cnc-gokit/logging"
 	"github.com/czcorpus/cnc-gokit/uniresp"
 	"github.com/czcorpus/cqlizer/cnf"
+	"github.com/czcorpus/cqlizer/logproc"
 	"github.com/czcorpus/cqlizer/stats"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -121,6 +122,28 @@ func AuthRequired(conf *cnf.Conf) gin.HandlerFunc {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		}
 		ctx.Next()
+	}
+}
+
+func runKontextImport(conf *cnf.Conf, path string) {
+	err := logproc.ImportLog(conf, path)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+	}
+}
+
+func runSizesImport(conf *cnf.Conf, path string) {
+	db, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+	}
+	err = db.Init()
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+	}
+	err = db.ImportCorpusSizesFromCSV(path)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
 	}
 }
 
@@ -227,6 +250,10 @@ func main() {
 	switch action {
 	case "start":
 		runApiServer(conf, syscallChan, exitEvent)
+	case "import":
+		runKontextImport(conf, flag.Arg(2))
+	case "corpsizes":
+		runSizesImport(conf, flag.Arg(2))
 	default:
 		log.Fatal().Msgf("Unknown action %s", action)
 	}
