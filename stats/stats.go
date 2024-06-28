@@ -13,6 +13,17 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type DBRecord struct {
+	ID           string
+	Datetime     int
+	Query        string
+	Corpname     string
+	ProcTime     float64
+	PTPercentile int
+	BenchTime    float64
+	FeatsJSON    string
+}
+
 type Database struct {
 	db         *sql.DB
 	tx         *sql.Tx
@@ -28,6 +39,7 @@ func (database *Database) CreateQueryStatsTable() error {
 			"corpname TEXT NOT NULL, " +
 			"procTime FLOAT NOT NULL," +
 			"ptPercentile INTEGER, " +
+			"benchTime FLOAT, " +
 			"featsJSON TEXT" +
 			")",
 	)
@@ -51,6 +63,75 @@ func (database *Database) CreateCorpusSizeTable() error {
 
 	log.Info().Msg("created table `corpus_size`")
 	return nil
+}
+
+func (database *Database) AddBenchmarkResult(id string, dur time.Duration) error {
+	tx, err := database.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to add benchmark result: %w", err)
+	}
+	_, err = tx.Exec(
+		"UPDATE query_stats SET benchTime = ? WHERE id = ?",
+		dur.Seconds(),
+		id,
+	)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to add benchmark result: %w", err)
+	}
+	err = tx.Commit()
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to add benchmark result: %w", err)
+	}
+	return nil
+}
+
+func (database *Database) GetAllRecords(onlyWithoutBenchmark bool) ([]DBRecord, error) {
+	qTpl := "SELECT id, datetime, query, corpname, procTime, ptPercentile, benchTime, featsJSON " +
+		"FROM query_stats %s ORDER BY datetime"
+	var query string
+	if onlyWithoutBenchmark {
+		query = fmt.Sprintf(qTpl, "WHERE benchTime IS NULL")
+
+	} else {
+		query = fmt.Sprintf(qTpl, "")
+	}
+	rows, err := database.db.Query(query)
+	if err != nil {
+		return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+	}
+	ans := make([]DBRecord, 0, 500)
+	for rows.Next() {
+		var rec DBRecord
+		var pTPercentile sql.NullInt64
+		var benchTime sql.NullFloat64
+		var featsJSON sql.NullString
+		err := rows.Scan(
+			&rec.ID,
+			&rec.Datetime,
+			&rec.Query,
+			&rec.Corpname,
+			&rec.ProcTime,
+			&pTPercentile,
+			&benchTime,
+			&featsJSON,
+		)
+		if err != nil {
+			return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+		}
+		if pTPercentile.Valid {
+			rec.PTPercentile = int(pTPercentile.Int64)
+		}
+		if benchTime.Valid {
+			rec.BenchTime = benchTime.Float64
+		}
+		if featsJSON.Valid {
+			rec.FeatsJSON = featsJSON.String
+		}
+		ans = append(ans, rec)
+	}
+	return ans, nil
 }
 
 func (database *Database) Init() error {

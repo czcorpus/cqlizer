@@ -20,6 +20,7 @@ type Record struct {
 	NumRepOpts                     int     `json:"numRepOpts"`
 	AvgConstStringSize             float64 `json:"avgConstStringSize"`
 	NumDisjunctElementsPerSequence float64 `json:"numDisjunctElementsPerSequence"`
+	NumDisjunctPerRawRegexp        float64 `json:"numDisjunctPerRawRegexp"`
 
 	// NumExpensiveRgOp (e.g. RgRange, .*, .+)
 	NumExpensiveRgOp int `json:"numExpensiveRgOp"`
@@ -55,6 +56,9 @@ func (rec *Record) ImportFrom(query *cql.Query, corpusSize int) {
 	var rootSequence *cql.Sequence
 	var rootSeq *cql.Seq
 	var numOrChainedSeq int
+	var currRegexp *cql.RegExp
+	var numRegexpRaw int
+	var numRegexpRawExpOps int
 	query.ForEachElement(func(parent, v cql.ASTNode) {
 		switch tNode := v.(type) {
 		case *cql.Query:
@@ -110,8 +114,21 @@ func (rec *Record) ImportFrom(query *cql.Query, corpusSize int) {
 			rec.NumNegWithin += tNode.NumNegWithinParts()
 			rec.NumContaining += tNode.NumContainingParts()
 			rec.NumNegContaining += tNode.NumNegContainingParts()
+
+		case *cql.RegExp:
+			currRegexp = tNode
+
+		case *cql.RegExpRaw:
+			if parent == currRegexp {
+				numRegexpRaw++
+				fmt.Println("======= <RegExpRaw>: ", tNode.Text())
+				fmt.Println("   his parent: ", reflect.TypeOf(parent), parent.Text())
+				fmt.Println("   EXPENSIVE ops: ", tNode.ExpensiveOps())
+				numRegexpRawExpOps += len(tNode.ExpensiveOps())
+			}
 		}
 	})
+	rec.NumDisjunctPerRawRegexp = float64(numRegexpRawExpOps) / float64(numRegexpRaw)
 	rec.NumDisjunctElementsPerSequence = (float64(rec.NumPositions) + float64(numOrChainedSeq)) / float64(rec.NumPositions)
 	spew.Dump(rec)
 

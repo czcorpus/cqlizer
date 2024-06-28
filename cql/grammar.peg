@@ -618,6 +618,7 @@ RegExpRaw <-
         fmt.Println("######################## RegExpRaw[0]: ", string(c.text))
         vSlice := anyToSlice(v)
         ans := &RegExpRaw{
+            origValue: string(c.text),
             Values: make([]any, 0, len(vSlice)),
         }
         for _, item := range vSlice {

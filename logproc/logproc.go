@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	qTypeSimple   queryType = "simple"
-	qTypeAdvanced queryType = "advanced"
+	qTypeSimple        queryType = "simple"
+	qTypeAdvanced      queryType = "advanced"
+	scanBufferCapacity           = 1024 * 1024 // some of our qeries can be quite long
 )
 
 func convertDatetimeStringWithMillisNoTZ(datetime string) time.Time {
@@ -58,9 +59,16 @@ func (iargs inputArgs) hasAvancedQuery() bool {
 	return len(iargs.Queries) > 0 && iargs.Queries[0].QType == qTypeAdvanced
 }
 
+func (iargs inputArgs) hasSimpleRegexpQuery() bool {
+	return len(iargs.Corpora) > 0 && iargs.Queries[0].QType == qTypeSimple && iargs.UseRegexp
+}
+
 func (iargs inputArgs) getFirstQuery() string {
 	if len(iargs.Queries) > 0 {
-		return iargs.Queries[0].Q
+		if iargs.Queries[0].QType == qTypeAdvanced {
+			return iargs.Queries[0].Q
+		}
+		return fmt.Sprintf("\"%s\"", iargs.Queries[0].Q)
 	}
 	return ""
 }
@@ -80,25 +88,46 @@ func (rec inputRecord) GetTime() time.Time {
 	return convertDatetimeStringWithMillis(rec.Date)
 }
 
+// --------
+
+type ConcurrentErr struct {
+	lock  sync.Mutex
+	items []error
+}
+
+func (cerr *ConcurrentErr) Add(err error) {
+	cerr.lock.Lock()
+	cerr.items = append(cerr.items, err)
+	cerr.lock.Unlock()
+}
+
+func (cerr *ConcurrentErr) LastErr() error {
+	if len(cerr.items) > 0 {
+		return cerr.items[0]
+	}
+	return nil
+}
+
+// --------
+
 func ImportLog(conf *cnf.Conf, path string) error {
 	data := make(chan inputRecord, 100)
-	var retErr error
-	var fr *os.File
-	fr, retErr = os.Open(path)
-	if retErr != nil {
-		return fmt.Errorf("failed to import file: %w", retErr)
+	retErr := new(ConcurrentErr)
+	fr, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("failed to import file: %w", err)
 	}
-	statsDb, retErr := stats.NewDatabase(conf.WorkingDBPath)
-	if retErr != nil {
-		return fmt.Errorf("failed to import file: %w", retErr)
+	statsDb, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		return fmt.Errorf("failed to import file: %w", err)
 	}
-	retErr = statsDb.Init()
-	if retErr != nil {
-		return fmt.Errorf("failed to import file: %w", retErr)
+	err = statsDb.Init()
+	if err != nil {
+		return fmt.Errorf("failed to import file: %w", err)
 	}
-	retErr = statsDb.StartTx()
-	if retErr != nil {
-		return fmt.Errorf("failed to import file: %w", retErr)
+	err = statsDb.StartTx()
+	if err != nil {
+		return fmt.Errorf("failed to import file: %w", err)
 	}
 	defer fr.Close()
 	var wg sync.WaitGroup
@@ -106,12 +135,16 @@ func ImportLog(conf *cnf.Conf, path string) error {
 	// producer
 	go func() {
 		scn := bufio.NewScanner(fr)
+		buf := make([]byte, scanBufferCapacity)
+		scn.Buffer(buf, scanBufferCapacity)
+		var i int
 		for scn.Scan() {
 			var rec inputRecord
 			if err := json.Unmarshal(scn.Bytes(), &rec); err != nil {
-				retErr = fmt.Errorf("failed to decode log record: %w", err)
+				retErr.Add(fmt.Errorf("line %d: failed to decode log record: %w", i+1, err))
 				break
 			}
+			i++
 			data <- rec
 		}
 		close(data)
@@ -121,12 +154,13 @@ func ImportLog(conf *cnf.Conf, path string) error {
 	// consumer
 	go func() {
 		for rec := range data {
-			if rec.Action == "/query_submit" && rec.Logger == "QUERY" && rec.Args.hasAvancedQuery() {
-				fmt.Println("HIT: ", rec)
+			if rec.Action == "/query_submit" && rec.Logger == "QUERY" &&
+				(rec.Args.hasAvancedQuery() || rec.Args.hasSimpleRegexpQuery()) {
 				p, err := cql.ParseCQL("query@"+rec.Date, rec.Args.getFirstQuery())
 				if err != nil {
 					fmt.Printf("failed to parse %s with error: %s", rec.Args.getFirstQuery(), err)
 					fmt.Println("   ... skipping")
+					continue
 				}
 				var fts feats.Record
 				fts.ImportFrom(p, 0) // 0 => actual value is added on the next line
@@ -137,5 +171,8 @@ func ImportLog(conf *cnf.Conf, path string) error {
 	}()
 
 	wg.Wait()
+	if retErr.LastErr() != nil {
+		return retErr.LastErr()
+	}
 	return statsDb.CommitTx()
 }

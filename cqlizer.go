@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -35,8 +36,10 @@ import (
 	"github.com/czcorpus/cnc-gokit/collections"
 	"github.com/czcorpus/cnc-gokit/logging"
 	"github.com/czcorpus/cnc-gokit/uniresp"
+	"github.com/czcorpus/cqlizer/benchmark"
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/logproc"
+	"github.com/czcorpus/cqlizer/prediction"
 	"github.com/czcorpus/cqlizer/stats"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -151,14 +154,59 @@ func runRecalcPercentiles(conf *cnf.Conf) {
 	db, err := stats.NewDatabase(conf.WorkingDBPath)
 	if err != nil {
 		fmt.Println("FAILED: ", err)
+		os.Exit(1)
 	}
 	err = db.Init()
 	if err != nil {
 		fmt.Println("FAILED: ", err)
+		os.Exit(1)
 	}
 	err = db.RecalculatePercentiles()
 	if err != nil {
 		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+}
+
+func runBenchmark(conf *cnf.Conf, overwriteBenchmarked bool) {
+	db, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+	err = db.Init()
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+
+	exe := benchmark.NewExecutor(
+		conf,
+		db,
+	)
+	err = exe.RullFull(overwriteBenchmarked)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+}
+
+func runPredictionTest(conf *cnf.Conf, threshold float64) {
+	db, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+	err = db.Init()
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+	eng := prediction.NewEngine(conf, db)
+	err = eng.Test(threshold)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
 	}
 }
 
@@ -234,10 +282,11 @@ func main() {
 		BuildDate: cleanVersionInfo(buildDate),
 		GitCommit: cleanVersionInfo(gitCommit),
 	}
-
+	overwriteAll := flag.Bool("overwrite-all", false, "If set, then all the queries will be benchmarked even if they already have a result attached")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "CQLIZER - A CQL toolbox\n\n")
 		fmt.Fprintf(os.Stderr, "Usage:\n\t%s [options] start [config.json]\n\t", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "\n\t%s [options] import [config.json] [source file]\n\t", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "%s [options] version\n", filepath.Base(os.Args[0]))
 		flag.PrintDefaults()
 	}
@@ -271,6 +320,15 @@ func main() {
 		runSizesImport(conf, flag.Arg(2))
 	case "percentiles":
 		runRecalcPercentiles(conf)
+	case "benchmark":
+		runBenchmark(conf, *overwriteAll)
+	case "prediction-test":
+		thr, err := strconv.ParseFloat(flag.Arg(2), 64)
+		if err != nil {
+			fmt.Println("FAILED: ", err)
+			os.Exit(1)
+		}
+		runPredictionTest(conf, thr)
 	default:
 		log.Fatal().Msgf("Unknown action %s", action)
 	}

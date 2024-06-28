@@ -427,7 +427,7 @@ func (op *OnePosition) MarshalJSON() ([]byte, error) {
 
 func (op *OnePosition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, op)
-	if op.variant1 != nil {
+	if op.variant1 != nil && op.variant1.AttValList != nil {
 		op.variant1.AttValList.ForEachElement(op, fn)
 
 	} else if op.variant2 != nil {
@@ -1002,13 +1002,26 @@ func (w *WithinNumber) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)
 // ----------------------------------------------------------
 
 type RegExpRaw struct {
-
+	origValue string
 	// RgLook / RgGrouped / RgSimple
 	Values []any
 }
 
 func (r *RegExpRaw) Text() string {
-	return "#RegExpRaw"
+	return r.origValue
+}
+
+func (r *RegExpRaw) ExpensiveOps() []string {
+	var ans []string
+	for _, v := range r.Values {
+		switch tValue := v.(type) {
+		case *RgGrouped:
+			ans = append(ans, tValue.Value.ExpensiveOps()...)
+		case *RgSimple:
+			ans = append(ans, tValue.ExpensiveOps()...)
+		}
+	}
+	return ans
 }
 
 func (r *RegExpRaw) MarshalJSON() ([]byte, error) {
@@ -1146,6 +1159,21 @@ func (r *RgSimple) ExpensiveOps() []string {
 				} else if tVal.variant2.Value.Value == "+" || tVal.variant2.Value.Value == "*" {
 					if state == 1 {
 						ans = append(ans, fmt.Sprintf(".%s", tVal.variant2.Value.Value))
+						state = 2
+					}
+
+				} else if tVal.variant2.Value.Value == "|" {
+					if state == 0 {
+						ans = append(ans, "|")
+
+					} else if state == 1 {
+						ans = append(ans, ".")
+						ans = append(ans, "|")
+						state = 0
+
+					} else if state == 2 {
+						ans = append(ans, "|")
+						state = 0
 					}
 				}
 			}
