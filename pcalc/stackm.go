@@ -22,6 +22,14 @@ func (op Constant) String() string {
 
 // -----------------------------
 
+type Ceil1 struct{}
+
+func (op Ceil1) String() string {
+	return "Ceil1"
+}
+
+// -----------------------------
+
 type Add struct{}
 
 func (op Add) String() string {
@@ -124,6 +132,12 @@ func (sm *StackMachine) NextStep() error {
 			return err
 		}
 		sm.evalPush(Constant{Value: op1.Value * op2.Value})
+	case Ceil1:
+		op1, err := sm.evalPop()
+		if err != nil {
+			return err
+		}
+		sm.evalPush(Constant{Value: min(1.0, op1.Value)})
 	case NegProb:
 		op1, err := sm.evalPop()
 		if err != nil {

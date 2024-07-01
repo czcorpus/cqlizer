@@ -50,6 +50,7 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 		features.ImportFrom(parsed, a.StatsDB.GetCorpusSize(ctx.Query("corpname")))
 		spew.Dump(features)
 	*/
+
 	sm := feats.Evaluate(parsed)
 	sm.PrintProgram()
 	err = sm.Run()

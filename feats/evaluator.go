@@ -5,7 +5,7 @@ import (
 	"github.com/czcorpus/cqlizer/pcalc"
 )
 
-var chunkProbs = []float64{1, 0.2, 0.1, 0.07, 0.1, 0.1, 0.1, 0.1, 0.07, 0.04, 0.01, 0.01, 0.005}
+var chunkProbs = []float64{1, 0.02, 0.01, 0.007, 0.01, 0.01, 0.01, 0.01, 0.007, 0.004, 0.001, 0.001, 0.0005}
 
 func calcExpandVariantsProb(origLen int) float64 {
 	if origLen >= len(chunkProbs) {
@@ -64,6 +64,9 @@ func Evaluate(query *cql.Query) *pcalc.StackMachine {
 		case *cql.WithinOrContaining:
 		case *cql.WithinContainingPart:
 		case *cql.GlobCond:
+			sm.Push(pcalc.Constant{Value: 2.0})
+			sm.Push(pcalc.Multiply{})
+			sm.Push(pcalc.Ceil1{})
 		case *cql.Structure:
 		case *cql.AttValList:
 		case *cql.NumberedPosition:
@@ -92,6 +95,10 @@ func Evaluate(query *cql.Query) *pcalc.StackMachine {
 					sm.Push(pcalc.Constant{Value: c})
 					sm.Push(pcalc.Multiply{})
 				}
+
+			} else if tNode.Variant2 != nil {
+				// TODO
+				sm.Push((pcalc.Constant{Value: 0.01}))
 			}
 		case *cql.AtomQuery:
 		case *cql.RepOpt:
@@ -100,11 +107,15 @@ func Evaluate(query *cql.Query) *pcalc.StackMachine {
 		case *cql.AlignedPart:
 		case *cql.AttValAnd:
 		case *cql.AttVal:
-			if tNode.Variant1 != nil && tNode.Variant1.Not {
-				sm.Push(pcalc.NegProb{})
+			if tNode.Variant1 != nil {
+				if tNode.Variant1.Not {
+					sm.Push(pcalc.NegProb{})
+				}
 
-			} else if tNode.Variant2 != nil && tNode.Variant2.Not {
-				sm.Push(pcalc.NegProb{})
+			} else if tNode.Variant2 != nil {
+				if tNode.Variant2.Not {
+					sm.Push(pcalc.NegProb{})
+				}
 			}
 		case *cql.WithinNumber:
 		case *cql.RegExpRaw:

@@ -29,6 +29,8 @@ func (eng *Engine) Test2(threshold float64) error {
 	if err != nil {
 		return fmt.Errorf("failed to run prediction test: %w", err)
 	}
+	scoreThresh := 0.7
+	var numFalsePositives, numTruePositives, numFalseNegatives int
 
 	for _, row := range rows {
 		parsed, err := cql.ParseCQL("#", row.Query)
@@ -39,16 +41,36 @@ func (eng *Engine) Test2(threshold float64) error {
 		sm := feats.Evaluate(parsed)
 		err = sm.Run()
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to evaluate query, skipping")
+			log.Error().Err(err).Str("query", row.Query).Msg("Failed to evaluate query, skipping")
 			continue
 		}
 		result, err := sm.Peek()
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to evaluate query, skipping")
+			log.Error().Err(err).Str("query", row.Query).Msg("Failed to evaluate query, skipping")
 			continue
 		}
-		fmt.Println(row.Query, ", time: ", row.BenchTime, ", eval: ", result)
+
+		//fmt.Println(row.Query, "\ttime: ", row.BenchTime, "\t: eval: ", result)
+		pred := result.Value >= scoreThresh
+		actual := row.BenchTime > threshold
+		if pred && !actual {
+			fmt.Println(
+				"FALSE POSITIVE, query: ", row.Query, ", time: ", row.BenchTime, ", score: ", result.Value, ", predict: ", pred, ", actual: ", row.BenchTime > threshold)
+			numFalsePositives++
+
+		} else if !pred && actual {
+			fmt.Println(
+				"FALSE NEGATIVE, query: ", row.Query, ", time: ", row.BenchTime, ", score: ", result.Value, ", predict: ", pred, ", actual: ", row.BenchTime > threshold)
+			numFalseNegatives++
+
+		} else if pred && actual {
+			numTruePositives++
+		}
 	}
+	fmt.Println("============================================================\n\n")
+	fmt.Printf("total tested items: %d\n", len(rows))
+	fmt.Printf("precision: %01.2f\n", float64(numTruePositives)/float64(numTruePositives+numFalsePositives))
+	fmt.Printf("recall: %01.2f\n", float64(numTruePositives)/float64(numTruePositives+numFalseNegatives))
 	return nil
 }
 
