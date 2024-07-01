@@ -23,6 +23,35 @@ type Engine struct {
 	statsDB *stats.Database
 }
 
+func (eng *Engine) Test2(threshold float64) error {
+
+	rows, err := eng.statsDB.GetAllRecords(false)
+	if err != nil {
+		return fmt.Errorf("failed to run prediction test: %w", err)
+	}
+
+	for _, row := range rows {
+		parsed, err := cql.ParseCQL("#", row.Query)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to parse query, skipping")
+			continue
+		}
+		sm := feats.Evaluate(parsed)
+		err = sm.Run()
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to evaluate query, skipping")
+			continue
+		}
+		result, err := sm.Peek()
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to evaluate query, skipping")
+			continue
+		}
+		fmt.Println(row.Query, ", time: ", row.BenchTime, ", eval: ", result)
+	}
+	return nil
+}
+
 func (eng *Engine) Test(threshold float64) error {
 
 	xData := [][]float64{}
@@ -42,7 +71,7 @@ func (eng *Engine) Test(threshold float64) error {
 		var fts feats.Record
 		fts.ImportFrom(p, 200000000) // TODO
 
-		if rand.Float64() < 0.5 {
+		if rand.Float64() < 0.75 {
 
 			xData = append(xData, fts.AsVector())
 			res := 0
@@ -62,7 +91,8 @@ func (eng *Engine) Test(threshold float64) error {
 
 	forest := randomforest.Forest{}
 	forest.Data = randomforest.ForestData{X: xData, Class: yData}
-	forest.Train(1000)
+	forest.Train(1200)
+	var numFalsePositives, numTruePositives, numFalseNegatives int
 	for _, tst := range testingData {
 		ans := forest.Vote(tst.Feats.AsVector())
 		q := tst.Rec.Query
@@ -73,10 +103,26 @@ func (eng *Engine) Test(threshold float64) error {
 		if ans[1] > ans[0] {
 			pred = true
 		}
-		fmt.Println(
-			"query: ", q, ", time: ", tst.Rec.BenchTime,
-			", predict ", pred, ", actual: ", tst.Rec.BenchTime > threshold)
+		actual := tst.Rec.BenchTime > threshold
+		if pred && !actual {
+			fmt.Println(
+				"FALSE POSITIVE, query: ", q, ", time: ", tst.Rec.BenchTime, ", predict ", pred, ", actual: ", tst.Rec.BenchTime > threshold)
+			numFalsePositives++
+
+		} else if !pred && actual {
+			fmt.Println(
+				"FALSE NEGATIVE, query: ", q, ", time: ", tst.Rec.BenchTime, ", predict ", pred, ", actual: ", tst.Rec.BenchTime > threshold)
+			numFalseNegatives++
+
+		} else if pred && actual {
+			numTruePositives++
+		}
+
 	}
+	fmt.Println("============================================================\n\n")
+	fmt.Printf("total tested items: %d\n", len(testingData))
+	fmt.Printf("precision: %01.2f\n", float64(numTruePositives)/float64(numTruePositives+numFalsePositives))
+	fmt.Printf("recall: %01.2f\n", float64(numTruePositives)/float64(numTruePositives+numFalseNegatives))
 	return nil
 }
 

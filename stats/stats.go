@@ -89,7 +89,7 @@ func (database *Database) AddBenchmarkResult(id string, dur time.Duration) error
 
 func (database *Database) GetAllRecords(onlyWithoutBenchmark bool) ([]DBRecord, error) {
 	qTpl := "SELECT id, datetime, query, corpname, procTime, ptPercentile, benchTime, featsJSON " +
-		"FROM query_stats %s ORDER BY datetime"
+		"FROM query_stats %s ORDER BY benchTime"
 	var query string
 	if onlyWithoutBenchmark {
 		query = fmt.Sprintf(qTpl, "WHERE benchTime IS NULL")

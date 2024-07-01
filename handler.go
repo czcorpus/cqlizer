@@ -45,8 +45,24 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 		)
 		return
 	}
-	var features feats.Record
-	features.ImportFrom(parsed, a.StatsDB.GetCorpusSize(ctx.Query("corpname")))
+	/*
+		var features feats.Record
+		features.ImportFrom(parsed, a.StatsDB.GetCorpusSize(ctx.Query("corpname")))
+		spew.Dump(features)
+	*/
+	sm := feats.Evaluate(parsed)
+	sm.PrintProgram()
+	err = sm.Run()
+	if err != nil {
+		uniresp.RespondWithErrorJSON(ctx, err, http.StatusBadRequest)
+		return
+	}
+	final, err := sm.Peek()
+	if err != nil {
+		uniresp.RespondWithErrorJSON(ctx, err, http.StatusBadRequest)
+		return
+	}
+	fmt.Println("FINAL PROB: ", final.Value)
 	uniresp.WriteJSONResponse(ctx.Writer, parsed)
 }
 
