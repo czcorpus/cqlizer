@@ -22,10 +22,10 @@ func (op Constant) String() string {
 
 // -----------------------------
 
-type Ceil1 struct{}
+type Avg struct{}
 
-func (op Ceil1) String() string {
-	return "Ceil1"
+func (op Avg) String() string {
+	return "([-1] + [-2])/2"
 }
 
 // -----------------------------
@@ -41,7 +41,21 @@ func (op Add) String() string {
 type Multiply struct{}
 
 func (op Multiply) String() string {
-	return "P(X & Y)"
+	return "[-1] * [-2]"
+}
+
+type Divide struct{}
+
+func (op Divide) String() string {
+	return "[-2] / [-1]"
+}
+
+// ------------------------------
+
+type Pop struct{}
+
+func (op Pop) String() string {
+	return "Pop"
 }
 
 // ------------------------------
@@ -65,6 +79,14 @@ type StackMachine struct {
 	stack    []Constant
 	lock     sync.Mutex
 	currStep int
+}
+
+func (sm *StackMachine) Clone() *StackMachine {
+	ans := new(StackMachine)
+	copy(ans.program, sm.program)
+	ans.currStep = 0
+	ans.stack = make([]Constant, 0, 30)
+	return ans
 }
 
 func (sm *StackMachine) Push(se StackElement) {
@@ -132,12 +154,31 @@ func (sm *StackMachine) NextStep() error {
 			return err
 		}
 		sm.evalPush(Constant{Value: op1.Value * op2.Value})
-	case Ceil1:
+	case Divide:
 		op1, err := sm.evalPop()
 		if err != nil {
 			return err
 		}
-		sm.evalPush(Constant{Value: min(1.0, op1.Value)})
+		op2, err := sm.evalPop()
+		if err != nil {
+			return err
+		}
+		sm.evalPush(Constant{Value: op2.Value / op1.Value})
+	case Pop:
+		_, err := sm.evalPop()
+		if err != nil {
+			return err
+		}
+	case Avg:
+		op1, err := sm.evalPop()
+		if err != nil {
+			return err
+		}
+		op2, err := sm.evalPop()
+		if err != nil {
+			return err
+		}
+		sm.evalPush(Constant{Value: (op1.Value + op2.Value) / 2})
 	case NegProb:
 		op1, err := sm.evalPop()
 		if err != nil {

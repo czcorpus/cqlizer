@@ -50,8 +50,9 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 		features.ImportFrom(parsed, a.StatsDB.GetCorpusSize(ctx.Query("corpname")))
 		spew.Dump(features)
 	*/
-
-	sm := feats.Evaluate(parsed)
+	params := feats.NewDefaultParams()
+	(&params).FromVec(feats.CurrWinner)
+	sm := feats.Evaluate(parsed, params)
 	sm.PrintProgram()
 	err = sm.Run()
 	if err != nil {
@@ -63,7 +64,7 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 		uniresp.RespondWithErrorJSON(ctx, err, http.StatusBadRequest)
 		return
 	}
-	fmt.Println("FINAL PROB: ", final.Value)
+	fmt.Println("BENCH. TIME ESTIMATE: ", final.Value*60)
 	uniresp.WriteJSONResponse(ctx.Writer, parsed)
 }
 

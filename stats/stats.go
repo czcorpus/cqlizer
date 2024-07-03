@@ -87,6 +87,47 @@ func (database *Database) AddBenchmarkResult(id string, dur time.Duration) error
 	return nil
 }
 
+func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
+	query := "SELECT id, datetime, query, corpname, procTime, ptPercentile, benchTime, featsJSON " +
+		"FROM query_stats " +
+		"ORDER BY benchTime"
+	rows, err := database.db.Query(query)
+	if err != nil {
+		return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+	}
+	ans := make([]DBRecord, 0, 500)
+	for rows.Next() {
+		var rec DBRecord
+		var pTPercentile sql.NullInt64
+		var benchTime sql.NullFloat64
+		var featsJSON sql.NullString
+		err := rows.Scan(
+			&rec.ID,
+			&rec.Datetime,
+			&rec.Query,
+			&rec.Corpname,
+			&rec.ProcTime,
+			&pTPercentile,
+			&benchTime,
+			&featsJSON,
+		)
+		if err != nil {
+			return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+		}
+		if pTPercentile.Valid {
+			rec.PTPercentile = int(pTPercentile.Int64)
+		}
+		if benchTime.Valid {
+			rec.BenchTime = benchTime.Float64
+		}
+		if featsJSON.Valid {
+			rec.FeatsJSON = featsJSON.String
+		}
+		ans = append(ans, rec)
+	}
+	return ans, nil
+}
+
 func (database *Database) GetAllRecords(onlyWithoutBenchmark bool) ([]DBRecord, error) {
 	qTpl := "SELECT id, datetime, query, corpname, procTime, ptPercentile, benchTime, featsJSON " +
 		"FROM query_stats %s ORDER BY benchTime"

@@ -210,6 +210,25 @@ func runPredictionTest(conf *cnf.Conf, threshold float64) {
 	}
 }
 
+func runParamsOptimization(conf *cnf.Conf, threshold float64) {
+	db, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+	err = db.Init()
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+	eng := prediction.NewEngine(conf, db)
+	err = eng.Test3(threshold)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+}
+
 func runApiServer(
 	conf *cnf.Conf,
 	syscallChan chan os.Signal,
@@ -322,6 +341,13 @@ func main() {
 		runRecalcPercentiles(conf)
 	case "benchmark":
 		runBenchmark(conf, *overwriteAll)
+	case "optimize-params":
+		thr, err := strconv.ParseFloat(flag.Arg(2), 64)
+		if err != nil {
+			fmt.Println("FAILED: ", err)
+			os.Exit(1)
+		}
+		runParamsOptimization(conf, thr)
 	case "prediction-test":
 		thr, err := strconv.ParseFloat(flag.Arg(2), 64)
 		if err != nil {

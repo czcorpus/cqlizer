@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
-
-	"github.com/rs/zerolog/log"
 )
 
 // Seq (_ BINOR _ Seq)* / Seq
@@ -687,11 +685,12 @@ func (p *Position) DFS(fn func(v ASTNode)) {
 // -------------------------------------------------------
 
 type RegExp struct {
+	origValue string
 	RegExpRaw *RegExpRaw
 }
 
 func (r *RegExp) Text() string {
-	return "#RegExp"
+	return r.origValue
 }
 
 func (r *RegExp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -792,14 +791,14 @@ func (r *Repetition) GetRepOpt() string {
 }
 
 func (r *Repetition) GetReptOptRange() [2]int {
-	if r.Variant1 != nil && r.Variant1.RepOpt != nil && r.Variant1.RepOpt.variant2 != nil {
-		v1, err := strconv.Atoi(string(r.Variant1.RepOpt.variant2.From))
+	if r.Variant1 != nil && r.Variant1.RepOpt != nil && r.Variant1.RepOpt.Variant2 != nil {
+		v1, err := strconv.Atoi(string(r.Variant1.RepOpt.Variant2.From))
 		if err != nil {
 			panic("failed to parse ReptOpt range")
 		}
 		ans := [2]int{v1, -1}
-		if r.Variant1.RepOpt.variant2.To != "" {
-			v2, err := strconv.Atoi(string(r.Variant1.RepOpt.variant2.To))
+		if r.Variant1.RepOpt.Variant2.To != "" {
+			v2, err := strconv.Atoi(string(r.Variant1.RepOpt.Variant2.To))
 			if err != nil {
 				panic("failed to parse ReptOpt range")
 			}
@@ -981,72 +980,41 @@ type repOptVariant2 struct {
 }
 
 type RepOpt struct {
-	variant1 *repOptVariant1
-	variant2 *repOptVariant2
+	Variant1 *repOptVariant1
+	Variant2 *repOptVariant2
 }
 
-func (r *RepOpt) GetNumRepEstimate() (int, int) {
-	if r.variant1 != nil {
-		switch r.variant1.Value {
-		case "?":
-			return 1, 2
-		case "+":
-			return 2, 10
-		case "*":
-			return 1, 9
-		default:
-			return 1, 1
-		}
-	}
-	var from, to int
-	var err error
-	if r.variant2 != nil {
-		from, err = strconv.Atoi(r.variant2.From.Text())
-		if err != nil {
-			log.Error().Err(err).Msg("failed to parse RepOpt range")
-			return 1, 1
-		}
-		if r.variant2.To.Text() != "" {
-			to, err = strconv.Atoi(r.variant2.To.Text())
-			if err != nil {
-				log.Error().Err(err).Msg("failed to parse RepOpt range")
-				return 1, 1
-			}
-
-		} else {
-			to = 10
-		}
-	}
-	return from, to
+func (r *RepOpt) DefinesInfReps() bool {
+	return r.Variant1 != nil && (r.Variant1.Value == "+" || r.Variant1.Value == "*")
 }
 
 func (r *RepOpt) Text() string {
-	if r.variant1 != nil {
-		return r.variant1.Value.Text()
+	if r.Variant1 != nil {
+		return r.Variant1.Value.Text()
 
-	} else if r.variant2 != nil {
-		return fmt.Sprintf("{%s, %s}", r.variant2.From, r.variant2.To)
+	} else if r.Variant2 != nil {
+		return fmt.Sprintf("{%s, %s}", r.Variant2.From, r.Variant2.To)
 	}
 	return ""
 }
 
 func (r *RepOpt) MarshalJSON() ([]byte, error) {
-	if r.variant1 != nil {
+	if r.Variant1 != nil {
 		return json.Marshal(struct {
 			RuleName  string
 			Expansion repOptVariant1
 		}{
 			RuleName:  "RepOpt",
-			Expansion: *r.variant1,
+			Expansion: *r.Variant1,
 		})
 
-	} else if r.variant2 != nil {
+	} else if r.Variant2 != nil {
 		return json.Marshal(struct {
 			RuleName  string
 			Expansion repOptVariant2
 		}{
 			RuleName:  "RepOpt",
-			Expansion: *r.variant2,
+			Expansion: *r.Variant2,
 		})
 
 	} else {
@@ -1056,22 +1024,22 @@ func (r *RepOpt) MarshalJSON() ([]byte, error) {
 
 func (r *RepOpt) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, r)
-	if r.variant1 != nil {
-		fn(r, r.variant1.Value)
+	if r.Variant1 != nil {
+		fn(r, r.Variant1.Value)
 
-	} else if r.variant2 != nil {
-		fn(r, r.variant2.From)
-		fn(r, r.variant2.To)
+	} else if r.Variant2 != nil {
+		fn(r, r.Variant2.From)
+		fn(r, r.Variant2.To)
 	}
 }
 
 func (r *RepOpt) DFS(fn func(v ASTNode)) {
-	if r.variant1 != nil {
-		fn(r.variant1.Value)
+	if r.Variant1 != nil {
+		fn(r.Variant1.Value)
 
-	} else if r.variant2 != nil {
-		fn(r.variant2.From)
-		fn(r.variant2.To)
+	} else if r.Variant2 != nil {
+		fn(r.Variant2.From)
+		fn(r.Variant2.To)
 	}
 	fn(r)
 }
@@ -1239,6 +1207,22 @@ type AttVal struct {
 	Variant7  *attValVariant7
 	Variant8  *attValVariant8
 	Variant9  *attValVariant9
+}
+
+func (r *AttVal) IsProblematicAttrSearch() bool {
+	if r.Variant1 != nil {
+		return (r.Variant1.AttName == "tag" || r.Variant1.AttName == "pos" || r.Variant1.AttName == "verbtag" ||
+			r.Variant1.AttName == "upos") &&
+			len(r.Variant1.RawString.Text()) < 6 && // TODO
+			(strings.Contains(r.Variant1.RawString.Text(), ".*") || strings.Contains(r.Variant1.RawString.Text(), ".+"))
+
+	} else if r.Variant2 != nil {
+		return (r.Variant2.AttName == "tag" || r.Variant2.AttName == "pos" || r.Variant2.AttName == "verbtag" ||
+			r.Variant2.AttName == "upos") &&
+			len(r.Variant2.RegExp.Text()) < 6 && // TODO
+			(strings.Contains(r.Variant2.RegExp.Text(), ".*") || strings.Contains(r.Variant2.RegExp.Text(), ".+"))
+	}
+	return false
 }
 
 func (r *AttVal) Text() string {
@@ -1631,6 +1615,9 @@ func (r *RgSimple) GetWildcards() RgSimpleProps {
 					if state == 0 {
 						state = 1
 
+					} else if state == 1 {
+						ans.Ops = append(ans.Ops, ".")
+
 					} else if state == 2 {
 						state = 1
 					}
@@ -1663,6 +1650,9 @@ func (r *RgSimple) GetWildcards() RgSimpleProps {
 		case *RgAlt:
 			ans.Alts = append(ans.Alts, len(tVal.Values))
 		}
+	}
+	if state == 1 {
+		ans.Ops = append(ans.Ops, ".")
 	}
 	return ans
 }

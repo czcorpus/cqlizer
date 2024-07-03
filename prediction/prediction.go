@@ -2,6 +2,7 @@ package prediction
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 
 	"github.com/czcorpus/cqlizer/cnf"
@@ -23,22 +24,89 @@ type Engine struct {
 	statsDB *stats.Database
 }
 
-func (eng *Engine) Test2(threshold float64) error {
+func (eng *Engine) Test3(threshold float64) error {
 
-	rows, err := eng.statsDB.GetAllRecords(false)
+	rows, err := eng.statsDB.GetCzechBenchmarkedRecords()
 	if err != nil {
 		return fmt.Errorf("failed to run prediction test: %w", err)
 	}
-	scoreThresh := 0.7
-	var numFalsePositives, numTruePositives, numFalseNegatives int
 
+	astMap := make(map[string]*cql.Query)
+	// prepare AST for all queries:
 	for _, row := range rows {
 		parsed, err := cql.ParseCQL("#", row.Query)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to parse query, skipping")
 			continue
 		}
-		sm := feats.Evaluate(parsed)
+		astMap[row.ID] = parsed
+	}
+
+	fn := func(vec feats.Chromosome) feats.Result {
+
+		var numFalsePositives, numTruePositives, numFalseNegatives int
+		var totalScore float64
+		for _, row := range rows {
+			var params feats.Params
+			(&params).FromVec(vec)
+			ast := astMap[row.ID]
+			sm := feats.Evaluate(ast, params)
+			err = sm.Run()
+			if err != nil {
+				//log.Error().Err(err).Str("query", row.Query).Msg("Failed to evaluate query, skipping")
+				continue
+			}
+			result, err := sm.Peek()
+			if err != nil {
+				//log.Error().Err(err).Str("query", row.Query).Msg("Failed to evaluate query, skipping")
+				continue
+			}
+
+			//fmt.Println(row.Query, "\ttime: ", row.BenchTime, "\t: eval: ", result)
+			pred := result.Value*60 > threshold
+			actual := row.BenchTime > threshold
+			totalScore += math.Abs(result.Value*60 - row.BenchTime)
+			if pred && !actual {
+				numFalsePositives++
+
+			} else if !pred && actual {
+				numFalseNegatives++
+
+			} else if pred && actual {
+				numTruePositives++
+			}
+		}
+		return feats.Result{
+			Score:     totalScore,
+			Precision: float64(numTruePositives) / float64(numTruePositives+numFalsePositives),
+			Recall:    float64(numTruePositives) / float64(numTruePositives+numFalseNegatives),
+		}
+	}
+
+	//feats.Optimize(500, 50, fn)
+	feats.Optimize(500, 20, 0.15, fn)
+	return nil
+
+}
+
+func (eng *Engine) Test2(threshold float64) error {
+
+	rows, err := eng.statsDB.GetAllRecords(false)
+	if err != nil {
+		return fmt.Errorf("failed to run prediction test: %w", err)
+	}
+	var numFalsePositives, numTruePositives, numFalseNegatives int
+	var totalScore float64
+	for _, row := range rows {
+		parsed, err := cql.ParseCQL("#", row.Query)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to parse query, skipping")
+			continue
+		}
+		params := feats.NewDefaultParams()
+		// !!!! TODO
+		(&params).FromVec(feats.CurrWinner)
+		sm := feats.Evaluate(parsed, params)
 		err = sm.Run()
 		if err != nil {
 			log.Error().Err(err).Str("query", row.Query).Msg("Failed to evaluate query, skipping")
@@ -51,8 +119,9 @@ func (eng *Engine) Test2(threshold float64) error {
 		}
 
 		//fmt.Println(row.Query, "\ttime: ", row.BenchTime, "\t: eval: ", result)
-		pred := result.Value >= scoreThresh
+		pred := result.Value*60 > threshold
 		actual := row.BenchTime > threshold
+		totalScore += math.Abs(result.Value*60 - row.BenchTime)
 		if pred && !actual {
 			fmt.Println(
 				"FALSE POSITIVE, query: ", row.Query, ", time: ", row.BenchTime, ", score: ", result.Value, ", predict: ", pred, ", actual: ", row.BenchTime > threshold)

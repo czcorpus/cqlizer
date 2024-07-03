@@ -5,53 +5,21 @@ import (
 	"github.com/czcorpus/cqlizer/pcalc"
 )
 
-var chunkProbs = []float64{1, 0.02, 0.01, 0.007, 0.01, 0.01, 0.01, 0.01, 0.007, 0.004, 0.001, 0.001, 0.0005}
-
-func calcExpandVariantsProb(origLen int) float64 {
-	if origLen >= len(chunkProbs) {
-		return 0.003
-	}
-	prob := chunkProbs[origLen]
-	for i := origLen + 1; i < len(chunkProbs); i++ {
-		prob += chunkProbs[i]
-	}
-	return prob
-}
-
-func calcQuestMarkProb(origLen int) float64 {
-	if origLen <= len(chunkProbs) {
-		return chunkProbs[origLen-2]
-	}
-	return 0.005
-}
-
-func calcRgSimpleProb(props cql.RgSimpleProps) float64 {
+func calcRgSimpleProb(params Params, props cql.RgSimpleProps) float64 {
 	if props.ContainsWildcards() {
 		if len(props.Constansts) == 0 {
-			return 1.0
+			return params.PureWildcardScore
 		}
-		return calcExpandVariantsProb(len(props.Constansts))
+		return params.WildcardedChunkLenScore / float64(len(props.Constansts)+len(props.Ops))
 	}
-	if len(props.Constansts) >= len(chunkProbs) {
-		return 0.003
-	}
-	if len(props.Alts) > 0 {
-		p := chunkProbs[len(chunkProbs)-1]
-		idx := len(props.Constansts) + 1
-		if idx < len(chunkProbs)-1 {
-			p = chunkProbs[idx]
-		}
-		for range props.Alts {
-			p = min(1, 2*p)
-		}
-		return p
 
-	} else {
-		return chunkProbs[len(props.Constansts)]
+	if len(props.Constansts)+len(props.Ops) > 0 {
+		return params.ChunkLenScore / float64(len(props.Constansts)+len(props.Ops))
 	}
+	return float64(len(props.Alts)) * params.ChunkLenScore
 }
 
-func Evaluate(query *cql.Query) *pcalc.StackMachine {
+func Evaluate(query *cql.Query, params Params) *pcalc.StackMachine {
 	var sm pcalc.StackMachine
 	query.DFS(func(node cql.ASTNode) {
 		switch tNode := node.(type) {
@@ -64,16 +32,18 @@ func Evaluate(query *cql.Query) *pcalc.StackMachine {
 		case *cql.WithinOrContaining:
 		case *cql.WithinContainingPart:
 		case *cql.GlobCond:
-			sm.Push(pcalc.Constant{Value: 2.0})
+			sm.Push(pcalc.Constant{Value: params.GlobCondPenalty})
 			sm.Push(pcalc.Multiply{})
-			sm.Push(pcalc.Ceil1{})
 		case *cql.Structure:
 		case *cql.AttValList:
+			for i := 1; i < len(tNode.AttValAnd); i++ {
+				sm.Push(pcalc.Add{})
+			}
 		case *cql.NumberedPosition:
 		case *cql.OnePosition:
 			if tNode.Variant1 != nil {
 				if tNode.Variant1.AttValList.IsEmpty() {
-					sm.Push(pcalc.Constant{Value: 1.0}) // `[]`
+					sm.Push(pcalc.Constant{Value: params.AnyPositionScore}) // `[]`
 				}
 
 			} else if tNode.Variant2 != nil {
@@ -86,19 +56,20 @@ func Evaluate(query *cql.Query) *pcalc.StackMachine {
 		case *cql.MuPart:
 		case *cql.Repetition:
 			if tNode.Variant1 != nil {
-				c := 1.0
 				if tNode.Variant1.RepOpt != nil {
-					i1, i2 := tNode.Variant1.RepOpt.GetNumRepEstimate()
-					for i := i1; i <= i2; i++ {
-						c = min(1, c+1.0/float64(i))
+					if tNode.Variant1.RepOpt.DefinesInfReps() {
+						sm.Push(pcalc.Constant{Value: params.PositionInfRepScore})
+						sm.Push(pcalc.Avg{})
+
+					} else {
+						sm.Push(pcalc.Constant{Value: params.PositionFewRepScore})
+						sm.Push(pcalc.Avg{})
 					}
-					sm.Push(pcalc.Constant{Value: c})
-					sm.Push(pcalc.Multiply{})
 				}
 
 			} else if tNode.Variant2 != nil {
 				// TODO
-				sm.Push((pcalc.Constant{Value: 0.01}))
+				sm.Push((pcalc.Constant{Value: params.OpenStructTagProb}))
 			}
 		case *cql.AtomQuery:
 		case *cql.RepOpt:
@@ -106,15 +77,31 @@ func Evaluate(query *cql.Query) *pcalc.StackMachine {
 		case *cql.CloseStructTag:
 		case *cql.AlignedPart:
 		case *cql.AttValAnd:
+			for i := 1; i < len(tNode.AttVal); i++ {
+				sm.Push(pcalc.Multiply{})
+			}
 		case *cql.AttVal:
 			if tNode.Variant1 != nil {
 				if tNode.Variant1.Not {
-					sm.Push(pcalc.NegProb{})
+					sm.Push(pcalc.Pop{})
+					sm.Push(pcalc.Constant{Value: params.NegationPenalty})
+				}
+				if tNode.IsProblematicAttrSearch() {
+					sm.Push(pcalc.Pop{})
+					sm.Push(pcalc.Constant{Value: params.SmallValSetPenalty})
 				}
 
 			} else if tNode.Variant2 != nil {
 				if tNode.Variant2.Not {
-					sm.Push(pcalc.NegProb{})
+					sm.Push(pcalc.Constant{Value: params.NegationPenalty})
+					sm.Push(pcalc.Multiply{})
+				}
+				if tNode.IsProblematicAttrSearch() {
+					sm.Push(pcalc.Pop{})
+					sm.Push(pcalc.Constant{Value: params.SmallValSetPenalty})
+					//fmt.Println("adding small penalty ", params.SmallValSetPenalty)
+					//x, _ := sm.Peek()
+					//fmt.Println("PEEK SM: ", x)
 				}
 			}
 		case *cql.WithinNumber:
@@ -125,7 +112,7 @@ func Evaluate(query *cql.Query) *pcalc.StackMachine {
 		case *cql.RgGrouped:
 		case *cql.RgSimple:
 			wcProps := tNode.GetWildcards()
-			prob := calcRgSimpleProb(wcProps)
+			prob := calcRgSimpleProb(params, wcProps)
 			sm.Push(pcalc.Constant{Value: prob})
 		case *cql.RgPosixClass:
 		case *cql.RgLook:
@@ -134,7 +121,7 @@ func Evaluate(query *cql.Query) *pcalc.StackMachine {
 		case *cql.RgRangeSpec:
 		case *cql.AnyLetter:
 		case *cql.RgOp:
-			sm.Push(pcalc.Constant{Value: 0.7})
+			// TODO ??? sm.Push(pcalc.Constant{Value: 0.7})
 		case *cql.RgAltVal:
 		default:
 			//fmt.Println("@ ", reflect.TypeOf(tNode))

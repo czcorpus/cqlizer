@@ -411,7 +411,6 @@ AttValList <-
 
         for _, item := range anyToSlice(av2) {
             tmp := fromIdxOfUntypedSlice[*AttValAnd](item, 3)
-            fmt.Println("appending ", tmp)
             ans.AttValAnd = append(ans.AttValAnd, tmp)
         }
 
@@ -523,7 +522,7 @@ WithinNumber <-
 RepOpt <-
     v:STAR {
         ans := &RepOpt{
-            variant1: &repOptVariant1{
+            Variant1: &repOptVariant1{
                 Value: ASTString(typedOrPanic[string](v)),
             },
         }
@@ -531,7 +530,7 @@ RepOpt <-
     }
     / v:PLUS {
         ans := &RepOpt{
-            variant1: &repOptVariant1{
+            Variant1: &repOptVariant1{
                 Value: ASTString(typedOrPanic[string](v)),
             },
         }
@@ -539,7 +538,7 @@ RepOpt <-
     }
     / v:QUEST {
         ans := &RepOpt{
-            variant1: &repOptVariant1{
+            Variant1: &repOptVariant1{
                 Value: ASTString(typedOrPanic[string](v)),
             },
         }
@@ -554,7 +553,7 @@ RepOpt <-
             }
         }
         ans := &RepOpt{
-            variant2: &repOptVariant2{
+            Variant2: &repOptVariant2{
                 From: ASTString(typedOrPanic[string](v1)),
                 To: ASTString(v2x),
             },
@@ -611,6 +610,7 @@ NO_RG_ESCAPED <-
 RegExp <-
     QUOT rer:RegExpRaw QUOT {
         ans := &RegExp{
+            origValue: string(c.text),
             RegExpRaw: typedOrPanic[*RegExpRaw](rer),
         }
 
@@ -618,6 +618,7 @@ RegExp <-
     }
     / QUOT QUOT {
         ans := &RegExp{
+            origValue: "",
             RegExpRaw: &RegExpRaw{
 
             },
