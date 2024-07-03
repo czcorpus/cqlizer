@@ -368,7 +368,12 @@ type Structure struct {
 }
 
 func (s *Structure) Text() string {
-	return "#Structure"
+	return s.AttName.Text()
+}
+
+func (s *Structure) IsBigStructure() bool {
+	v := s.AttName.Text()
+	return v == "s" || v == "g" || v == "p"
 }
 
 func (s *Structure) MarshalJSON() ([]byte, error) {
@@ -705,11 +710,22 @@ func (r *RegExp) DFS(fn func(v ASTNode)) {
 
 // --------------------------------------------------------
 
+type muPartVariant1 struct {
+	UnionOp *UnionOp
+}
+
+type muPartVariant2 struct {
+	MeetOp *MeetOp
+}
+
 type MuPart struct {
+	origValue string
+	Variant1  *muPartVariant1
+	Variant2  *muPartVariant2
 }
 
 func (m *MuPart) Text() string {
-	return "#MuPart"
+	return m.origValue
 }
 
 func (m *MuPart) MarshalJSON() ([]byte, error) {
@@ -724,21 +740,70 @@ func (m *MuPart) MarshalJSON() ([]byte, error) {
 
 func (m *MuPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, m)
-	// TODO
+	if m.Variant1 != nil {
+		m.Variant1.UnionOp.ForEachElement(m, fn)
+
+	} else if m.Variant2 != nil {
+		m.Variant2.MeetOp.ForEachElement(m, fn)
+	}
 }
 
 func (m *MuPart) DFS(fn func(v ASTNode)) {
+	if m.Variant1 != nil {
+		m.Variant1.UnionOp.DFS(fn)
+
+	} else if m.Variant2 != nil {
+		m.Variant2.MeetOp.DFS(fn)
+	}
 	fn(m)
 }
 
 // --------------------------------------------------------------
 
 type UnionOp struct {
+	origValue string
+	Position1 *Position
+	Position2 *Position
+}
+
+func (m *UnionOp) Text() string {
+	return m.origValue
+}
+
+func (m *UnionOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
+	fn(parent, m)
+	m.Position1.ForEachElement(m, fn)
+	m.Position2.ForEachElement(m, fn)
+}
+
+func (m *UnionOp) DFS(fn func(v ASTNode)) {
+	m.Position1.DFS(fn)
+	m.Position2.DFS(fn)
+	fn(m)
 }
 
 // ---------------------------------------------------------------
 
 type MeetOp struct {
+	origValue string
+	Position1 *Position
+	Position2 *Position
+}
+
+func (m *MeetOp) Text() string {
+	return m.origValue
+}
+
+func (m *MeetOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
+	fn(parent, m)
+	m.Position1.ForEachElement(m, fn)
+	m.Position2.ForEachElement(m, fn)
+}
+
+func (m *MeetOp) DFS(fn func(v ASTNode)) {
+	m.Position1.DFS(fn)
+	m.Position2.DFS(fn)
+	fn(m)
 }
 
 // --------------------------------------------------------------------------
@@ -1047,11 +1112,12 @@ func (r *RepOpt) DFS(fn func(v ASTNode)) {
 // ----------------------------------------------------------------
 
 type OpenStructTag struct {
+	origValue string
 	Structure *Structure
 }
 
 func (ost *OpenStructTag) Text() string {
-	return "#OpenStructTag"
+	return ost.origValue
 }
 
 func (ost *OpenStructTag) MarshalJSON() ([]byte, error) {
@@ -1177,6 +1243,7 @@ type attValVariant4 struct {
 
 // NOT AttVal
 type attValVariant5 struct {
+	AttVal *AttVal
 }
 
 // LPAREN _ AttValList _ RPAREN
@@ -1281,10 +1348,10 @@ func (a *AttVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 		// TODO a.variant4
 
 	} else if a.Variant5 != nil {
-		// TODO a.variant5
+		a.Variant5.AttVal.ForEachElement(a, fn)
 
 	} else if a.Variant6 != nil {
-		// TODO a.variant6
+		a.Variant6.AttValList.ForEachElement(a, fn)
 
 	} else if a.Variant7 != nil {
 		// TODO a.variant7
@@ -1315,10 +1382,10 @@ func (a *AttVal) DFS(fn func(v ASTNode)) {
 		// TODO a.variant4
 
 	} else if a.Variant5 != nil {
-		// TODO a.variant5
+		a.Variant5.AttVal.DFS(fn)
 
 	} else if a.Variant6 != nil {
-		// TODO a.variant6
+		a.Variant6.AttValList.DFS(fn)
 
 	} else if a.Variant7 != nil {
 		// TODO a.variant7

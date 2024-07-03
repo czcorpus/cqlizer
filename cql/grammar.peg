@@ -239,9 +239,16 @@ OnePosition <-
 // -------------------- meet/union query --------------------
 
 MuPart <-
-    LPAREN _ (UnionOp / MeetOp) _ RPAREN {
-        ans := &MuPart{} // TODO
-
+    LPAREN _ op:(UnionOp / MeetOp) _ RPAREN {
+        ans := &MuPart{
+            origValue: string(c.text),
+        }
+        switch tOp := op.(type) {
+            case *UnionOp:
+                ans.Variant1 = &muPartVariant1{UnionOp: tOp}
+            case *MeetOp:
+                ans.Variant2 = &muPartVariant2{MeetOp: tOp}
+        }
         return ans, nil
     }
 
@@ -251,10 +258,24 @@ Integer <-
     }
 
 MeetOp <-
-    KW_MEET _ Position _ Position _ (Integer _ Integer)?
+    KW_MEET _ p1:Position _ p2:Position _ (Integer _ Integer)? {
+        ans := &MeetOp{
+            origValue: string(c.text),
+            Position1: typedOrPanic[*Position](p1),
+            Position2: typedOrPanic[*Position](p2),
+        }
+        return ans, nil
+    }
 
 UnionOp <-
-    KW_UNION _ Position _ Position
+    KW_UNION _ p1:Position _ p2:Position {
+        ans := &MeetOp{
+            origValue: string(c.text),
+            Position1: typedOrPanic[*Position](p1),
+            Position2: typedOrPanic[*Position](p2),
+        }
+        return ans, nil
+    }
 
 
 // -------------------- regular expression query --------------------
@@ -338,6 +359,7 @@ Repetition <-
 OpenStructTag <-
     LSTRUCT s:Structure _ SLASH? RSTRUCT {
         ans := &OpenStructTag{
+            origValue: string(c.text),
             Structure: typedOrPanic[*Structure](s),
         }
 
@@ -476,11 +498,13 @@ AttVal <-
 
         return ans, nil
     }
-    / NOT AttVal {
+    / NOT a:AttVal {
         ans := &AttVal{
             origValue: string(c.text),
+            Variant5: &attValVariant5{
+                AttVal: typedOrPanic[*AttVal](a),
+            },
         }
-
         return ans, nil
     }
     / LPAREN _ a:AttValList _ RPAREN {

@@ -13,11 +13,19 @@ var (
 )
 
 type Constant struct {
-	Value float64
+	Value  float64
+	Weight float64
 }
 
 func (op Constant) String() string {
+	if op.Weight > 0 {
+		return fmt.Sprintf("%01.3f (weight: %01.3f)", op.Value, op.Weight)
+	}
 	return fmt.Sprintf("%01.3f", op.Value)
+}
+
+func (op Constant) MergeWeight(other Constant) float64 {
+	return (op.Weight + other.Weight) / 2
 }
 
 // -----------------------------
@@ -42,6 +50,14 @@ type Multiply struct{}
 
 func (op Multiply) String() string {
 	return "[-1] * [-2]"
+}
+
+// --------------------------------
+
+type MultiplyOrWeightSum struct{}
+
+func (op MultiplyOrWeightSum) String() string {
+	return "if [-1].weight: [-1].weight * [-1] + (1 - [-1].weight) * [-2]; else: [-1] * [-2]"
 }
 
 type Divide struct{}
@@ -143,7 +159,7 @@ func (sm *StackMachine) NextStep() error {
 		if err != nil {
 			return err
 		}
-		sm.evalPush(Constant{Value: op1.Value + op2.Value})
+		sm.evalPush(Constant{Value: op1.Value + op2.Value, Weight: op1.MergeWeight(op2)})
 	case Multiply:
 		op1, err := sm.evalPop()
 		if err != nil {
@@ -153,7 +169,27 @@ func (sm *StackMachine) NextStep() error {
 		if err != nil {
 			return err
 		}
-		sm.evalPush(Constant{Value: op1.Value * op2.Value})
+		sm.evalPush(Constant{Value: op1.Value * op2.Value, Weight: op1.MergeWeight(op2)})
+	case MultiplyOrWeightSum:
+		op1, err := sm.evalPop()
+		if err != nil {
+			return err
+		}
+		op2, err := sm.evalPop()
+		if err != nil {
+			return err
+		}
+		var ans float64
+		if op1.Weight > 0 && op2.Weight > 0 {
+			ans = (op1.Value + op2.Value) / 2
+
+		} else if op1.Weight > 0 {
+			ans = op1.Weight*op1.Value + (1-op1.Weight)*op2.Value
+
+		} else {
+			ans = op1.Value * op2.Value
+		}
+		sm.evalPush(Constant{Value: ans, Weight: op1.MergeWeight(op2)})
 	case Divide:
 		op1, err := sm.evalPop()
 		if err != nil {
@@ -163,7 +199,7 @@ func (sm *StackMachine) NextStep() error {
 		if err != nil {
 			return err
 		}
-		sm.evalPush(Constant{Value: op2.Value / op1.Value})
+		sm.evalPush(Constant{Value: op2.Value / op1.Value, Weight: op1.MergeWeight(op2)})
 	case Pop:
 		_, err := sm.evalPop()
 		if err != nil {
@@ -178,13 +214,13 @@ func (sm *StackMachine) NextStep() error {
 		if err != nil {
 			return err
 		}
-		sm.evalPush(Constant{Value: (op1.Value + op2.Value) / 2})
+		sm.evalPush(Constant{Value: (op1.Value + op2.Value) / 2, Weight: op1.MergeWeight(op2)})
 	case NegProb:
 		op1, err := sm.evalPop()
 		if err != nil {
 			return err
 		}
-		sm.evalPush(Constant{Value: 1 - op1.Value})
+		sm.evalPush(Constant{Value: 1 - op1.Value, Weight: op1.Weight})
 	default:
 		return fmt.Errorf("invalid element or element type on stack: %s (type %s)", ate, reflect.TypeOf(ate))
 	}

@@ -4,17 +4,22 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"strings"
 )
 
 const (
 	maxParamValue = 1.0 //60.0
 )
 
-var (
-	rgen = rand.New(rand.NewSource(0))
-)
-
 type Chromosome []float64
+
+func (ch Chromosome) String() string {
+	items := make([]string, len(ch))
+	for i, v := range ch {
+		items[i] = fmt.Sprintf("%01.3f", v)
+	}
+	return "Chromosome{" + strings.Join(items, ", ") + "}"
+}
 
 func (ch Chromosome) Crossover(ch2 Chromosome) Chromosome {
 	ans := make(Chromosome, 0, len(ch))
@@ -43,55 +48,65 @@ func mutate(ch Chromosome, probMut float64) Chromosome {
 	for i := 0; i < len(ch); i++ {
 		if rand.Float64() < probMut {
 			ans[i] = rand.Float64() * maxParamValue
+
+		} else {
+			ans[i] = ch[i]
 		}
 	}
 	return ans
 }
 
-type populItem struct {
-	ch    Chromosome
-	score Result
+type PopulItem struct {
+	Ch    Chromosome
+	Score Result
 }
 
 type Result struct {
-	Score     float64
-	Precision float64
-	Recall    float64
+	Score         float64
+	PredictionErr float64
+	Precision     float64
+	Recall        float64
 }
 
-func Optimize(populationSize int, maxNumIter int, probMutation float64, fn func(inp Chromosome) Result) {
-	population := make([]populItem, populationSize)
-	var bestSoFar populItem
+func Optimize(populationSize int, maxNumIter int, tuneAfter int, probMutation float64, fn func(inp Chromosome) Result) PopulItem {
+	population := make([]PopulItem, populationSize)
+	var bestSoFar PopulItem
 	for i := 0; i < populationSize; i++ {
-		population[i] = populItem{ch: randomVector()}
+		population[i] = PopulItem{Ch: randomVector()}
 	}
 	for i := 0; i < maxNumIter; i++ {
 		fmt.Println("GENERATION: ", i)
 		for j := 0; j < populationSize; j++ {
-			population[j].score = fn(population[j].ch)
+			population[j].Score = fn(population[j].Ch)
 			//fmt.Println("item ", j, " score: ", population[j].score)
 		}
 		sort.Slice(population, func(i, j int) bool {
-			return population[i].score.Score < population[j].score.Score
+			return population[i].Score.Score < population[j].Score.Score
 		})
 
-		fmt.Println("best; ", population[0].score, ", worst; ", population[len(population)-1].score)
-		fmt.Printf("winner: %#v\n", population[0].ch)
-		fmt.Printf("   %#v\n", population[0].score)
-		if bestSoFar.score.Score == 0 || population[0].score.Score < bestSoFar.score.Score {
+		fmt.Println("best: ", population[0].Score, ", ", population[0].Ch)
+		fmt.Println("worst: ", population[len(population)-1].Score, ", ", population[len(population)-1].Ch)
+		if bestSoFar.Score.Score == 0 || population[0].Score.Score < bestSoFar.Score.Score {
 			bestSoFar = population[0]
 		}
-		fmt.Printf(">>> BEST SO FAR: %#v\n", bestSoFar)
+		fmt.Printf(">>> BEST SO FAR: %#v\n%s\n", bestSoFar.Score, bestSoFar.Ch)
 
-		newPopulation := make([]populItem, populationSize)
-		for i := 0; i < populationSize; i++ {
-			ch1 := population[rand.Intn(populationSize/10)]
-			ch2 := population[rand.Intn(populationSize/10)]
-			newPopulation[i] = populItem{ch: mutate(ch1.ch.Crossover(ch2.ch), probMutation)}
+		newPopulation := make([]PopulItem, populationSize)
+		for j := 0; j < populationSize; j++ {
+			ch1 := population[rand.Intn(populationSize/5)]
+			ch2 := population[rand.Intn(populationSize/5)]
+			if tuneAfter > 0 && tuneAfter < i {
+				newPopulation[j] = PopulItem{Ch: mutate(ch1.Ch.Crossover(ch2.Ch), probMutation/2)}
+
+			} else {
+				newPopulation[j] = PopulItem{Ch: mutate(ch1.Ch.Crossover(ch2.Ch), probMutation)}
+			}
+			//fmt.Println("new item from: ", ch1.ch, " and ", ch2.ch)
+			//fmt.Println(">>> ", newPopulation[i].ch)
 
 		}
 		population = newPopulation
 
 	}
-
+	return bestSoFar
 }

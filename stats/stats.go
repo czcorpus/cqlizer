@@ -205,6 +205,18 @@ func (database *Database) Init() error {
 	return nil
 }
 
+func (database *Database) GetQueryAvgBenchTime(q string) (float64, error) {
+	rows := database.db.QueryRow("SELECT AVG(benchTime) FROM query_stats WHERE query = ?", q)
+	var ans sql.NullFloat64
+	if err := rows.Scan(&ans); err != nil {
+		return -1, err
+	}
+	if ans.Valid {
+		return ans.Float64, nil
+	}
+	return -1, nil
+}
+
 func (database *Database) GetCorpusSize(corpname string) int {
 	ans, cached := database.sizesCache[corpname]
 	if cached {
@@ -259,13 +271,10 @@ func (database *Database) RollbackTx() error {
 }
 
 func (database *Database) AddRecord(query, corpname string, rec feats.Record, dt time.Time, procTime float64) (int64, error) {
-	if rec.CorpusSize == 0 {
-		rec.CorpusSize = database.GetCorpusSize(corpname)
-	}
 	ans, err := database.db.Exec(
-		"INSERT OR REPLACE INTO query_stats (id, datetime, query, corpname, procTime, featsJSON) "+
+		"INSERT OR REPLACE INTO query_stats (id, datetime, query, corpname, procTime) "+
 			"VALUES (?, ?, ?, ?, ?, ?)",
-		IdempotentID(dt, query), dt.Unix(), query, corpname, procTime, rec.AsJSONString())
+		IdempotentID(dt, query), dt.Unix(), query, corpname, procTime)
 	if err != nil {
 		return -1, fmt.Errorf("failed to add record: %w", err)
 	}

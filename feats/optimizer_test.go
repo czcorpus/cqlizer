@@ -20,3 +20,10 @@ func TestMutate(t *testing.T) {
 	ch2 := mutate(ch1, 1.0)
 	assert.Equal(t, ch1, ch2)
 }
+
+func TestZeroStuff(t *testing.T) {
+	ch1 := randomVector()
+	ch2 := randomVector()
+	ch3 := ch1.Crossover(ch2)
+	assert.Equal(t, 0, ch3)
+}

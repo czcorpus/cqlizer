@@ -26,7 +26,7 @@ func Evaluate(query *cql.Query, params Params) *pcalc.StackMachine {
 		case *cql.Sequence:
 		case *cql.Seq:
 			for i := 1; i < tNode.NumPositions(); i++ {
-				sm.Push(pcalc.Multiply{})
+				sm.Push(pcalc.MultiplyOrWeightSum{})
 			}
 		case *cql.GlobPart:
 		case *cql.WithinOrContaining:
@@ -54,22 +54,40 @@ func Evaluate(query *cql.Query, params Params) *pcalc.StackMachine {
 		case *cql.RegExp:
 			// NOP
 		case *cql.MuPart:
+			if tNode.Variant1 != nil {
+				if tNode.Variant1.UnionOp != nil {
+					sm.Push(pcalc.Avg{})
+				}
+
+			} else if tNode.Variant2 != nil {
+				if tNode.Variant2.MeetOp != nil {
+					sm.Push(pcalc.Avg{})
+					sm.Push(pcalc.Constant{Value: params.MeetScore})
+					sm.Push(pcalc.Multiply{})
+				}
+			}
 		case *cql.Repetition:
 			if tNode.Variant1 != nil {
 				if tNode.Variant1.RepOpt != nil {
 					if tNode.Variant1.RepOpt.DefinesInfReps() {
-						sm.Push(pcalc.Constant{Value: params.PositionInfRepScore})
-						sm.Push(pcalc.Avg{})
+						sm.Push(pcalc.Pop{})
+						sm.Push(pcalc.Constant{Value: params.PositionInfRepScore, Weight: 0.9})
+						//sm.Push(pcalc.Avg{})
 
 					} else {
-						sm.Push(pcalc.Constant{Value: params.PositionFewRepScore})
-						sm.Push(pcalc.Avg{})
+						sm.Push(pcalc.Pop{})
+						sm.Push(pcalc.Constant{Value: params.PositionFewRepScore, Weight: 0.7})
+						//sm.Push(pcalc.Avg{})
 					}
 				}
 
 			} else if tNode.Variant2 != nil {
-				// TODO
-				sm.Push((pcalc.Constant{Value: params.OpenStructTagProb}))
+				if tNode.Variant2.OpenStructTag.Structure.IsBigStructure() {
+					sm.Push((pcalc.Constant{Value: params.BigOpenStructScore}))
+
+				} else {
+					sm.Push((pcalc.Constant{Value: params.SmallOpenStructTagProb}))
+				}
 			}
 		case *cql.AtomQuery:
 		case *cql.RepOpt:
@@ -78,17 +96,17 @@ func Evaluate(query *cql.Query, params Params) *pcalc.StackMachine {
 		case *cql.AlignedPart:
 		case *cql.AttValAnd:
 			for i := 1; i < len(tNode.AttVal); i++ {
-				sm.Push(pcalc.Multiply{})
+				sm.Push(pcalc.MultiplyOrWeightSum{})
 			}
 		case *cql.AttVal:
 			if tNode.Variant1 != nil {
 				if tNode.Variant1.Not {
 					sm.Push(pcalc.Pop{})
-					sm.Push(pcalc.Constant{Value: params.NegationPenalty})
+					sm.Push(pcalc.Constant{Value: params.NegationPenalty, Weight: 0.9})
 				}
 				if tNode.IsProblematicAttrSearch() {
 					sm.Push(pcalc.Pop{})
-					sm.Push(pcalc.Constant{Value: params.SmallValSetPenalty})
+					sm.Push(pcalc.Constant{Value: params.SmallValSetPenalty, Weight: 0.9})
 				}
 
 			} else if tNode.Variant2 != nil {
@@ -98,7 +116,7 @@ func Evaluate(query *cql.Query, params Params) *pcalc.StackMachine {
 				}
 				if tNode.IsProblematicAttrSearch() {
 					sm.Push(pcalc.Pop{})
-					sm.Push(pcalc.Constant{Value: params.SmallValSetPenalty})
+					sm.Push(pcalc.Constant{Value: params.SmallValSetPenalty, Weight: 0.7})
 					//fmt.Println("adding small penalty ", params.SmallValSetPenalty)
 					//x, _ := sm.Peek()
 					//fmt.Println("PEEK SM: ", x)

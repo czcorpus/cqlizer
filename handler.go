@@ -54,6 +54,7 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 	(&params).FromVec(feats.CurrWinner)
 	sm := feats.Evaluate(parsed, params)
 	sm.PrintProgram()
+
 	err = sm.Run()
 	if err != nil {
 		uniresp.RespondWithErrorJSON(ctx, err, http.StatusBadRequest)
@@ -65,6 +66,15 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 		return
 	}
 	fmt.Println("BENCH. TIME ESTIMATE: ", final.Value*60)
+
+	row, err := a.StatsDB.GetQueryAvgBenchTime(q)
+	if err != nil {
+		fmt.Println("failed to load stored query: ", err)
+
+	} else {
+		fmt.Printf("TRUE AVG BENCH TIME: %01.3f", row)
+	}
+
 	uniresp.WriteJSONResponse(ctx.Writer, parsed)
 }
 

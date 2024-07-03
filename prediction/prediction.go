@@ -13,6 +13,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const (
+	modelScaleArg = 40
+)
+
 type TestingItem struct {
 	Rec   stats.DBRecord
 	Feats feats.Record
@@ -45,7 +49,7 @@ func (eng *Engine) Test3(threshold float64) error {
 	fn := func(vec feats.Chromosome) feats.Result {
 
 		var numFalsePositives, numTruePositives, numFalseNegatives int
-		var totalScore float64
+		var totalScore, predictionErr float64
 		for _, row := range rows {
 			var params feats.Params
 			(&params).FromVec(vec)
@@ -63,9 +67,10 @@ func (eng *Engine) Test3(threshold float64) error {
 			}
 
 			//fmt.Println(row.Query, "\ttime: ", row.BenchTime, "\t: eval: ", result)
-			pred := result.Value*60 > threshold
+			pred := result.Value*modelScaleArg > threshold
 			actual := row.BenchTime > threshold
-			totalScore += math.Abs(result.Value*60 - row.BenchTime)
+			totalScore += math.Abs(result.Value*modelScaleArg - row.BenchTime)
+			predictionErr += math.Abs(result.Value*modelScaleArg - row.BenchTime)
 			if pred && !actual {
 				numFalsePositives++
 
@@ -77,14 +82,16 @@ func (eng *Engine) Test3(threshold float64) error {
 			}
 		}
 		return feats.Result{
-			Score:     totalScore,
-			Precision: float64(numTruePositives) / float64(numTruePositives+numFalsePositives),
-			Recall:    float64(numTruePositives) / float64(numTruePositives+numFalseNegatives),
+			Score:         totalScore,
+			PredictionErr: predictionErr,
+			Precision:     float64(numTruePositives) / float64(numTruePositives+numFalsePositives),
+			Recall:        float64(numTruePositives) / float64(numTruePositives+numFalseNegatives),
 		}
 	}
 
 	//feats.Optimize(500, 50, fn)
-	feats.Optimize(500, 20, 0.15, fn)
+	best := feats.Optimize(600, 35, 30, 0.15, fn)
+	fmt.Println("normalized score: ", best.Score.Score/float64(len(rows)))
 	return nil
 
 }
@@ -119,17 +126,17 @@ func (eng *Engine) Test2(threshold float64) error {
 		}
 
 		//fmt.Println(row.Query, "\ttime: ", row.BenchTime, "\t: eval: ", result)
-		pred := result.Value*60 > threshold
+		pred := result.Value*modelScaleArg > threshold
 		actual := row.BenchTime > threshold
-		totalScore += math.Abs(result.Value*60 - row.BenchTime)
+		totalScore += math.Abs(result.Value*modelScaleArg - row.BenchTime)
 		if pred && !actual {
 			fmt.Println(
-				"FALSE POSITIVE, query: ", row.Query, ", time: ", row.BenchTime, ", score: ", result.Value, ", predict: ", pred, ", actual: ", row.BenchTime > threshold)
+				"FALSE POSITIVE, query: ", row.Query, ", time: ", row.BenchTime, ", score: ", result.Value*modelScaleArg, ", predict: ", pred, ", actual: ", row.BenchTime > threshold)
 			numFalsePositives++
 
 		} else if !pred && actual {
 			fmt.Println(
-				"FALSE NEGATIVE, query: ", row.Query, ", time: ", row.BenchTime, ", score: ", result.Value, ", predict: ", pred, ", actual: ", row.BenchTime > threshold)
+				"FALSE NEGATIVE, query: ", row.Query, ", time: ", row.BenchTime, ", score: ", result.Value*modelScaleArg, ", predict: ", pred, ", actual: ", row.BenchTime > threshold)
 			numFalseNegatives++
 
 		} else if pred && actual {

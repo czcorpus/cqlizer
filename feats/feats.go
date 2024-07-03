@@ -1,9 +1,6 @@
 package feats
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"github.com/czcorpus/cqlizer/cql"
 )
 
@@ -12,168 +9,146 @@ import (
 // by the [prefix length]. So e.g. for 'work.*' will get 100 / 4
 
 type Record struct {
-	CorpusSize   int `json:"corpusSize"`
-	TextLen      int `json:"textLen"`
-	NumPositions int `json:"numAtomQueries"`
-
-	//
-	// []{1,3}, []+ [tag="N.*"]*
-	PositionExhaustionScore        float64 `json:"positionExhaustionScore"`
-	AvgConstStringSize             float64 `json:"avgConstStringSize"`
-	NumDisjunctElementsPerSequence float64 `json:"numDisjunctElementsPerSequence"`
-	NumDisjunctPerRawRegexp        float64 `json:"numDisjunctPerRawRegexp"`
-	AvgUppercaseRatio              float64 `json:"avgUppercaseRatio"`
-
-	// RegExpExhaustionScore (problems inside regexps: e.g. .*, .+)
-	RegExpExhaustionScore float64 `json:"regExpExhaustionScore"`
-
-	NumGlobCond int `json:"numGlobCond"`
-
-	NumContaining int `json:"numContaining"`
-
-	NumNegContaining int `json:"numNegContaining"`
-
-	NumWithin int `json:"numWithin"`
-
-	NumNegWithin int `json:"numNegWithin"`
-
-	NumOpenStructTag int `json:"numOpenStructTag"`
+	matrix [][]float64
 }
 
-func calcAvg(data []float64) float64 {
-	var ans float64
-	for _, v := range data {
-		ans += v
+func NewRecord() Record {
+	ans := Record{}
+	ans.matrix = make([][]float64, 35)
+	for i := 0; i < len(ans.matrix); i++ {
+		ans.matrix[i] = make([]float64, len(ans.matrix))
 	}
-	return ans / float64(len(data))
+	return ans
 }
 
 func (rec Record) AsVector() []float64 {
-	return []float64{
-		float64(rec.CorpusSize),
-		//float64(rec.TextLen),
-		float64(rec.NumPositions),
-		rec.PositionExhaustionScore,
-		rec.AvgConstStringSize,
-		rec.RegExpExhaustionScore,
-		float64(rec.NumGlobCond),
-		float64(rec.NumContaining),
-		float64(rec.NumWithin),
-		rec.AvgConstStringSize,
-		rec.NumDisjunctElementsPerSequence,
-		rec.NumDisjunctPerRawRegexp,
-		rec.AvgUppercaseRatio,
-		float64(rec.NumOpenStructTag),
+	ans := make([]float64, len(rec.matrix)*len(rec.matrix))
+	for i := 0; i < len(rec.matrix); i++ {
+		for j := 0; j < len(rec.matrix); j++ {
+			ans[i*len(rec.matrix)+j] = rec.matrix[i][j]
+		}
+	}
+	return ans
+}
+
+func (rec *Record) GetNodeTypeID(v any) int {
+	switch v.(type) {
+	case *cql.Sequence:
+		return 0
+	case *cql.Seq:
+		return 1
+	case *cql.GlobPart:
+		return 2
+	case *cql.WithinOrContaining:
+		return 3
+	case *cql.WithinContainingPart:
+		return 4
+	case *cql.GlobCond:
+		return 5
+	case *cql.Structure:
+		return 6
+	case *cql.AttValList:
+		return 7
+	case *cql.NumberedPosition:
+		return 8
+	case *cql.OnePosition:
+		return 9
+	case *cql.Position:
+		return 10
+	case *cql.RegExp:
+		return 11
+	case *cql.MuPart:
+		return 12
+	case *cql.Repetition:
+		return 13
+	case *cql.AtomQuery:
+		return 14
+	case *cql.RepOpt:
+		return 15
+	case *cql.OpenStructTag:
+		return 16
+	case *cql.CloseStructTag:
+		return 17
+	case *cql.AlignedPart:
+		return 18
+	case *cql.AttValAnd:
+		return 19
+	case *cql.AttVal:
+		return 20
+	case *cql.WithinNumber:
+		return 21
+	case *cql.RegExpRaw:
+		return 22
+	case *cql.RawString:
+		return 23
+	case *cql.SimpleString:
+		return 24
+	case *cql.RgGrouped:
+		return 25
+	case *cql.RgSimple:
+		return 26
+	case *cql.RgPosixClass:
+		return 27
+	case *cql.RgLook:
+		return 28
+	case *cql.RgAlt:
+		return 29
+	case *cql.RgRange:
+		return 30
+	case *cql.RgRangeSpec:
+		return 31
+	case *cql.AnyLetter:
+		return 32
+	case *cql.RgOp:
+		return 33
+	case *cql.RgAltVal:
+		return 34
+	default:
+		panic("unsupported node type")
 	}
 }
 
 func (rec *Record) ImportFrom(query *cql.Query, corpusSize int) {
-	rec.CorpusSize = corpusSize
-	rec.TextLen = query.Len()
-	var rootSequence *cql.Sequence
-	var rootSeq *cql.Seq
-	var numOrChainedSeq int
-	var currRegexp *cql.RegExp
-	var numRegexpRaw int
-	var numRegexpRawExpOps int
-	uppercaseRatioItems := make([]float64, 0, 50)
+
 	query.ForEachElement(func(parent, v cql.ASTNode) {
 		switch tNode := v.(type) {
-		case *cql.Query:
-			if tNode.GlobPart != nil {
-				//fmt.Println("########## WE HAVE GLOB")
-			}
 		case *cql.Sequence:
-			//fmt.Println("##### <Sequence>: ", tNode.Text())
-			if parent == query {
-				//fmt.Println("   @@@@@@@@ we have a root ...")
-				rootSequence = tNode
-			}
-			//fmt.Println("   his parent: ", reflect.TypeOf(parent), parent.Text())
 		case *cql.Seq:
-			//fmt.Println("##### <Seq>: ", tNode.Text())
-			if parent == rootSequence {
-				rootSeq = tNode
-			}
-			//fmt.Println("   or chained? ", tNode.IsOrChained())
-			if tNode.IsOrChained() {
-				numOrChainedSeq++
-			}
-			//fmt.Println("   his parent: ", reflect.TypeOf(parent), parent.Text())
-		case *cql.AtomQuery:
-			//fmt.Println("##### <AtomQuery>: ", tNode.Text())
-			//fmt.Println("   his parent: ", reflect.TypeOf(parent), parent.Text())
-			rec.NumWithin += tNode.NumWithinParts()
-			rec.NumNegWithin += tNode.NumNegWithinParts()
-			rec.NumContaining += tNode.NumContainingParts()
-			rec.NumNegContaining += tNode.NumNegContainingParts()
-		case *cql.Repetition:
-			//fmt.Println("### <Repetition>: ", tNode.Text())
-			if parent == rootSeq {
-				rec.NumPositions++
-			}
-			//fmt.Println("   RepOpt: ", tNode.GetRepOpt())
-			//fmt.Println("   tail position? ", tNode.IsTailPosition())
-			//fmt.Println("   his parent: ", reflect.TypeOf(parent), parent.Text())
-			if tNode.GetRepOpt() == "+" || tNode.GetRepOpt() == "*" {
-				rec.PositionExhaustionScore += 10
-
-			} else if tNode.GetRepOpt() == "?" {
-				rec.PositionExhaustionScore += 2
-			}
-			if tNode.IsAnyPosition() {
-				rec.PositionExhaustionScore += 20
-			}
-			rng := tNode.GetReptOptRange()
-			if rng[0] > -1 && rng[1] > -1 {
-				rec.PositionExhaustionScore += float64((rng[1] - rng[0]) * 3)
-
-			} else if rng[0] > -1 {
-				rec.PositionExhaustionScore += 10
-			}
-
-		case *cql.RgSimple:
-			rec.RegExpExhaustionScore += tNode.ExhaustionScore()
-		case *cql.GlobCond:
-			rec.NumGlobCond++
+		case *cql.GlobPart:
 		case *cql.WithinOrContaining:
-			rec.NumWithin += tNode.NumWithinParts()
-			rec.NumNegWithin += tNode.NumNegWithinParts()
-			rec.NumContaining += tNode.NumContainingParts()
-			rec.NumNegContaining += tNode.NumNegContainingParts()
-
+		case *cql.WithinContainingPart:
+		case *cql.GlobCond:
+		case *cql.Structure:
+		case *cql.AttValList:
+		case *cql.NumberedPosition:
+		case *cql.OnePosition:
+		case *cql.Position:
 		case *cql.RegExp:
-			currRegexp = tNode
-
-		case *cql.RegExpRaw:
-			if parent == currRegexp {
-				numRegexpRaw++
-				//fmt.Println("======= <RegExpRaw>: ", tNode.Text())
-				//fmt.Println("   his parent: ", reflect.TypeOf(parent), parent.Text())
-				//fmt.Println("   EXPENSIVE ops: ", tNode.ExpensiveOps())
-				//rec.RegExpExhaustionScore += tNode.ExhaustionScore() // TODO isn't this duplicate of stuff in RgSimple?
-			}
-		case *cql.SimpleString:
-			uppercaseRatioItems = append(uppercaseRatioItems, tNode.UppercaseRatio())
+		case *cql.MuPart:
+		case *cql.Repetition:
+		case *cql.AtomQuery:
+		case *cql.RepOpt:
 		case *cql.OpenStructTag:
-			rec.NumOpenStructTag++
+		case *cql.CloseStructTag:
+		case *cql.AlignedPart:
+		case *cql.AttValAnd:
+		case *cql.AttVal:
+		case *cql.WithinNumber:
+		case *cql.RegExpRaw:
+		case *cql.RawString:
+		case *cql.SimpleString:
+		case *cql.RgGrouped:
+		case *cql.RgSimple:
+		case *cql.RgPosixClass:
+		case *cql.RgLook:
+		case *cql.RgAlt:
+		case *cql.RgRange:
+		case *cql.RgRangeSpec:
+		case *cql.AnyLetter:
+		case *cql.RgOp:
+		case *cql.RgAltVal:
+		default:
 		}
 	})
-	if len(uppercaseRatioItems) > 0 {
-		rec.AvgUppercaseRatio = calcAvg(uppercaseRatioItems)
-	}
-	if numRegexpRaw > 0 {
-		rec.NumDisjunctPerRawRegexp = float64(numRegexpRawExpOps) / float64(numRegexpRaw)
-	}
-	rec.NumDisjunctElementsPerSequence = float64(numOrChainedSeq) / float64(rec.NumPositions)
-	rec.RegExpExhaustionScore /= float64(rec.NumPositions * rec.NumPositions)
 
-}
-
-func (rec Record) AsJSONString() string {
-	ans, err := json.Marshal(rec)
-	if err != nil {
-		panic(fmt.Sprintf("failed to serialize feats.Record: %s", err))
-	}
-	return string(ans)
 }
