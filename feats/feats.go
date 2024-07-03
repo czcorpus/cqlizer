@@ -112,42 +112,22 @@ func (rec *Record) ImportFrom(query *cql.Query, corpusSize int) {
 
 	query.ForEachElement(func(parent, v cql.ASTNode) {
 		switch tNode := v.(type) {
-		case *cql.Sequence:
-		case *cql.Seq:
-		case *cql.GlobPart:
-		case *cql.WithinOrContaining:
-		case *cql.WithinContainingPart:
-		case *cql.GlobCond:
-		case *cql.Structure:
-		case *cql.AttValList:
-		case *cql.NumberedPosition:
-		case *cql.OnePosition:
-		case *cql.Position:
-		case *cql.RegExp:
-		case *cql.MuPart:
-		case *cql.Repetition:
-		case *cql.AtomQuery:
-		case *cql.RepOpt:
-		case *cql.OpenStructTag:
-		case *cql.CloseStructTag:
-		case *cql.AlignedPart:
-		case *cql.AttValAnd:
-		case *cql.AttVal:
-		case *cql.WithinNumber:
-		case *cql.RegExpRaw:
-		case *cql.RawString:
-		case *cql.SimpleString:
-		case *cql.RgGrouped:
-		case *cql.RgSimple:
-		case *cql.RgPosixClass:
-		case *cql.RgLook:
-		case *cql.RgAlt:
-		case *cql.RgRange:
-		case *cql.RgRangeSpec:
-		case *cql.AnyLetter:
-		case *cql.RgOp:
-		case *cql.RgAltVal:
 		default:
+			i1 := rec.GetNodeTypeID(tNode)
+			i2 := rec.GetNodeTypeID(parent)
+			rec.matrix[i1][i2] += 1
+		case *cql.RegExpRaw:
+			i1 := rec.GetNodeTypeID(tNode)
+			i2 := rec.GetNodeTypeID(parent)
+			rec.matrix[i1][i2] += tNode.ExhaustionScore()
+		case *cql.Repetition:
+			i1 := rec.GetNodeTypeID(tNode)
+			i2 := rec.GetNodeTypeID(parent)
+			v := 1.0
+			if tNode.IsAnyPosition() {
+				v = 10.0
+			}
+			rec.matrix[i1][i2] += v
 		}
 	})
 

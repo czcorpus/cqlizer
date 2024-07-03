@@ -203,7 +203,7 @@ func runPredictionTest(conf *cnf.Conf, threshold float64) {
 		os.Exit(1)
 	}
 	eng := prediction.NewEngine(conf, db)
-	err = eng.Test2(threshold)
+	err = eng.Test(threshold)
 	if err != nil {
 		fmt.Println("FAILED: ", err)
 		os.Exit(1)
