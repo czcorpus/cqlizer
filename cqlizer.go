@@ -333,7 +333,7 @@ func main() {
 	overwriteAll := flag.Bool("overwrite-all", false, "If set, then all the queries will be benchmarked even if they already have a result attached")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "CQLIZER - A CQL toolbox\n\n")
-		fmt.Fprintf(os.Stderr, "Usage:\n\t%s [options] start [config.json]\n\t", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "Usage:\n\t%s [options] start [config.json] [trainingID]\n\t", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "\n\t%s [options] import [config.json] [source file]\n\t", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "%s [options] version\n", filepath.Base(os.Args[0]))
 		flag.PrintDefaults()

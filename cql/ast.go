@@ -1649,7 +1649,7 @@ func (r *RgSimple) ExhaustionScore() float64 {
 							ans += 100
 
 						} else {
-							ans *= 0.95
+							ans *= 1.5
 						}
 						state = 2
 					}
@@ -1670,15 +1670,17 @@ func (r *RgSimple) ExhaustionScore() float64 {
 				}
 
 			} else if tVal.variant1 != nil {
-				if ans == 0 {
-					ans = 10
+				if state == 1 {
+					ans *= 1.2
+					state = 0
 
 				} else {
-					ans *= 0.7
-				}
-				if state == 1 {
-					ans *= 0.9
-					state = 0
+					if ans == 0 {
+						ans = 10
+
+					} else {
+						ans *= 0.7
+					}
 				}
 			}
 		}

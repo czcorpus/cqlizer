@@ -145,13 +145,13 @@ func (eng *Engine) train(
 		}
 		actual := row.BenchTime > threshold
 		if pred && !actual {
-			fmt.Println(
-				"FALSE POSITIVE, query: ", q, ", time: ", row.BenchTime, ", predict ", pred, ", actual: ", row.BenchTime > threshold)
+			fmt.Println("FALSE POSITIVE, query: ", q, ", time: ", row.BenchTime)
+			fmt.Printf("  prediction - yes: %1.2f, no: %1.2f\n", ans[1], ans[0])
 			numFalsePositives++
 
 		} else if !pred && actual {
-			fmt.Println(
-				"FALSE NEGATIVE, query: ", q, ", time: ", row.BenchTime, ", predict ", pred, ", actual: ", row.BenchTime > threshold)
+			fmt.Println("FALSE NEGATIVE, query: ", q, ", time: ", row.BenchTime)
+			fmt.Printf("  prediction - yes: %1.2f, no: %1.2f\n", ans[1], ans[0])
 			numFalseNegatives++
 
 		} else if pred && actual {
