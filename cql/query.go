@@ -42,3 +42,16 @@ func (q *Query) ForEachElement(fn func(parent, v ASTNode)) {
 		item.ForEachElement(q, fn)
 	}
 }
+
+func (q *Query) DFS(fn func(v ASTNode)) {
+	if q.Sequence != nil {
+		q.Sequence.DFS(fn)
+	}
+	if q.GlobPart != nil {
+		q.GlobPart.DFS(fn)
+	}
+	for _, item := range q.WithinOrContaining {
+		item.DFS(fn)
+	}
+	fn(q)
+}

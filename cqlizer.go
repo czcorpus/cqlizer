@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -35,7 +36,10 @@ import (
 	"github.com/czcorpus/cnc-gokit/collections"
 	"github.com/czcorpus/cnc-gokit/logging"
 	"github.com/czcorpus/cnc-gokit/uniresp"
+	"github.com/czcorpus/cqlizer/benchmark"
 	"github.com/czcorpus/cqlizer/cnf"
+	"github.com/czcorpus/cqlizer/logproc"
+	"github.com/czcorpus/cqlizer/prediction"
 	"github.com/czcorpus/cqlizer/stats"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -124,8 +128,110 @@ func AuthRequired(conf *cnf.Conf) gin.HandlerFunc {
 	}
 }
 
+func runKontextImport(conf *cnf.Conf, path string) {
+	err := logproc.ImportLog(conf, path)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+	}
+}
+
+func runSizesImport(conf *cnf.Conf, path string) {
+	db, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+	}
+	err = db.Init()
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+	}
+	err = db.ImportCorpusSizesFromCSV(path)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+	}
+}
+
+func runBenchmark(conf *cnf.Conf, overwriteBenchmarked bool) {
+	db, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+	err = db.Init()
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+
+	exe := benchmark.NewExecutor(
+		conf,
+		db,
+	)
+	err = exe.RullFull(overwriteBenchmarked)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+}
+
+func runPredictionTest(conf *cnf.Conf, threshold float64) {
+	db, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+	err = db.Init()
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+	eng := prediction.NewEngine(conf, db)
+	err = eng.Train(threshold)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+}
+
+func runTrainingReplay(conf *cnf.Conf, trainingId int) {
+	db, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+	err = db.Init()
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+	threshold, err := db.GetTrainingThreshold(trainingId)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+
+	tdata, err := db.GetTrainingData(trainingId)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+
+	vdata, err := db.GetTrainingValidationData(trainingId)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+
+	eng := prediction.NewEngine(conf, db)
+	_, err = eng.TrainReplay(threshold, tdata, vdata)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+}
+
 func runApiServer(
 	conf *cnf.Conf,
+	trainingID int,
 	syscallChan chan os.Signal,
 	exitEvent chan os.Signal,
 ) {
@@ -145,6 +251,31 @@ func runApiServer(
 		syscallChan <- syscall.SIGTERM
 	}
 
+	threshold, err := statsDB.GetTrainingThreshold(trainingID)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to get training threshold")
+		syscallChan <- syscall.SIGTERM
+	}
+
+	tdata, err := statsDB.GetTrainingData(trainingID)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to get training data")
+		syscallChan <- syscall.SIGTERM
+	}
+
+	vdata, err := statsDB.GetTrainingValidationData(trainingID)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to get validation data")
+		syscallChan <- syscall.SIGTERM
+	}
+
+	eng := prediction.NewEngine(conf, statsDB)
+	model, err := eng.TrainReplay(threshold, tdata, vdata)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to train model")
+		syscallChan <- syscall.SIGTERM
+	}
+
 	engine := gin.New()
 	engine.Use(gin.Recovery())
 	engine.Use(additionalLogEvents())
@@ -154,7 +285,10 @@ func runApiServer(
 	engine.NoMethod(uniresp.NoMethodHandler)
 	engine.NoRoute(uniresp.NotFoundHandler)
 
-	cqlActions := Actions{StatsDB: statsDB}
+	cqlActions := Actions{
+		StatsDB: statsDB,
+		rfModel: model,
+	}
 
 	engine.GET(
 		"/analyze", cqlActions.AnalyzeQuery)
@@ -196,10 +330,11 @@ func main() {
 		BuildDate: cleanVersionInfo(buildDate),
 		GitCommit: cleanVersionInfo(gitCommit),
 	}
-
+	overwriteAll := flag.Bool("overwrite-all", false, "If set, then all the queries will be benchmarked even if they already have a result attached")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "CQLIZER - A CQL toolbox\n\n")
 		fmt.Fprintf(os.Stderr, "Usage:\n\t%s [options] start [config.json]\n\t", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "\n\t%s [options] import [config.json] [source file]\n\t", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "%s [options] version\n", filepath.Base(os.Args[0]))
 		flag.PrintDefaults()
 	}
@@ -226,7 +361,32 @@ func main() {
 
 	switch action {
 	case "start":
-		runApiServer(conf, syscallChan, exitEvent)
+		trainingID, err := strconv.ParseInt(flag.Arg(2), 10, 64)
+		if err != nil {
+			fmt.Println("FAILED: ", err)
+			os.Exit(1)
+		}
+		runApiServer(conf, int(trainingID), syscallChan, exitEvent)
+	case "import":
+		runKontextImport(conf, flag.Arg(2))
+	case "corpsizes":
+		runSizesImport(conf, flag.Arg(2))
+	case "benchmark":
+		runBenchmark(conf, *overwriteAll)
+	case "replay":
+		trainingID, err := strconv.ParseInt(flag.Arg(2), 10, 64)
+		if err != nil {
+			fmt.Println("FAILED: ", err)
+			os.Exit(1)
+		}
+		runTrainingReplay(conf, int(trainingID))
+	case "prediction-test":
+		thr, err := strconv.ParseFloat(flag.Arg(2), 64)
+		if err != nil {
+			fmt.Println("FAILED: ", err)
+			os.Exit(1)
+		}
+		runPredictionTest(conf, thr)
 	default:
 		log.Fatal().Msgf("Unknown action %s", action)
 	}

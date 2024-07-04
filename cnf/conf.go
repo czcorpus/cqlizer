@@ -32,6 +32,7 @@ type Conf struct {
 	LogFile                string           `json:"logFile"`
 	LogLevel               logging.LogLevel `json:"logLevel"`
 	WorkingDBPath          string           `json:"workingDbPath"`
+	BenchmarkMQueryURL     string           `json:"benchmarkMQueryUrl"`
 }
 
 func LoadConfig(path string) *Conf {

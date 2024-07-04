@@ -44,7 +44,6 @@ Query <-
             ans.GlobPart = fromIdxOfUntypedSlice[*GlobPart](gpTyped, 3)
         }
 
-        fmt.Println("wc is: ", wc)
         wcSl := anyToSlice(wc)
         ans.WithinOrContaining = make([]*WithinOrContaining, 0, 10)
         for _, item := range wcSl {
@@ -170,16 +169,16 @@ NumberedPosition <-
 
 Position <-
     op:OnePosition {
-        fmt.Println("########### Position1: ", string(c.text))
         return &Position{
+            origValue: string(c.text),
             variant1: &positionVariant1{
                 OnePosition: typedOrPanic[*OnePosition](op),
             },
         }, nil
     }
     / np:NumberedPosition {
-        fmt.Println("########### Position2: ", string(c.text))
         return &Position{
+            origValue: string(c.text),
             variant2: &positionVariant2{
                 NumberedPosition: typedOrPanic[*NumberedPosition](np),
             },
@@ -188,9 +187,9 @@ Position <-
 
 OnePosition <-
     LBRACKET _ alist:AttValList? _ RBRACKET {
-        fmt.Println("########### OnePosition1: ", string(c.text))
         ans := &OnePosition{
-            variant1: &onePositionVariant1{
+            origValue: string(c.text),
+            Variant1: &onePositionVariant1{
                 AttValList: typedOrPanic[*AttValList](alist),
             },
         }
@@ -198,9 +197,9 @@ OnePosition <-
         return ans, nil
     }
     / rg:RegExp {
-        fmt.Println("########### OnePosition2: ", string(c.text))
         ans := &OnePosition{
-            variant2: &onePositionVariant2{
+            origValue: string(c.text),
+            Variant2: &onePositionVariant2{
                 RegExp: typedOrPanic[*RegExp](rg),
             },
         }
@@ -208,9 +207,9 @@ OnePosition <-
         return ans, nil
     }
     / TEQ num:NUMBER? rg:RegExp {
-         fmt.Println("########### OnePosition3: ", string(c.text))
         ans := &OnePosition{
-            variant3: &onePositionVariant3{
+            origValue: string(c.text),
+            Variant3: &onePositionVariant3{
                 Number: ASTString(typedOrPanic[string](num)),
                 RegExp: typedOrPanic[*RegExp](rg),
             },
@@ -219,13 +218,16 @@ OnePosition <-
         return ans, nil
     }
     / KW_MU {
-        ans := &OnePosition{}
+        ans := &OnePosition{
+            origValue: string(c.text),
+        }
 
         return ans, nil
     }
     / mu:MuPart {
         ans := &OnePosition{
-            variant5: &onePositionVariant5{
+            origValue: string(c.text),
+            Variant5: &onePositionVariant5{
                 MuPart: typedOrPanic[*MuPart](mu),
             },
         }
@@ -237,9 +239,16 @@ OnePosition <-
 // -------------------- meet/union query --------------------
 
 MuPart <-
-    LPAREN _ (UnionOp / MeetOp) _ RPAREN {
-        ans := &MuPart{} // TODO
-
+    LPAREN _ op:(UnionOp / MeetOp) _ RPAREN {
+        ans := &MuPart{
+            origValue: string(c.text),
+        }
+        switch tOp := op.(type) {
+            case *UnionOp:
+                ans.Variant1 = &muPartVariant1{UnionOp: tOp}
+            case *MeetOp:
+                ans.Variant2 = &muPartVariant2{MeetOp: tOp}
+        }
         return ans, nil
     }
 
@@ -249,16 +258,29 @@ Integer <-
     }
 
 MeetOp <-
-    KW_MEET _ Position _ Position _ (Integer _ Integer)?
+    KW_MEET _ p1:Position _ p2:Position _ (Integer _ Integer)? {
+        ans := &MeetOp{
+            origValue: string(c.text),
+            Position1: typedOrPanic[*Position](p1),
+            Position2: typedOrPanic[*Position](p2),
+        }
+        return ans, nil
+    }
 
 UnionOp <-
-    KW_UNION _ Position _ Position
+    KW_UNION _ p1:Position _ p2:Position {
+        ans := &MeetOp{
+            origValue: string(c.text),
+            Position1: typedOrPanic[*Position](p1),
+            Position2: typedOrPanic[*Position](p2),
+        }
+        return ans, nil
+    }
 
 
 // -------------------- regular expression query --------------------
 Sequence <-
     s1:Seq s2:(_ BINOR _ Seq)* {
-        fmt.Println("@@@@@@@@@@@@@@ Sequence: ", string(c.text))
         ans := &Sequence{
             origValue: string(c.text),
         }
@@ -275,7 +297,6 @@ Sequence <-
         return ans, nil
     }
     / s1:Seq {
-        fmt.Println("@@@@@@@@@@@@@@ Sequence2: ", string(c.text))
         ans := &Sequence{
             origValue: string(c.text),
             Seq: []*Seq{typedOrPanic[*Seq](s1)},
@@ -286,7 +307,6 @@ Sequence <-
 
 Seq <-
     NOT? r1:Repetition r2:(_ Repetition)* {
-        fmt.Println("############ Seq: ", string(c.text))
         ans := &Seq{
             origValue: string(c.text),
         }
@@ -307,7 +327,7 @@ Repetition <-
     aq:AtomQuery ro:RepOpt? {
         ans := &Repetition{
             origValue: string(c.text),
-            variant1: &repetitionVariant1{
+            Variant1: &repetitionVariant1{
                 AtomQuery: typedOrPanic[*AtomQuery](aq),
                 RepOpt: typedOrPanic[*RepOpt](ro),
             },
@@ -318,7 +338,7 @@ Repetition <-
     / ost:OpenStructTag {
         ans := &Repetition{
             origValue: string(c.text),
-            variant2: &repetitionVariant2{
+            Variant2: &repetitionVariant2{
                 OpenStructTag: typedOrPanic[*OpenStructTag](ost),
             },
         }
@@ -328,7 +348,7 @@ Repetition <-
     / cst:CloseStructTag {
         ans := &Repetition{
             origValue: string(c.text),
-            variant3: &repetitionVariant3{
+            Variant3: &repetitionVariant3{
                 CloseStructTag: typedOrPanic[*CloseStructTag](cst),
             },
         }
@@ -339,6 +359,7 @@ Repetition <-
 OpenStructTag <-
     LSTRUCT s:Structure _ SLASH? RSTRUCT {
         ans := &OpenStructTag{
+            origValue: string(c.text),
             Structure: typedOrPanic[*Structure](s),
         }
 
@@ -356,7 +377,6 @@ CloseStructTag <-
 
 AtomQuery <-
     pos:Position {
-        fmt.Println("################ AtomQuery1: ", string(c.text))
         ans := &AtomQuery{
             origValue: string(c.text),
             variant1: &atomQueryVariant1 {
@@ -367,7 +387,6 @@ AtomQuery <-
         return ans, nil
     }
     / LPAREN _ seq:Sequence wcp:(_ NOT? (KW_WITHIN / KW_CONTAINING) _ WithinContainingPart)* _ RPAREN {
-        fmt.Println("################ AtomQuery2: ", string(c.text))
         ans := &AtomQuery{
             origValue: string(c.text),
             variant2: &atomQueryVariant2 {
@@ -406,8 +425,8 @@ AlignedPart <-
 
 AttValList <-
     av1:AttValAnd av2:(_ BINOR _ AttValAnd)* {
-        fmt.Println("########### AttValList: ", string(c.text))
         ans := &AttValList{
+            origValue: string(c.text),
             AttValAnd: make([]*AttValAnd, 0, 10),
         }
         ans.AttValAnd = append(ans.AttValAnd, typedOrPanic[*AttValAnd](av1))
@@ -422,7 +441,6 @@ AttValList <-
 
 AttValAnd <-
     av1:AttVal av2:(_ BINAND _ AttVal)* {
-        fmt.Println("########### AttValAnd: ", string(c.text))
         ans := &AttValAnd{
             AttVal: make([]*AttVal, 0, 10),
         }
@@ -436,10 +454,10 @@ AttValAnd <-
     }
 
 AttVal <-
-    an:AttName _ (NOT)? EEQ _ rs:RawString {
-        fmt.Println("########### AttVal1: ", string(c.text))
+    an:AttName (_ NOT)? _ EEQ _ rs:RawString {
         ans := &AttVal{
-            variant1: &attValVariant1 {
+            origValue: string(c.text),
+            Variant1: &attValVariant1 {
 	            AttName: ASTString(typedOrPanic[string](an)),
 	            RawString: typedOrPanic[*RawString](rs),
             },
@@ -447,10 +465,18 @@ AttVal <-
 
         return ans, nil
     }
-    / an:AttName (_ NOT)? _ op:(EQ / LEQ / GEQ / TEQ NUMBER?) _ rg:RegExp {
-        fmt.Println("########### AttVal2: ", string(c.text))
+    / an:AttName n:(_ NOT)? _ op:(EQ / LEQ / GEQ / TEQ NUMBER?) _ rg:RegExp {
+        var not bool
+        if n != nil {
+            tmp := fromIdxOfUntypedSlice[string](n, 1)
+            if tmp == "!" {
+                not = true
+            }
+        }
         ans := &AttVal{
-            variant2: &attValVariant2{
+            origValue: string(c.text),
+            Variant2: &attValVariant2{
+                Not: not,
                 AttName: ASTString(typedOrPanic[string](an)),
 	            RegExp: typedOrPanic[*RegExp](rg),
             },
@@ -459,42 +485,57 @@ AttVal <-
         return ans, nil
     }
     / POSNUM NUMBER DASH NUMBER {
-        ans := &AttVal{}
+        ans := &AttVal{
+            origValue: string(c.text),
+        }
 
         return ans, nil
     }
     / POSNUM NUMBER {
-        ans := &AttVal{}
+        ans := &AttVal{
+            origValue: string(c.text),
+        }
 
         return ans, nil
     }
-    / NOT AttVal {
-        ans := &AttVal{}
-
+    / NOT a:AttVal {
+        ans := &AttVal{
+            origValue: string(c.text),
+            Variant5: &attValVariant5{
+                AttVal: typedOrPanic[*AttVal](a),
+            },
+        }
         return ans, nil
     }
-    / LPAREN _ AttValList _ RPAREN {
-        fmt.Println("########### AttVal6: ", string(c.text))
-        ans := &AttVal{}
+    / LPAREN _ a:AttValList _ RPAREN {
+        ans := &AttVal{
+            origValue: string(c.text),
+            Variant6: &attValVariant6{
+                AttValList: typedOrPanic[*AttValList](a),
+            },
+        }
 
         return ans, nil
     }
     / (KW_WS / KW_TERM) LPAREN _ (NUMBER COMMA NUMBER / RegExp COMMA RegExp COMMA RegExp) _ RPAREN {
-        fmt.Println("########### AttVal7: ", string(c.text))
-        ans := &AttVal{}
+        ans := &AttVal{
+            origValue: string(c.text),
+        }
 
         return ans, nil
     }
     / KW_SWAP LPAREN _ NUMBER COMMA AttValList _ RPAREN {
-        fmt.Println("########### AttVal8: ", string(c.text))
-        ans := &AttVal{}
+        ans := &AttVal{
+            origValue: string(c.text),
+        }
 
         return ans, nil
 
     }
     / KW_CCOLL LPAREN _ NUMBER COMMA NUMBER COMMA AttValList _ RPAREN {
-        fmt.Println("########### AttVal9: ", string(c.text))
-        ans := &AttVal{}
+        ans := &AttVal{
+            origValue: string(c.text),
+        }
 
         return ans, nil
     }
@@ -505,7 +546,7 @@ WithinNumber <-
 RepOpt <-
     v:STAR {
         ans := &RepOpt{
-            variant1: &repOptVariant1{
+            Variant1: &repOptVariant1{
                 Value: ASTString(typedOrPanic[string](v)),
             },
         }
@@ -513,7 +554,7 @@ RepOpt <-
     }
     / v:PLUS {
         ans := &RepOpt{
-            variant1: &repOptVariant1{
+            Variant1: &repOptVariant1{
                 Value: ASTString(typedOrPanic[string](v)),
             },
         }
@@ -521,7 +562,7 @@ RepOpt <-
     }
     / v:QUEST {
         ans := &RepOpt{
-            variant1: &repOptVariant1{
+            Variant1: &repOptVariant1{
                 Value: ASTString(typedOrPanic[string](v)),
             },
         }
@@ -530,15 +571,13 @@ RepOpt <-
     / LBRACE v1:NUMBER v2:(COMMA NUMBER?)? RBRACE {
         var v2x string
         if v2 != nil {
-            fmt.Printf(">>>> v2 = %#v\n", v2)
             tmp := fromIdxOfUntypedSlice[any](v2, 1)
-            fmt.Println(">>>> TMP = ", tmp)
             if tmp != nil {
                 v2x = typedOrPanic[string](tmp)
             }
         }
         ans := &RepOpt{
-            variant2: &repOptVariant2{
+            Variant2: &repOptVariant2{
                 From: ASTString(typedOrPanic[string](v1)),
                 To: ASTString(v2x),
             },
@@ -560,7 +599,6 @@ AttName <-       /* this alternatives are here just to keep non terminal AttrNam
 
 RawString <-
     QUOT ss:SimpleString QUOT {
-        fmt.Println("################## RawString1: ", string(c.text))
         ans := &RawString{
             SimpleString: typedOrPanic[*SimpleString](ss),
         }
@@ -573,8 +611,8 @@ RawString <-
 
 SimpleString <-
     values:(AnyLetter / NO_RG_ESCAPED / NO_RG_SPEC)+ {
-        fmt.Println("################## SimpleString: ", string(c.text))
         ans := &SimpleString{
+            origValue: string(c.text),
             Values: make([]ASTString, len(anyToSlice(values))),
         }
         for i, item := range anyToSlice(values) {
@@ -595,16 +633,16 @@ NO_RG_ESCAPED <-
 
 RegExp <-
     QUOT rer:RegExpRaw QUOT {
-        fmt.Println("###### RegExp: ", string(c.text))
         ans := &RegExp{
+            origValue: string(c.text),
             RegExpRaw: typedOrPanic[*RegExpRaw](rer),
         }
 
         return ans, nil
     }
     / QUOT QUOT {
-        fmt.Println("###### RegExp empty !!!")
         ans := &RegExp{
+            origValue: "",
             RegExpRaw: &RegExpRaw{
 
             },
@@ -615,9 +653,9 @@ RegExp <-
 
 RegExpRaw <-
     v:(RgLook / RgGrouped / RgSimple)+ {
-        fmt.Println("######################## RegExpRaw[0]: ", string(c.text))
         vSlice := anyToSlice(v)
         ans := &RegExpRaw{
+            origValue: string(c.text),
             Values: make([]any, 0, len(vSlice)),
         }
         for _, item := range vSlice {
@@ -629,7 +667,6 @@ RegExpRaw <-
 
 RgGrouped <-
     LPAREN _ rg:RegExpRaw _ RPAREN {
-        fmt.Println("#### RgGrouped: ", string(c.text))
         ans := &RgGrouped{
             Value: typedOrPanic[*RegExpRaw](rg),
         }
@@ -639,9 +676,9 @@ RgGrouped <-
 
 RgSimple <-
     v:(RgRange / RgChar / RgAlt / RgPosixClass)+ {
-        fmt.Println("#########################  RgSimple: ", string(c.text))
         vSlice := anyToSlice(v)
         ans := &RgSimple{
+            origValue: string(c.text),
             Values: make([]any, 0, len(vSlice)),
         }
         for _, item := range vSlice {
@@ -653,14 +690,12 @@ RgSimple <-
 
 RgPosixClass <-
     LBRACKET LBRACKET COLON POSIX_CHAR_CLS COLON RBRACKET RBRACKET {
-        fmt.Println("###### RgPosixClass: ", string(c.text))
         return string(c.text), nil
     }
 
 // negative/positive lookbehind/lookahead
 RgLook <-
     LPAREN _ RgLookOperator RegExpRaw _ RPAREN {
-        fmt.Println("############ RgLook: ", string(c.text))
         // TODO
         ans := &RgLook{}
 
@@ -673,12 +708,10 @@ RgLookOperator <-
 
 RgAlt <-
     LBRACKET v:RgAltVal+ RBRACKET {
-        fmt.Println("======= WE HAVE ALT ", string(c.text))
         ans := &RgAlt{
             Values: make([]*RgAltVal, 0, 10),
         }
         for _, item := range anyToSlice(v) {
-            fmt.Println(">>>> ITEM: ", item)
             ans.Values = append(ans.Values, typedOrPanic[*RgAltVal](item))
         }
 
@@ -707,7 +740,6 @@ RgAltVal <- v:RgChar {
 
 RgChar <-
     rg:RG_ESCAPED {
-        fmt.Println("###### RgChar1 ", string(c.text))
         ans := &RgChar{
             variant1: &rgCharVariant1{
                 Value: ASTString(typedOrPanic[string](rg)),
@@ -717,7 +749,6 @@ RgChar <-
         return ans, nil
     }
     / rg:AnyLetter {
-        fmt.Println("###### RgChar2 ", string(c.text))
         ans := &RgChar{
             variant1: &rgCharVariant1{
                 Value: ASTString(typedOrPanic[string](rg)),
@@ -727,7 +758,6 @@ RgChar <-
         return ans, nil
     }
     / rg:RG_OP {
-        fmt.Println("###### RgChar3 ", string(c.text))
         ans := &RgChar{
             variant2: &rgCharVariant2{
                 Value: typedOrPanic[*RgOp](rg),
@@ -737,7 +767,6 @@ RgChar <-
         return ans, nil
     }
     / rg:RG_NON_LETTER {
-        fmt.Println("###### RgChar4 ", string(c.text))
         ans := &RgChar{
             variant1: &rgCharVariant1{
                 Value: ASTString(typedOrPanic[string](rg)),
@@ -747,7 +776,6 @@ RgChar <-
         return ans, nil
     }
     / rg:RG_NON_SPEC {
-        fmt.Println("###### RgChar5 ", string(c.text))
         ans := &RgChar{
             variant1: &rgCharVariant1{
                 Value: ASTString(typedOrPanic[string](rg)),
@@ -757,7 +785,6 @@ RgChar <-
         return ans, nil
     }
     / rg:RG_AMP {
-        fmt.Println("###### RgChar6 ", string(c.text))
         ans := &RgChar{
             variant1: &rgCharVariant1{
                 Value: ASTString(typedOrPanic[string](rg)),
@@ -767,7 +794,6 @@ RgChar <-
         return ans, nil
     }
     / rg:RG_UNICODE_PROP {
-        fmt.Println("###### RgChar7 ", string(c.text))
         ans := &RgChar{
             variant1: &rgCharVariant1{
                 Value: ASTString(typedOrPanic[string](rg)),
@@ -779,7 +805,6 @@ RgChar <-
 
 RG_OP <-
     v:[-,_^$ ] {
-        fmt.Println("#### RgOp1: ", string(c.text))
         ans := &RgOp{
             Value: ASTString(c.text),
         }
@@ -787,7 +812,6 @@ RG_OP <-
         return ans, nil
     }
     / v:[0-9?*+.|] {
-        fmt.Println("#### RgOp2: ", string(c.text))
         ans := &RgOp{
             Value: ASTString(c.text),
         }
@@ -813,7 +837,6 @@ POSIX_CHAR_CLS <-
 // {n}, {n,}, {n,m}
 RgRange <-
     LBRACE rg:RgRangeSpec RBRACE {
-        fmt.Println("### RgRange: ", string(c.text))
         ans := &RgRange{
             RgRangeSpec: typedOrPanic[*RgRangeSpec](rg),
         }
