@@ -29,14 +29,13 @@ import (
 )
 
 type DBRecord struct {
-	ID           string
-	Datetime     int
-	Query        string
-	Corpname     string
-	ProcTime     float64
-	PTPercentile int
-	BenchTime    float64
-	FeatsJSON    string
+	ID              string
+	Datetime        int
+	Query           string
+	Corpname        string
+	ProcTime        float64
+	BenchTime       float64
+	TrainingExclude bool
 }
 
 type Database struct {
@@ -53,9 +52,8 @@ func (database *Database) createQueryStatsTable() error {
 			"query TEXT NOT NULL, " +
 			"corpname TEXT NOT NULL, " +
 			"procTime FLOAT NOT NULL," +
-			"ptPercentile INTEGER, " +
 			"benchTime FLOAT, " +
-			"featsJSON TEXT" +
+			"trainingExclude INT NOT NULL DEFAULT 1" +
 			")",
 	)
 	if err != nil {
@@ -103,7 +101,7 @@ func (database *Database) AddBenchmarkResult(id string, dur time.Duration) error
 }
 
 func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
-	query := "SELECT id, datetime, query, corpname, procTime, ptPercentile, benchTime, featsJSON " +
+	query := "SELECT id, datetime, query, corpname, procTime, benchTime, trainingExclude " +
 		"FROM query_stats " +
 		"ORDER BY benchTime"
 	rows, err := database.db.Query(query)
@@ -113,30 +111,21 @@ func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
 	ans := make([]DBRecord, 0, 500)
 	for rows.Next() {
 		var rec DBRecord
-		var pTPercentile sql.NullInt64
 		var benchTime sql.NullFloat64
-		var featsJSON sql.NullString
 		err := rows.Scan(
 			&rec.ID,
 			&rec.Datetime,
 			&rec.Query,
 			&rec.Corpname,
 			&rec.ProcTime,
-			&pTPercentile,
 			&benchTime,
-			&featsJSON,
+			&rec.TrainingExclude,
 		)
 		if err != nil {
 			return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
 		}
-		if pTPercentile.Valid {
-			rec.PTPercentile = int(pTPercentile.Int64)
-		}
 		if benchTime.Valid {
 			rec.BenchTime = benchTime.Float64
-		}
-		if featsJSON.Valid {
-			rec.FeatsJSON = featsJSON.String
 		}
 		ans = append(ans, rec)
 	}
@@ -144,7 +133,7 @@ func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
 }
 
 func (database *Database) GetAllRecords(onlyWithoutBenchmark bool) ([]DBRecord, error) {
-	qTpl := "SELECT id, datetime, query, corpname, procTime, ptPercentile, benchTime, featsJSON " +
+	qTpl := "SELECT id, datetime, query, corpname, procTime, benchTime, trainingExclude " +
 		"FROM query_stats %s ORDER BY benchTime"
 	var query string
 	if onlyWithoutBenchmark {
@@ -160,30 +149,21 @@ func (database *Database) GetAllRecords(onlyWithoutBenchmark bool) ([]DBRecord, 
 	ans := make([]DBRecord, 0, 500)
 	for rows.Next() {
 		var rec DBRecord
-		var pTPercentile sql.NullInt64
 		var benchTime sql.NullFloat64
-		var featsJSON sql.NullString
 		err := rows.Scan(
 			&rec.ID,
 			&rec.Datetime,
 			&rec.Query,
 			&rec.Corpname,
 			&rec.ProcTime,
-			&pTPercentile,
 			&benchTime,
-			&featsJSON,
+			&rec.TrainingExclude,
 		)
 		if err != nil {
 			return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
 		}
-		if pTPercentile.Valid {
-			rec.PTPercentile = int(pTPercentile.Int64)
-		}
 		if benchTime.Valid {
 			rec.BenchTime = benchTime.Float64
-		}
-		if featsJSON.Valid {
-			rec.FeatsJSON = featsJSON.String
 		}
 		ans = append(ans, rec)
 	}

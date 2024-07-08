@@ -21,6 +21,7 @@ import (
 	"reflect"
 
 	"github.com/czcorpus/cqlizer/cql"
+	"github.com/czcorpus/cqlizer/feats/heatmap"
 	"github.com/sjwhitworth/golearn/pca"
 	"gonum.org/v1/gonum/mat"
 )
@@ -135,6 +136,16 @@ func (rec *Record) GetNodeTypeIdx(v any) int {
 	default:
 		panic(fmt.Sprintf("unsupported node type: %s", reflect.TypeOf(v)))
 	}
+}
+
+func (rec *Record) ExportHeatmap(path string) {
+	rows, cols := rec.matrix.Dims()
+	rawData := rec.matrix.RawMatrix().Data
+	result := make([][]float64, rows)
+	for i := 0; i < rows; i++ {
+		result[i] = rawData[i*cols : (i+1)*cols]
+	}
+	heatmap.GenerateHeatmap(result, path, 20, heatmap.Percentile)
 }
 
 func (rec *Record) ImportFrom(query *cql.Query) {

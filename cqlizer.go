@@ -166,7 +166,7 @@ func runBenchmark(conf *cnf.Conf, overwriteBenchmarked bool) {
 		conf,
 		db,
 	)
-	err = exe.RullFull(overwriteBenchmarked)
+	err = exe.RunFull(overwriteBenchmarked)
 	if err != nil {
 		fmt.Println("FAILED: ", err)
 		os.Exit(1)
@@ -243,37 +243,54 @@ func runApiServer(
 	if err != nil {
 		log.Error().Err(err).Msg("failed to open working database")
 		syscallChan <- syscall.SIGTERM
+		return
 	}
 
 	err = statsDB.Init()
 	if err != nil {
-		log.Error().Err(err).Msg("failed to initialize working database")
+		log.Error().Err(err).Msg("failed to start service")
 		syscallChan <- syscall.SIGTERM
+		return
 	}
 
+	if trainingID == 0 {
+		log.Warn().Msg("no training ID provided, going to use the latest one	")
+		trainingID, err = statsDB.GetLatestTrainingID()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to start service")
+			syscallChan <- syscall.SIGTERM
+			return
+		}
+	}
 	threshold, err := statsDB.GetTrainingThreshold(trainingID)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to get training threshold")
+		log.Error().Err(err).Msg("failed to start service")
 		syscallChan <- syscall.SIGTERM
+		return
 	}
+
+	log.Info().Int("trainingId", trainingID).Msg("found required training")
 
 	tdata, err := statsDB.GetTrainingData(trainingID)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to get training data")
+		log.Error().Err(err).Msg("failed to start service")
 		syscallChan <- syscall.SIGTERM
+		return
 	}
 
 	vdata, err := statsDB.GetTrainingValidationData(trainingID)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to get validation data")
+		log.Error().Err(err).Msg("failed to start service")
 		syscallChan <- syscall.SIGTERM
+		return
 	}
 
 	eng := prediction.NewEngine(conf, statsDB)
 	model, err := eng.TrainReplay(threshold, tdata, vdata)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to train model")
+		log.Error().Err(err).Msg("failed to start service")
 		syscallChan <- syscall.SIGTERM
+		return
 	}
 
 	engine := gin.New()
@@ -290,11 +307,11 @@ func runApiServer(
 		rfModel: model,
 	}
 
-	engine.GET(
-		"/analyze", cqlActions.AnalyzeQuery)
+	engine.GET("/analyze", cqlActions.AnalyzeQuery)
 
-	engine.PUT(
-		"/query", cqlActions.StoreQuery)
+	engine.GET("/parse", cqlActions.ParseQuery)
+
+	engine.PUT("/query", cqlActions.StoreQuery)
 
 	log.Info().Msgf("starting to listen at %s:%d", conf.ListenAddress, conf.ListenPort)
 	srv := &http.Server{
@@ -333,9 +350,16 @@ func main() {
 	overwriteAll := flag.Bool("overwrite-all", false, "If set, then all the queries will be benchmarked even if they already have a result attached")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "CQLIZER - A CQL toolbox\n\n")
-		fmt.Fprintf(os.Stderr, "Usage:\n\t%s [options] start [config.json] [trainingID]\n\t", filepath.Base(os.Args[0]))
-		fmt.Fprintf(os.Stderr, "\n\t%s [options] import [config.json] [source file]\n\t", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "Usage:\n\t%s [options] start config.json [trainingID]\n\t", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "\n\t%s [options] import config.json source_file\n\t", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "\n\t%s [options] benchmark config.json\n\t", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "\n\t%s [options] learn config.json\n\t", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "%s [options] version\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "\nArguments:\n\n")
+		fmt.Fprintf(os.Stderr, "\tconfig.json\ta path to a config file\n")
+		fmt.Fprintf(os.Stderr, "\ttrainingID\tAn ID of a training used as a base for running service. If omitted, the latest training ID will be used\n")
+		fmt.Fprintf(os.Stderr, "\tsource_file\tA KonText log file to import training/validation user queries from")
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -361,10 +385,14 @@ func main() {
 
 	switch action {
 	case "start":
-		trainingID, err := strconv.ParseInt(flag.Arg(2), 10, 64)
-		if err != nil {
-			fmt.Println("FAILED: ", err)
-			os.Exit(1)
+		var trainingID int64
+		var err error
+		if flag.Arg(2) != "" {
+			trainingID, err = strconv.ParseInt(flag.Arg(2), 10, 64)
+			if err != nil {
+				fmt.Println("FAILED: ", err)
+				os.Exit(1)
+			}
 		}
 		runApiServer(conf, int(trainingID), syscallChan, exitEvent)
 	case "import":
@@ -380,7 +408,7 @@ func main() {
 			os.Exit(1)
 		}
 		runTrainingReplay(conf, int(trainingID))
-	case "prediction-test":
+	case "learn":
 		thr, err := strconv.ParseFloat(flag.Arg(2), 64)
 		if err != nil {
 			fmt.Println("FAILED: ", err)

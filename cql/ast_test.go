@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRgSimpleExhaustionScore(t *testing.T) {
+func TestRgSimpleExhaustionScoreConstFirst(t *testing.T) {
 	rgs := RgSimple{
 		Values: []any{},
 	}
@@ -77,4 +77,25 @@ func TestRgSimpleExhaustionScoreForWildcardFirst(t *testing.T) {
 	rgs.Values = append(rgs.Values, rgch)
 
 	assert.Equal(t, 40, rgs.ExhaustionScore())
+}
+
+func TestRgSimpleExhaustionScoreRanges(t *testing.T) {
+	rgs := RgSimple{
+		Values: []any{},
+	}
+
+	rgch := &RgChar{
+		variant1: &rgCharVariant1{Value: ASTString("N")},
+	}
+	rgs.Values = append(rgs.Values, rgch)
+
+	rgrng := &RgRange{
+		RgRangeSpec: &RgRangeSpec{
+			Number1: ASTString("3"),
+			Number2: ASTString("7"),
+		},
+	}
+	rgs.Values = append(rgs.Values, rgrng)
+
+	assert.Equal(t, 15, rgs.ExhaustionScore())
 }

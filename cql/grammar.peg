@@ -632,20 +632,25 @@ NO_RG_ESCAPED <-
 // ---------------- Regular expression with balanced parentheses --------
 
 RegExp <-
-    QUOT rer:RegExpRaw QUOT {
+
+    QUOT rer:RegExpRaw other:("|" RegExpRaw?)* QUOT {
         ans := &RegExp{
             origValue: string(c.text),
-            RegExpRaw: typedOrPanic[*RegExpRaw](rer),
+            RegExpRaw: []*RegExpRaw{typedOrPanic[*RegExpRaw](rer)},
+        }
+        for _, v := range anyToSlice(other) {
+            vt := fromIdxOfUntypedSlice[*RegExpRaw](v, 1)
+            if vt != nil {
+                ans.RegExpRaw = append(ans.RegExpRaw, vt)
+            }
         }
 
         return ans, nil
-    }
-    / QUOT QUOT {
+
+    } / QUOT QUOT {
         ans := &RegExp{
             origValue: "",
-            RegExpRaw: &RegExpRaw{
-
-            },
+            RegExpRaw: []*RegExpRaw{},
         }
 
         return ans, nil
@@ -666,9 +671,15 @@ RegExpRaw <-
     }
 
 RgGrouped <-
-    LPAREN _ rg:RegExpRaw _ RPAREN {
+    LPAREN _ rg:RegExpRaw other:("|" RegExpRaw?)* _ RPAREN {
         ans := &RgGrouped{
-            Value: typedOrPanic[*RegExpRaw](rg),
+            Values: []*RegExpRaw{typedOrPanic[*RegExpRaw](rg)},
+        }
+        for _, v := range anyToSlice(other) {
+            vt := fromIdxOfUntypedSlice[*RegExpRaw](v, 1)
+            if vt != nil {
+                ans.Values = append(ans.Values, vt)
+            }
         }
 
         return ans, nil
@@ -722,6 +733,19 @@ RgAltVal <- v:RgChar {
         ans := &RgAltVal{
             variant1: &rgAltValVariant1{
                 RgChar: typedOrPanic[*RgChar](v),
+            },
+        }
+
+        return ans, nil
+    } /
+    "|" {
+        ans := &RgAltVal{
+            variant1: &rgAltValVariant1{
+                RgChar: &RgChar{
+                    variant1: &rgCharVariant1{
+                        Value: ASTString("|"),
+                    },
+                },
             },
         }
 
@@ -811,7 +835,7 @@ RG_OP <-
 
         return ans, nil
     }
-    / v:[0-9?*+.|] {
+    / v:[0-9?*+.] {
         ans := &RgOp{
             Value: ASTString(c.text),
         }
@@ -847,6 +871,7 @@ RgRange <-
 RgRangeSpec <-
     n1:NUMBER COMMA n2:NUMBER? {
         ans := &RgRangeSpec{
+            origValue: string(c.text),
             Number1: ASTString(typedOrPanic[string](n1)),
             Number2: ASTString(typedOrPanic[string](n2)),
         }

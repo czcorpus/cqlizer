@@ -61,6 +61,7 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 	}
 	features := feats.NewRecord()
 	features.ImportFrom(parsed)
+	features.ExportHeatmap(fmt.Sprintf("./data/query-%s.png", stats.IdempotentID(time.Now(), q)))
 
 	ans := a.rfModel.Vote(features.AsVector())
 

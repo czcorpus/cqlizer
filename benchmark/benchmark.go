@@ -38,7 +38,7 @@ type Executor struct {
 	statsDB *stats.Database
 }
 
-func (e *Executor) RullFull(overwriteBenchmarked bool) error {
+func (e *Executor) RunFull(overwriteBenchmarked bool) error {
 	rows, err := e.statsDB.GetAllRecords(!overwriteBenchmarked)
 	if err != nil {
 		return fmt.Errorf("failed to run full benchmark: %w", err)

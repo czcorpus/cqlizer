@@ -175,3 +175,19 @@ func (database *Database) GetTrainingData(trainingId int) ([]DBRecord, error) {
 	}
 	return ans, nil
 }
+
+func (database *Database) GetLatestTrainingID() (int, error) {
+	row := database.db.QueryRow("SELECT id FROM training ORDER by id DESC LIMIT 1")
+	var ans sql.NullInt64
+	err := row.Scan(&ans)
+	if err == sql.ErrNoRows {
+		return -1, fmt.Errorf("no trainings stored in database")
+
+	} else if err != nil {
+		return -1, fmt.Errorf("failed to get latest training ID: %w", err)
+	}
+	if !ans.Valid {
+		return -1, fmt.Errorf("no trainings stored in database") // should be already covered by ErrNoRows
+	}
+	return int(ans.Int64), nil
+}
