@@ -1289,16 +1289,21 @@ type AttVal struct {
 	Variant9  *attValVariant9
 }
 
+func (a *AttVal) IsNegation() bool {
+	return a.Variant1 != nil && a.Variant1.Not ||
+		a.Variant2 != nil && a.Variant2.Not
+}
+
 func (a *AttVal) IsProblematicAttrSearch() bool {
 	if a.Variant1 != nil {
 		return (a.Variant1.AttName == "tag" || a.Variant1.AttName == "pos" || a.Variant1.AttName == "verbtag" ||
-			a.Variant1.AttName == "upos") &&
+			a.Variant1.AttName == "upos" || a.Variant1.AttName == "afun" || a.Variant1.AttName == "case") &&
 			len(a.Variant1.RawString.Text()) < 6 && // TODO
 			(strings.Contains(a.Variant1.RawString.Text(), ".*") || strings.Contains(a.Variant1.RawString.Text(), ".+"))
 
 	} else if a.Variant2 != nil {
 		return (a.Variant2.AttName == "tag" || a.Variant2.AttName == "pos" || a.Variant2.AttName == "verbtag" ||
-			a.Variant2.AttName == "upos") &&
+			a.Variant2.AttName == "upos" || a.Variant2.AttName == "afun" || a.Variant2.AttName == "case") &&
 			len(a.Variant2.RegExp.Text()) < 6 && // TODO
 			(strings.Contains(a.Variant2.RegExp.Text(), ".*") || strings.Contains(a.Variant2.RegExp.Text(), ".+"))
 	}

@@ -170,6 +170,9 @@ func (rec *Record) ImportFrom(query *cql.Query) {
 			v := 1.0
 			if tNode.IsProblematicAttrSearch() {
 				v = 25.0
+
+			} else if tNode.IsNegation() {
+				v = 40.0
 			}
 			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+v)
 		case *cql.Repetition:

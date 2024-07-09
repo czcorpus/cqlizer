@@ -31,8 +31,6 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/czcorpus/cnc-gokit/collections"
 	"github.com/czcorpus/cnc-gokit/logging"
 	"github.com/czcorpus/cnc-gokit/uniresp"
@@ -42,6 +40,7 @@ import (
 	"github.com/czcorpus/cqlizer/prediction"
 	"github.com/czcorpus/cqlizer/stats"
 	"github.com/gin-gonic/gin"
+	randomforest "github.com/malaschitz/randomForest"
 	"github.com/rs/zerolog/log"
 )
 
@@ -128,8 +127,43 @@ func AuthRequired(conf *cnf.Conf) gin.HandlerFunc {
 	}
 }
 
-func runKontextImport(conf *cnf.Conf, path string) {
-	err := logproc.ImportLog(conf, path)
+func loadModel(conf *cnf.Conf, statsDB *stats.Database, trainingID int) (randomforest.Forest, float64, error) {
+
+	threshold, err := statsDB.GetTrainingThreshold(trainingID)
+	if err != nil {
+		return randomforest.Forest{},
+			0.0,
+			fmt.Errorf("failed to load model for training %d: %w", trainingID, err)
+	}
+
+	log.Info().Int("trainingId", trainingID).Msg("found required training")
+
+	tdata, err := statsDB.GetTrainingData(trainingID)
+	if err != nil {
+		return randomforest.Forest{},
+			threshold,
+			fmt.Errorf("failed to load model for training %d: %w", trainingID, err)
+	}
+
+	vdata, err := statsDB.GetTrainingValidationData(trainingID)
+	if err != nil {
+		return randomforest.Forest{},
+			threshold,
+			fmt.Errorf("failed to load model for training %d: %w", trainingID, err)
+	}
+
+	eng := prediction.NewEngine(conf, statsDB)
+	model, err := eng.TrainReplay(threshold, tdata, vdata)
+	if err != nil {
+		return randomforest.Forest{},
+			threshold,
+			fmt.Errorf("failed to load model for training %d: %w", trainingID, err)
+	}
+	return model, threshold, err
+}
+
+func runKontextImport(conf *cnf.Conf, path string, addToTrainingSet bool) {
+	err := logproc.ImportLog(conf, path, addToTrainingSet)
 	if err != nil {
 		fmt.Println("FAILED: ", err)
 	}
@@ -173,7 +207,7 @@ func runBenchmark(conf *cnf.Conf, overwriteBenchmarked bool) {
 	}
 }
 
-func runPredictionTest(conf *cnf.Conf, threshold float64) {
+func runLearning(conf *cnf.Conf, threshold float64) {
 	db, err := stats.NewDatabase(conf.WorkingDBPath)
 	if err != nil {
 		fmt.Println("FAILED: ", err)
@@ -229,6 +263,76 @@ func runTrainingReplay(conf *cnf.Conf, trainingId int) {
 	}
 }
 
+func runEvaluation(conf *cnf.Conf, trainingID, numSamples, sampleSize int) {
+	statsDB, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to run evaluation")
+		os.Exit(1)
+		return
+	}
+
+	err = statsDB.Init()
+	if err != nil {
+		log.Error().Err(err).Msg("failed to run evaluation")
+		os.Exit(1)
+		return
+	}
+
+	if trainingID == 0 {
+		log.Warn().Msg("no training ID provided, going to use the latest one")
+		trainingID, err = statsDB.GetLatestTrainingID()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to run evaluation")
+			os.Exit(1)
+			return
+		}
+	}
+
+	model, threshold, err := loadModel(conf, statsDB, trainingID)
+	if err != nil {
+		os.Exit(1)
+		return
+	}
+
+	recs, err := statsDB.GetAllRecords(
+		stats.ListFilter{}.SetBenchmarked(true).SetTrainingExcluded(true))
+	if err != nil {
+		log.Error().Err(err).Msg("failed to run validation, exiting")
+		os.Exit(1)
+	}
+
+	var avgPrecision, avgRecall float64
+	for i := 0; i < numSamples; i++ {
+		smpl := collections.SliceSample(recs, sampleSize)
+		eng := prediction.NewEngine(conf, statsDB)
+		result, err := eng.Evaluate(model, smpl, threshold, func(itemID string, prediction bool) error {
+			log.Debug().Str("queryId", itemID).Bool("prediction", prediction).Send()
+			return nil
+		})
+		if err != nil {
+			log.Error().Err(err).Msg("failed to run validation, exiting")
+			os.Exit(1)
+		}
+		log.Info().
+			Int("sampleNum", i).
+			Int("truePositives", result.TruePositives).
+			Int("falsePositives", result.FalsePositives).
+			Int("falseNegatives", result.FalseNegatives).
+			Int("total", result.TotalTests).
+			Float64("precision", result.Precision()).
+			Float64("recall", result.Recall()).
+			Send()
+		avgPrecision += result.Precision()
+		avgRecall += result.Recall()
+	}
+	fmt.Println("----------------------------------------------------")
+	fmt.Println("sample size: ", sampleSize)
+	fmt.Println("number of samples (test runs): ", numSamples)
+	fmt.Printf("AVG PRECISION: %01.2f\n", avgPrecision/float64(numSamples))
+	fmt.Printf("AVG RECALL: %01.2f\n", avgRecall/float64(numSamples))
+	fmt.Println("----------------------------------------------------")
+}
+
 func runApiServer(
 	conf *cnf.Conf,
 	trainingID int,
@@ -254,7 +358,7 @@ func runApiServer(
 	}
 
 	if trainingID == 0 {
-		log.Warn().Msg("no training ID provided, going to use the latest one	")
+		log.Warn().Msg("no training ID provided, going to use the latest one")
 		trainingID, err = statsDB.GetLatestTrainingID()
 		if err != nil {
 			log.Error().Err(err).Msg("failed to start service")
@@ -262,33 +366,9 @@ func runApiServer(
 			return
 		}
 	}
-	threshold, err := statsDB.GetTrainingThreshold(trainingID)
+	model, _, err := loadModel(conf, statsDB, trainingID)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to start service")
-		syscallChan <- syscall.SIGTERM
-		return
-	}
-
-	log.Info().Int("trainingId", trainingID).Msg("found required training")
-
-	tdata, err := statsDB.GetTrainingData(trainingID)
-	if err != nil {
-		log.Error().Err(err).Msg("failed to start service")
-		syscallChan <- syscall.SIGTERM
-		return
-	}
-
-	vdata, err := statsDB.GetTrainingValidationData(trainingID)
-	if err != nil {
-		log.Error().Err(err).Msg("failed to start service")
-		syscallChan <- syscall.SIGTERM
-		return
-	}
-
-	eng := prediction.NewEngine(conf, statsDB)
-	model, err := eng.TrainReplay(threshold, tdata, vdata)
-	if err != nil {
-		log.Error().Err(err).Msg("failed to start service")
+		log.Error().Err(err).Msg("failed to initialize model")
 		syscallChan <- syscall.SIGTERM
 		return
 	}
@@ -341,6 +421,18 @@ func cleanVersionInfo(v string) string {
 	return strings.TrimLeft(strings.Trim(v, "'"), "v")
 }
 
+func parseTrainingIdOrExit(v string) int {
+	if v == "" {
+		return 0
+	}
+	trainingID, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		fmt.Println("FAILED: ", err)
+		os.Exit(1)
+	}
+	return int(trainingID)
+}
+
 func main() {
 	version := VersionInfo{
 		Version:   cleanVersionInfo(version),
@@ -348,6 +440,9 @@ func main() {
 		GitCommit: cleanVersionInfo(gitCommit),
 	}
 	overwriteAll := flag.Bool("overwrite-all", false, "If set, then all the queries will be benchmarked even if they already have a result attached")
+	addToTrainingSet := flag.Bool("add-to-training", false, "If set, than all the imported records will become part of the training&validation set")
+	numSamples := flag.Int("num-samples", 10, "Number of samples for the validation action")
+	sampleSize := flag.Int("sample-size", 500, "Sample size for the validation action")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "CQLIZER - A CQL toolbox\n\n")
 		fmt.Fprintf(os.Stderr, "Usage:\n\t%s [options] start config.json [trainingID]\n\t", filepath.Base(os.Args[0]))
@@ -396,25 +491,24 @@ func main() {
 		}
 		runApiServer(conf, int(trainingID), syscallChan, exitEvent)
 	case "import":
-		runKontextImport(conf, flag.Arg(2))
+		runKontextImport(conf, flag.Arg(2), *addToTrainingSet)
 	case "corpsizes":
 		runSizesImport(conf, flag.Arg(2))
 	case "benchmark":
 		runBenchmark(conf, *overwriteAll)
 	case "replay":
-		trainingID, err := strconv.ParseInt(flag.Arg(2), 10, 64)
-		if err != nil {
-			fmt.Println("FAILED: ", err)
-			os.Exit(1)
-		}
-		runTrainingReplay(conf, int(trainingID))
+		trainingID := parseTrainingIdOrExit(flag.Arg(2))
+		runTrainingReplay(conf, trainingID)
+	case "evaluate":
+		trainingID := parseTrainingIdOrExit(flag.Arg(2))
+		runEvaluation(conf, trainingID, *numSamples, *sampleSize)
 	case "learn":
 		thr, err := strconv.ParseFloat(flag.Arg(2), 64)
 		if err != nil {
 			fmt.Println("FAILED: ", err)
 			os.Exit(1)
 		}
-		runPredictionTest(conf, thr)
+		runLearning(conf, thr)
 	default:
 		log.Fatal().Msgf("Unknown action %s", action)
 	}

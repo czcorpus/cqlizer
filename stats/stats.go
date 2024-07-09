@@ -24,19 +24,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/czcorpus/cqlizer/feats"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog/log"
 )
-
-type DBRecord struct {
-	ID              string
-	Datetime        int
-	Query           string
-	Corpname        string
-	ProcTime        float64
-	BenchTime       float64
-	TrainingExclude bool
-}
 
 type Database struct {
 	db         *sql.DB
@@ -132,17 +122,31 @@ func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
 	return ans, nil
 }
 
-func (database *Database) GetAllRecords(onlyWithoutBenchmark bool) ([]DBRecord, error) {
-	qTpl := "SELECT id, datetime, query, corpname, procTime, benchTime, trainingExclude " +
-		"FROM query_stats %s ORDER BY benchTime"
-	var query string
-	if onlyWithoutBenchmark {
-		query = fmt.Sprintf(qTpl, "WHERE benchTime IS NULL")
+// GetAllRecords loads stats records containing imported queries with their
+// benchmark times (if already benchmarked).
+func (database *Database) GetAllRecords(filter ListFilter) ([]DBRecord, error) {
+	query := "SELECT id, datetime, query, corpname, procTime, benchTime, trainingExclude " +
+		"FROM query_stats WHERE %s ORDER BY benchTime"
+	whereChunks := make([]string, 0, 3)
+	whereChunks = append(whereChunks, "1 = 1")
+	if filter.Benchmarked != nil {
+		if *filter.Benchmarked {
+			whereChunks = append(whereChunks, "benchTime IS NOT NULL")
 
-	} else {
-		query = fmt.Sprintf(qTpl, "")
+		} else {
+			whereChunks = append(whereChunks, "benchTime IS NULL")
+		}
 	}
-	rows, err := database.db.Query(query)
+	if filter.TrainingExcluded != nil {
+		if *filter.TrainingExcluded {
+			whereChunks = append(whereChunks, "trainingExclude = 1")
+
+		} else {
+			whereChunks = append(whereChunks, "trainingExclude = 0")
+		}
+	}
+
+	rows, err := database.db.Query(fmt.Sprintf(query, strings.Join(whereChunks, " AND ")))
 	if err != nil {
 		return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
 	}
@@ -305,11 +309,17 @@ func (database *Database) RollbackTx() error {
 	return nil
 }
 
-func (database *Database) AddRecord(query, corpname string, rec feats.Record, dt time.Time, procTime float64) (int64, error) {
+func (database *Database) AddRecord(rec DBRecord) (int64, error) {
 	ans, err := database.db.Exec(
-		"INSERT OR REPLACE INTO query_stats (id, datetime, query, corpname, procTime) "+
+		"INSERT OR REPLACE INTO query_stats (id, datetime, query, corpname, procTime, trainingExclude) "+
 			"VALUES (?, ?, ?, ?, ?, ?)",
-		IdempotentID(dt, query), dt.Unix(), query, corpname, procTime)
+		IdempotentID(time.Unix(rec.Datetime, 0), rec.Query),
+		rec.Datetime,
+		rec.Query,
+		rec.Corpname,
+		rec.ProcTime,
+		rec.TrainingExclude,
+	)
 	if err != nil {
 		return -1, fmt.Errorf("failed to add record: %w", err)
 	}

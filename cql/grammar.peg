@@ -396,7 +396,6 @@ AtomQuery <-
 
         for _, item := range anyToSlice(wcp) {
             tmp := anyToSlice(item)
-            fmt.Println("!!!!!!!!!! TMP: ", tmp)
             neg := tmp[1]
             tp := typedOrPanic[string](tmp[2])
             if neg != nil {

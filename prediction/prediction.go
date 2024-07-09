@@ -34,9 +34,17 @@ type Engine struct {
 }
 
 func (eng *Engine) Train(threshold float64) error {
-	rows, err := eng.statsDB.GetAllRecords(false)
+	var listFilter stats.ListFilter
+	rows, err := eng.statsDB.GetAllRecords(
+		listFilter.
+			SetBenchmarked(true).
+			SetTrainingExcluded(false),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to run prediction test: %w", err)
+	}
+	if len(rows) == 0 {
+		return fmt.Errorf("no data suitable for learning and validation found")
 	}
 
 	training := make([]stats.DBRecord, 0, 1000)
@@ -90,6 +98,13 @@ func (eng *Engine) train(
 	xData := [][]float64{}
 	yData := []int{}
 
+	if len(training) == 0 {
+		panic("missing training data")
+	}
+	if len(eval) == 0 {
+		panic("missing evaluation data")
+	}
+
 	var trainingID int
 	var err error
 	if storeToDB {
@@ -125,7 +140,39 @@ func (eng *Engine) train(
 	fmt.Println("training done")
 	fmt.Printf("total training items: %d\n", len(training))
 
-	var numFalsePositives, numTruePositives, numFalseNegatives int
+	result, err := eng.Evaluate(
+		forest,
+		eval,
+		threshold,
+		func(itemID string, prediction bool) error {
+			if storeToDB {
+				if err := eng.statsDB.SetValidationQuery(trainingID, itemID, prediction); err != nil {
+					if err := eng.statsDB.SetTrainingQuery(trainingID, itemID); err != nil {
+						return fmt.Errorf("failed to store validation data: %w", err)
+					}
+				}
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return forest, fmt.Errorf("failed to perform Eval: %w", err)
+	}
+	fmt.Println("============================================================")
+	fmt.Print("\n\n")
+	fmt.Printf("total validated items: %d\n", len(eval))
+	fmt.Printf("precision: %01.2f\n", result.Precision())
+	fmt.Printf("recall: %01.2f\n", result.Recall())
+	return forest, nil
+}
+
+func (eng *Engine) Evaluate(
+	forest randomforest.Forest,
+	eval []stats.DBRecord,
+	threshold float64,
+	onEvalItem func(itemID string, prediction bool) error,
+) (EvalResult, error) {
+	var ans EvalResult
 
 	for _, row := range eval {
 		fts, err := eng.getFeats(row.Query)
@@ -134,43 +181,36 @@ func (eng *Engine) train(
 			continue
 		}
 
-		ans := forest.Vote(fts.AsVector())
+		votes := forest.Vote(fts.AsVector())
 		q := row.Query
-		if len(q) > 100 {
+		qr := []rune(q)
+		if len(qr) > 100 {
 			q = string([]rune(q)[:100])
 		}
 		pred := false
-		if ans[1] > ans[0] {
+		if votes[1] > votes[0] {
 			pred = true
 		}
 		actual := row.BenchTime > threshold
 		if pred && !actual {
 			fmt.Println("FALSE POSITIVE, query: ", q, ", time: ", row.BenchTime)
-			fmt.Printf("  prediction - yes: %1.2f, no: %1.2f\n", ans[1], ans[0])
-			numFalsePositives++
+			fmt.Printf("  prediction - yes: %1.2f, no: %1.2f\n", votes[1], votes[0])
+			ans.FalsePositives++
 
 		} else if !pred && actual {
 			fmt.Println("FALSE NEGATIVE, query: ", q, ", time: ", row.BenchTime)
-			fmt.Printf("  prediction - yes: %1.2f, no: %1.2f\n", ans[1], ans[0])
-			numFalseNegatives++
+			fmt.Printf("  prediction - yes: %1.2f, no: %1.2f\n", votes[1], votes[0])
+			ans.FalseNegatives++
 
 		} else if pred && actual {
-			numTruePositives++
+			ans.TruePositives++
 		}
-		if storeToDB {
-			if err := eng.statsDB.SetValidationQuery(trainingID, row.ID, pred); err != nil {
-				if err := eng.statsDB.SetTrainingQuery(trainingID, row.ID); err != nil {
-					return randomforest.Forest{}, fmt.Errorf("failed to store validation data: %w", err)
-				}
-			}
+		ans.TotalTests++
+		if err := onEvalItem(row.ID, pred); err != nil {
+			return ans, err
 		}
 	}
-	fmt.Println("============================================================\n\n")
-	fmt.Printf("total validated items: %d\n", len(eval))
-	fmt.Printf("precision: %01.2f\n", float64(numTruePositives)/float64(numTruePositives+numFalsePositives))
-	fmt.Printf("recall: %01.2f\n", float64(numTruePositives)/float64(numTruePositives+numFalseNegatives))
-	fmt.Println("training ID: ", trainingID)
-	return forest, nil
+	return ans, nil
 }
 
 func NewEngine(conf *cnf.Conf, statsDB *stats.Database) *Engine {

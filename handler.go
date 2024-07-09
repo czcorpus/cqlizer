@@ -80,20 +80,21 @@ func (a *Actions) StoreQuery(ctx *gin.Context) {
 		uniresp.RespondWithErrorJSON(ctx, err, http.StatusBadRequest)
 		return
 	}
-	parsed, err := cql.ParseCQL("#", data.Query)
-	fmt.Println("data: ", data)
-	fmt.Println("parsed: ", parsed)
+	_, err := cql.ParseCQL("#", data.Query)
 	if err != nil {
 		uniresp.RespondWithErrorJSON(ctx, err, http.StatusUnprocessableEntity)
 		return
 	}
-	var features feats.Record
-	features.ImportFrom(parsed)
-	newID, err := a.StatsDB.AddRecord(data.Query, data.CorpusName, features, time.Now(), data.ProcTime)
+	newID, err := a.StatsDB.AddRecord(stats.DBRecord{
+		Query:           data.Query,
+		Corpname:        data.CorpusName,
+		Datetime:        time.Now().Unix(),
+		ProcTime:        data.ProcTime,
+		TrainingExclude: ctx.Query("add-to-training") != "1",
+	})
 	if err != nil {
 		uniresp.RespondWithErrorJSON(ctx, err, http.StatusInternalServerError)
 		return
 	}
-
 	uniresp.WriteJSONResponse(ctx.Writer, map[string]any{"newID": newID})
 }

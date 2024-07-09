@@ -39,7 +39,11 @@ type Executor struct {
 }
 
 func (e *Executor) RunFull(overwriteBenchmarked bool) error {
-	rows, err := e.statsDB.GetAllRecords(!overwriteBenchmarked)
+	var listFilter stats.ListFilter
+	if !overwriteBenchmarked {
+		listFilter = listFilter.SetBenchmarked(false)
+	}
+	rows, err := e.statsDB.GetAllRecords(listFilter)
 	if err != nil {
 		return fmt.Errorf("failed to run full benchmark: %w", err)
 	}
