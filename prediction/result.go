@@ -14,32 +14,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cql
+package prediction
 
-import (
-	"fmt"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-)
-
-func TestRegexQuery(t *testing.T) {
-	q1 := "[word=\"moto[a-z]\"]"
-	p, err := ParseCQL("#", q1)
-	assert.NoError(t, err)
-	fmt.Println("p: ", p)
+type EvalResult struct {
+	TotalTests     int
+	FalsePositives int
+	FalseNegatives int
+	TruePositives  int
 }
 
-func TestRgOrQuery(t *testing.T) {
-	q1 := "\"ſb(é|ě)r(ka|ku|ki|ze)\""
-	p, err := ParseCQL("#", q1)
-	assert.NoError(t, err)
-	fmt.Println("p: ", p)
+func (res EvalResult) Precision() float64 {
+	return float64(res.TruePositives) / float64(res.TruePositives+res.FalsePositives)
 }
 
-func TestRgOrQuery2(t *testing.T) {
-	q1 := "[lemma=\"de|-|\"]"
-	p, err := ParseCQL("#", q1)
-	assert.NoError(t, err)
-	fmt.Println("p: ", p)
+func (res EvalResult) Recall() float64 {
+	return float64(res.TruePositives) / float64(res.TruePositives+res.FalseNegatives)
 }

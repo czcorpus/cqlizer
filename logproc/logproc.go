@@ -26,7 +26,6 @@ import (
 
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/cql"
-	"github.com/czcorpus/cqlizer/feats"
 	"github.com/czcorpus/cqlizer/stats"
 	"github.com/rs/zerolog/log"
 )
@@ -126,7 +125,7 @@ func (cerr *ConcurrentErr) LastErr() error {
 
 // --------
 
-func ImportLog(conf *cnf.Conf, path string) error {
+func ImportLog(conf *cnf.Conf, path string, addToTrainingSet bool) error {
 	data := make(chan inputRecord, 100)
 	retErr := new(ConcurrentErr)
 	fr, err := os.Open(path)
@@ -172,15 +171,25 @@ func ImportLog(conf *cnf.Conf, path string) error {
 		for rec := range data {
 			if rec.Action == "/query_submit" && rec.Logger == "QUERY" &&
 				(rec.Args.hasAvancedQuery() || rec.Args.hasSimpleRegexpQuery()) {
-				p, err := cql.ParseCQL("query@"+rec.Date, rec.Args.getFirstQuery())
+				_, err := cql.ParseCQL("query@"+rec.Date, rec.Args.getFirstQuery())
 				if err != nil {
 					fmt.Printf("failed to parse %s with error: %s", rec.Args.getFirstQuery(), err)
 					fmt.Println("   ... skipping")
 					continue
 				}
-				var fts feats.Record
-				fts.ImportFrom(p)
-				statsDb.AddRecord(rec.Args.getFirstQuery(), rec.Args.Corpora[0], fts, rec.GetTime(), rec.ProcTime)
+				if retErr.LastErr() != nil {
+					continue // we want the consumer to run till the end
+				}
+				_, err = statsDb.AddRecord(stats.DBRecord{
+					Query:           rec.Args.getFirstQuery(),
+					Corpname:        rec.Args.Corpora[0],
+					Datetime:        rec.GetTime().Unix(),
+					ProcTime:        rec.ProcTime,
+					TrainingExclude: !addToTrainingSet,
+				})
+				if err != nil {
+					retErr.Add(err)
+				}
 			}
 		}
 		wg.Done()

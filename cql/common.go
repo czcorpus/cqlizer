@@ -27,6 +27,10 @@ func (s ASTString) Text() string {
 	return string(s)
 }
 
+func (s ASTString) String() string {
+	return string(s)
+}
+
 type ASTNode interface {
 	Text() string
 }

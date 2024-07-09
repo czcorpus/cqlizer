@@ -1,3 +1,5 @@
 cqlizer
 conf.json
 cql/grammar.go
+data/
+testdata/testing.sqlite

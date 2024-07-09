@@ -21,6 +21,7 @@ import (
 	"reflect"
 
 	"github.com/czcorpus/cqlizer/cql"
+	"github.com/czcorpus/cqlizer/feats/heatmap"
 	"github.com/sjwhitworth/golearn/pca"
 	"gonum.org/v1/gonum/mat"
 )
@@ -137,6 +138,16 @@ func (rec *Record) GetNodeTypeIdx(v any) int {
 	}
 }
 
+func (rec *Record) ExportHeatmap(path string) {
+	rows, cols := rec.matrix.Dims()
+	rawData := rec.matrix.RawMatrix().Data
+	result := make([][]float64, rows)
+	for i := 0; i < rows; i++ {
+		result[i] = rawData[i*cols : (i+1)*cols]
+	}
+	heatmap.GenerateHeatmap(result, path, 20, heatmap.Percentile)
+}
+
 func (rec *Record) ImportFrom(query *cql.Query) {
 	largeMatrix := mat.NewDense(rec.fullWHSize, rec.fullWHSize, nil)
 	query.ForEachElement(func(parent, v cql.ASTNode) {
@@ -159,6 +170,9 @@ func (rec *Record) ImportFrom(query *cql.Query) {
 			v := 1.0
 			if tNode.IsProblematicAttrSearch() {
 				v = 25.0
+
+			} else if tNode.IsNegation() {
+				v = 40.0
 			}
 			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+v)
 		case *cql.Repetition:
