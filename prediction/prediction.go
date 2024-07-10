@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/rand"
 
+	"github.com/czcorpus/cnc-gokit/maths"
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/cql"
 	"github.com/czcorpus/cqlizer/feats"
@@ -187,19 +188,24 @@ func (eng *Engine) Evaluate(
 		if len(qr) > 100 {
 			q = string([]rune(q)[:100])
 		}
-		pred := false
-		if votes[1] > votes[0] {
-			pred = true
-		}
+		pred := votes[1] > votes[0]
 		actual := row.BenchTime > threshold
 		if pred && !actual {
-			fmt.Println("FALSE POSITIVE, query: ", q, ", time: ", row.BenchTime)
-			fmt.Printf("  prediction - yes: %1.2f, no: %1.2f\n", votes[1], votes[0])
+			log.Debug().
+				Float64("votesFor", maths.RoundToN(votes[1], 2)).
+				Float64("votesAgainst", maths.RoundToN(votes[0], 2)).
+				Str("query", q).
+				Float64("benchTime", maths.RoundToN(row.BenchTime, 2)).
+				Msg("false positive evaluation")
 			ans.FalsePositives++
 
 		} else if !pred && actual {
-			fmt.Println("FALSE NEGATIVE, query: ", q, ", time: ", row.BenchTime)
-			fmt.Printf("  prediction - yes: %1.2f, no: %1.2f\n", votes[1], votes[0])
+			log.Debug().
+				Float64("votesFor", maths.RoundToN(votes[1], 2)).
+				Float64("votesAgainst", maths.RoundToN(votes[0], 2)).
+				Str("query", q).
+				Float64("benchTime", maths.RoundToN(row.BenchTime, 2)).
+				Msg("false negative evaluation")
 			ans.FalseNegatives++
 
 		} else if pred && actual {

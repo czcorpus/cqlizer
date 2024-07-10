@@ -56,6 +56,7 @@ func (e *Executor) RunFull(overwriteBenchmarked bool) error {
 				Int("i", i).
 				Str("q", row.Query).
 				Msg("failed to perform benchmark query, skipping to the next")
+			continue
 		}
 		fmt.Println("\ttime: ", dur)
 		err = e.statsDB.AddBenchmarkResult(row.ID, dur)

@@ -127,7 +127,7 @@ func (database *Database) GetTrainingValidationData(trainingID int) ([]TrainingR
 			"FROM training AS t "+
 			"JOIN training_query_stats AS tqs ON t.id = tqs.training_id "+
 			"JOIN query_stats AS qs on qs.id = tqs.query_stats_id "+
-			"WHERE tqs.training_id = ? AND tqs.is_validation = 1",
+			"WHERE tqs.training_id = ? AND tqs.is_validation = 1 AND qs.benchTime IS NOT NULL",
 		trainingID,
 	)
 	if err != nil {
