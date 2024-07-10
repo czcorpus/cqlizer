@@ -34,7 +34,7 @@ func (database *Database) createTrainingTable() error {
 			")",
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create table training: %w", err)
+		return fmt.Errorf("failed to create table training \u25B6 %w", err)
 	}
 	log.Info().Msg("created table `training`")
 	return nil
@@ -51,7 +51,7 @@ func (database *Database) createTrainingQSTable() error {
 			")",
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create table training_query_stats: %w", err)
+		return fmt.Errorf("failed to create table training_query_stats \u25B6 %w", err)
 	}
 	log.Info().Msg("created table `training_query_stats`")
 	return nil
@@ -62,11 +62,11 @@ func (database *Database) CreateNewTraining(threshold float64) (int, error) {
 	ans, err := database.db.Exec("INSERT INTO training (id, threshold) VALUES (?, ?)",
 		t0.Unix(), threshold)
 	if err != nil {
-		return -1, fmt.Errorf("failed to create new training: %w", err)
+		return -1, fmt.Errorf("failed to create new training \u25B6 %w", err)
 	}
 	v, err := ans.LastInsertId()
 	if err != nil {
-		return -1, fmt.Errorf("failed to create new training: %w", err)
+		return -1, fmt.Errorf("failed to create new training \u25B6 %w", err)
 	}
 	return int(v), nil
 }
@@ -76,7 +76,7 @@ func (database *Database) SetTrainingQuery(training_id int, qid string) error {
 		"INSERT INTO training_query_stats (training_id, query_stats_id, is_validation) "+
 			"VALUES (?, ?, 0)", training_id, qid)
 	if err != nil {
-		return fmt.Errorf("failed to set new training query: %w", err)
+		return fmt.Errorf("failed to set new training query \u25B6 %w", err)
 	}
 	return nil
 }
@@ -90,7 +90,7 @@ func (database *Database) SetValidationQuery(training_id int, qid string, result
 		"INSERT INTO training_query_stats (training_id, query_stats_id, is_validation, result) "+
 			"VALUES (?, ?, 1, ?)", training_id, qid, r)
 	if err != nil {
-		return fmt.Errorf("failed to set new validation query: %w", err)
+		return fmt.Errorf("failed to set new validation query \u25B6 %w", err)
 	}
 	return nil
 }
@@ -109,10 +109,10 @@ func (database *Database) GetTrainingThreshold(trainingId int) (float64, error) 
 	var ans sql.NullFloat64
 	err := row.Scan(&ans)
 	if err == sql.ErrNoRows {
-		return -1, fmt.Errorf("training not found: %w", err)
+		return -1, fmt.Errorf("training not found \u25B6 %w", err)
 
 	} else if err != nil {
-		return -1, fmt.Errorf("failed to get training threshold: %w", err)
+		return -1, fmt.Errorf("failed to get training threshold \u25B6 %w", err)
 	}
 	if ans.Valid {
 		return ans.Float64, nil
@@ -131,14 +131,14 @@ func (database *Database) GetTrainingValidationData(trainingID int) ([]TrainingR
 		trainingID,
 	)
 	if err != nil {
-		return []TrainingResult{}, fmt.Errorf("failed to get validation data: %w", err)
+		return []TrainingResult{}, fmt.Errorf("failed to get validation data \u25B6 %w", err)
 	}
 	ans := make([]TrainingResult, 0, 1000)
 	for rows.Next() {
 		var v TrainingResult
 		err := rows.Scan(&v.IsValidation, &v.BenchTime, &v.Query, &v.Prediction, &v.Truth, &v.QueryID)
 		if err != nil {
-			return []TrainingResult{}, fmt.Errorf("failed to get validation data: %w", err)
+			return []TrainingResult{}, fmt.Errorf("failed to get validation data \u25B6 %w", err)
 		}
 		ans = append(ans, v)
 	}
@@ -156,7 +156,7 @@ func (database *Database) GetTrainingData(trainingId int) ([]DBRecord, error) {
 		trainingId,
 	)
 	if err != nil {
-		return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+		return []DBRecord{}, fmt.Errorf("failed to fetch all records \u25B6 %w", err)
 	}
 	ans := make([]DBRecord, 0, 1000)
 	for rows.Next() {
@@ -169,7 +169,7 @@ func (database *Database) GetTrainingData(trainingId int) ([]DBRecord, error) {
 			&rec.BenchTime,
 		)
 		if err != nil {
-			return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+			return []DBRecord{}, fmt.Errorf("failed to fetch all records \u25B6 %w", err)
 		}
 		ans = append(ans, rec)
 	}
@@ -184,7 +184,7 @@ func (database *Database) GetLatestTrainingID() (int, error) {
 		return -1, fmt.Errorf("no trainings stored in database")
 
 	} else if err != nil {
-		return -1, fmt.Errorf("failed to get latest training ID: %w", err)
+		return -1, fmt.Errorf("failed to get latest training ID \u25B6 %w", err)
 	}
 	if !ans.Valid {
 		return -1, fmt.Errorf("no trainings stored in database") // should be already covered by ErrNoRows

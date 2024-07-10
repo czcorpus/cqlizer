@@ -130,19 +130,19 @@ func ImportLog(conf *cnf.Conf, path string, addToTrainingSet bool) error {
 	retErr := new(ConcurrentErr)
 	fr, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("failed to import file: %w", err)
+		return fmt.Errorf("failed to import file \u25B6 %w", err)
 	}
 	statsDb, err := stats.NewDatabase(conf.WorkingDBPath)
 	if err != nil {
-		return fmt.Errorf("failed to import file: %w", err)
+		return fmt.Errorf("failed to import file \u25B6 %w", err)
 	}
 	err = statsDb.Init()
 	if err != nil {
-		return fmt.Errorf("failed to import file: %w", err)
+		return fmt.Errorf("failed to import file \u25B6 %w", err)
 	}
 	err = statsDb.StartTx()
 	if err != nil {
-		return fmt.Errorf("failed to import file: %w", err)
+		return fmt.Errorf("failed to import file \u25B6 %w", err)
 	}
 	defer fr.Close()
 	var wg sync.WaitGroup
@@ -156,7 +156,7 @@ func ImportLog(conf *cnf.Conf, path string, addToTrainingSet bool) error {
 		for scn.Scan() {
 			var rec inputRecord
 			if err := json.Unmarshal(scn.Bytes(), &rec); err != nil {
-				retErr.Add(fmt.Errorf("line %d: failed to decode log record: %w", i+1, err))
+				retErr.Add(fmt.Errorf("line %d: failed to decode log record \u25B6 %w", i+1, err))
 				break
 			}
 			i++

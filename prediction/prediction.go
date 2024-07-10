@@ -42,7 +42,7 @@ func (eng *Engine) Train(threshold float64) error {
 			SetTrainingExcluded(false),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to run prediction test: %w", err)
+		return fmt.Errorf("failed to run prediction test \u25B6 %w", err)
 	}
 	if len(rows) == 0 {
 		return fmt.Errorf("no data suitable for learning and validation found")
@@ -65,7 +65,7 @@ func (eng *Engine) Train(threshold float64) error {
 func (eng *Engine) getFeats(q string) (feats.Record, error) {
 	p, err := cql.ParseCQL("#", q)
 	if err != nil {
-		return feats.Record{}, fmt.Errorf("failed to get feats of the query: %w", err)
+		return feats.Record{}, fmt.Errorf("failed to get feats of the query \u25B6 %w", err)
 
 	}
 	fts := feats.NewRecord()
@@ -112,13 +112,13 @@ func (eng *Engine) train(
 		trainingID, err = eng.statsDB.CreateNewTraining(threshold)
 	}
 	if err != nil {
-		return randomforest.Forest{}, fmt.Errorf("failed to run prediction test: %w", err)
+		return randomforest.Forest{}, fmt.Errorf("failed to run prediction test \u25B6 %w", err)
 	}
 
 	for _, row := range training {
 		if storeToDB {
 			if err := eng.statsDB.SetTrainingQuery(trainingID, row.ID); err != nil {
-				return randomforest.Forest{}, fmt.Errorf("failed to prepare training: %w", err)
+				return randomforest.Forest{}, fmt.Errorf("failed to prepare training \u25B6 %w", err)
 			}
 		}
 
@@ -149,7 +149,7 @@ func (eng *Engine) train(
 			if storeToDB {
 				if err := eng.statsDB.SetValidationQuery(trainingID, itemID, prediction); err != nil {
 					if err := eng.statsDB.SetTrainingQuery(trainingID, itemID); err != nil {
-						return fmt.Errorf("failed to store validation data: %w", err)
+						return fmt.Errorf("failed to store validation data \u25B6 %w", err)
 					}
 				}
 			}
@@ -157,7 +157,7 @@ func (eng *Engine) train(
 		},
 	)
 	if err != nil {
-		return forest, fmt.Errorf("failed to perform Eval: %w", err)
+		return forest, fmt.Errorf("failed to perform Eval \u25B6 %w", err)
 	}
 	fmt.Println("============================================================")
 	fmt.Print("\n\n")
