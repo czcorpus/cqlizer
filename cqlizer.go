@@ -290,6 +290,7 @@ func runEvaluation(conf *cnf.Conf, trainingID, numSamples, sampleSize int) {
 
 	model, threshold, err := loadModel(conf, statsDB, trainingID)
 	if err != nil {
+		log.Error().Err(err).Msg("failed to run validation, exiting")
 		os.Exit(1)
 		return
 	}
@@ -300,13 +301,20 @@ func runEvaluation(conf *cnf.Conf, trainingID, numSamples, sampleSize int) {
 		log.Error().Err(err).Msg("failed to run validation, exiting")
 		os.Exit(1)
 	}
+	if len(recs) == 0 {
+		log.Error().Err(fmt.Errorf("no validation data found")).Msg("failed to run validation, exiting")
+		os.Exit(1)
+	}
+	log.Info().
+		Int("numItems", len(recs)).
+		Msg("fetched items for sampling")
 
 	var avgPrecision, avgRecall float64
 	for i := 0; i < numSamples; i++ {
 		smpl := collections.SliceSample(recs, sampleSize)
+		log.Debug().Int("sampleNum", i).Msg("going to evaluate next sample")
 		eng := prediction.NewEngine(conf, statsDB)
 		result, err := eng.Evaluate(model, smpl, threshold, func(itemID string, prediction bool) error {
-			log.Debug().Str("queryId", itemID).Bool("prediction", prediction).Send()
 			return nil
 		})
 		if err != nil {
