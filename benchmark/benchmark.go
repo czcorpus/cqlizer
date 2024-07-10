@@ -45,7 +45,7 @@ func (e *Executor) RunFull(overwriteBenchmarked bool) error {
 	}
 	rows, err := e.statsDB.GetAllRecords(listFilter)
 	if err != nil {
-		return fmt.Errorf("failed to run full benchmark: %w", err)
+		return fmt.Errorf("failed to run full benchmark \u25B6 %w", err)
 	}
 	for i, row := range rows {
 		fmt.Printf("%d: %s\n", i, row.Query)
@@ -74,11 +74,11 @@ func (e *Executor) TestQuery(corpus, query string) (time.Duration, error) {
 		fmt.Sprintf("/term-frequency/%s", corpus),
 	)
 	if err != nil {
-		return 0, fmt.Errorf("failed to perform benchmark query: %w", err)
+		return 0, fmt.Errorf("failed to perform benchmark query \u25B6 %w", err)
 	}
 	req, err := http.NewRequest("GET", fullURL, nil)
 	if err != nil {
-		return 0, fmt.Errorf("failed to perform benchmark query: %w", err)
+		return 0, fmt.Errorf("failed to perform benchmark query \u25B6 %w", err)
 	}
 	q := req.URL.Query()
 	q.Add("q", query)
@@ -99,7 +99,7 @@ func (e *Executor) TestQuery(corpus, query string) (time.Duration, error) {
 	t0 := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("failed to perform benchmark query: %w", err)
+		return 0, fmt.Errorf("failed to perform benchmark query \u25B6 %w", err)
 	}
 	defer resp.Body.Close()
 	return time.Since(t0), nil

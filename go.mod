@@ -14,6 +14,8 @@ require (
 
 require github.com/sjwhitworth/golearn v0.0.0-20221228163002-74ae077eafb2
 
+require github.com/fatih/color v1.17.0 // indirect
+
 require (
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect

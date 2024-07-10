@@ -47,7 +47,7 @@ func (database *Database) createQueryStatsTable() error {
 			")",
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create tables: %w", err)
+		return fmt.Errorf("failed to create tables \u25B6 %w", err)
 	}
 	log.Info().Msg("created table `query_stats`")
 	return nil
@@ -61,7 +61,7 @@ func (database *Database) createCorpusSizeTable() error {
 			")",
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create tables: %w", err)
+		return fmt.Errorf("failed to create tables \u25B6 %w", err)
 	}
 
 	log.Info().Msg("created table `corpus_size`")
@@ -71,7 +71,7 @@ func (database *Database) createCorpusSizeTable() error {
 func (database *Database) AddBenchmarkResult(id string, dur time.Duration) error {
 	tx, err := database.db.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to add benchmark result: %w", err)
+		return fmt.Errorf("failed to add benchmark result \u25B6 %w", err)
 	}
 	_, err = tx.Exec(
 		"UPDATE query_stats SET benchTime = ? WHERE id = ?",
@@ -80,12 +80,12 @@ func (database *Database) AddBenchmarkResult(id string, dur time.Duration) error
 	)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("failed to add benchmark result: %w", err)
+		return fmt.Errorf("failed to add benchmark result \u25B6 %w", err)
 	}
 	err = tx.Commit()
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("failed to add benchmark result: %w", err)
+		return fmt.Errorf("failed to add benchmark result \u25B6 %w", err)
 	}
 	return nil
 }
@@ -96,7 +96,7 @@ func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
 		"ORDER BY benchTime"
 	rows, err := database.db.Query(query)
 	if err != nil {
-		return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+		return []DBRecord{}, fmt.Errorf("failed to fetch all records \u25B6 %w", err)
 	}
 	ans := make([]DBRecord, 0, 500)
 	for rows.Next() {
@@ -112,7 +112,7 @@ func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
 			&rec.TrainingExclude,
 		)
 		if err != nil {
-			return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+			return []DBRecord{}, fmt.Errorf("failed to fetch all records \u25B6 %w", err)
 		}
 		if benchTime.Valid {
 			rec.BenchTime = benchTime.Float64
@@ -148,7 +148,7 @@ func (database *Database) GetAllRecords(filter ListFilter) ([]DBRecord, error) {
 
 	rows, err := database.db.Query(fmt.Sprintf(query, strings.Join(whereChunks, " AND ")))
 	if err != nil {
-		return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+		return []DBRecord{}, fmt.Errorf("failed to fetch all records \u25B6 %w", err)
 	}
 	ans := make([]DBRecord, 0, 500)
 	for rows.Next() {
@@ -164,7 +164,7 @@ func (database *Database) GetAllRecords(filter ListFilter) ([]DBRecord, error) {
 			&rec.TrainingExclude,
 		)
 		if err != nil {
-			return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
+			return []DBRecord{}, fmt.Errorf("failed to fetch all records \u25B6 %w", err)
 		}
 		if benchTime.Valid {
 			rec.BenchTime = benchTime.Float64
@@ -183,7 +183,7 @@ func (database *Database) tableExists(tn string) (bool, error) {
 		return false, nil
 
 	} else if err != nil {
-		return false, fmt.Errorf("failed to determine existence of table %s: %w", tn, err)
+		return false, fmt.Errorf("failed to determine existence of table %s \u25B6 %w", tn, err)
 	}
 	return true, nil
 }
@@ -191,53 +191,53 @@ func (database *Database) tableExists(tn string) (bool, error) {
 func (database *Database) Init() error {
 	ex, err := database.tableExists("query_stats")
 	if err != nil {
-		return fmt.Errorf("failed to init table query_stats: %w", err)
+		return fmt.Errorf("failed to init table query_stats \u25B6 %w", err)
 	}
 	if ex {
 		log.Info().Str("table", "query_stats").Msg("table already exists")
 
 	} else {
 		if err := database.createQueryStatsTable(); err != nil {
-			return fmt.Errorf("failed to create table query_stats: %w", err)
+			return fmt.Errorf("failed to create table query_stats \u25B6 %w", err)
 		}
 	}
 
 	ex, err = database.tableExists("corpus_size")
 	if err != nil {
-		return fmt.Errorf("failed to init table corpus_size: %w", err)
+		return fmt.Errorf("failed to init table corpus_size \u25B6 %w", err)
 	}
 	if ex {
 		log.Info().Str("table", "corpus_size").Msg("table already exists")
 
 	} else {
 		if err := database.createCorpusSizeTable(); err != nil {
-			return fmt.Errorf("failed to create table corpus_size: %w", err)
+			return fmt.Errorf("failed to create table corpus_size \u25B6 %w", err)
 		}
 	}
 
 	ex, err = database.tableExists("training")
 	if err != nil {
-		return fmt.Errorf("failed to init table training: %w", err)
+		return fmt.Errorf("failed to init table training \u25B6 %w", err)
 	}
 	if ex {
 		log.Info().Str("table", "training").Msg("table already exists")
 
 	} else {
 		if err := database.createTrainingTable(); err != nil {
-			return fmt.Errorf("failed to create table training: %w", err)
+			return fmt.Errorf("failed to create table training \u25B6 %w", err)
 		}
 	}
 
 	ex, err = database.tableExists("training_query_stats")
 	if err != nil {
-		return fmt.Errorf("failed to init table training_query_stats: %w", err)
+		return fmt.Errorf("failed to init table training_query_stats \u25B6 %w", err)
 	}
 	if ex {
 		log.Info().Str("table", "training_query_stats").Msg("table already exists")
 
 	} else {
 		if err := database.createTrainingQSTable(); err != nil {
-			return fmt.Errorf("failed to create table training_query_stats: %w", err)
+			return fmt.Errorf("failed to create table training_query_stats \u25B6 %w", err)
 		}
 	}
 
@@ -282,7 +282,7 @@ func (database *Database) StartTx() error {
 	var err error
 	database.tx, err = database.db.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to start transaction: %w", err)
+		return fmt.Errorf("failed to start transaction \u25B6 %w", err)
 	}
 	return nil
 }
@@ -293,7 +293,7 @@ func (database *Database) CommitTx() error {
 	}
 	err := database.tx.Commit()
 	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+		return fmt.Errorf("failed to commit transaction \u25B6 %w", err)
 	}
 	return nil
 }
@@ -304,7 +304,7 @@ func (database *Database) RollbackTx() error {
 	}
 	err := database.tx.Rollback()
 	if err != nil {
-		return fmt.Errorf("failed to rollback transaction: %w", err)
+		return fmt.Errorf("failed to rollback transaction \u25B6 %w", err)
 	}
 	return nil
 }
@@ -321,11 +321,11 @@ func (database *Database) AddRecord(rec DBRecord) (int64, error) {
 		rec.TrainingExclude,
 	)
 	if err != nil {
-		return -1, fmt.Errorf("failed to add record: %w", err)
+		return -1, fmt.Errorf("failed to add record \u25B6 %w", err)
 	}
 	lastID, err := ans.LastInsertId()
 	if err != nil {
-		return -1, fmt.Errorf("failed to add record: %w", err)
+		return -1, fmt.Errorf("failed to add record \u25B6 %w", err)
 	}
 	return lastID, err
 }
@@ -333,20 +333,20 @@ func (database *Database) AddRecord(rec DBRecord) (int64, error) {
 func (database *Database) ImportCorpusSizesFromCSV(path string) error {
 	fr, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("failed to import CSV corpsizes: %w", err)
+		return fmt.Errorf("failed to import CSV corpsizes \u25B6 %w", err)
 	}
 	defer fr.Close()
 	scnr := bufio.NewScanner(fr)
 	tx, err := database.db.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to import CSV corpsizes: %w", err)
+		return fmt.Errorf("failed to import CSV corpsizes \u25B6 %w", err)
 	}
 	for scnr.Scan() {
 		tmp := strings.Split(scnr.Text(), ";")
 		_, err := tx.Exec("INSERT INTO corpus_size (id, size) VALUES (?, ?)", tmp[0], tmp[1])
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to import CSV corpsizes: %w", err)
+			return fmt.Errorf("failed to import CSV corpsizes \u25B6 %w", err)
 		}
 	}
 	return tx.Commit()
@@ -355,7 +355,7 @@ func (database *Database) ImportCorpusSizesFromCSV(path string) error {
 func NewDatabase(path string) (*Database, error) {
 	dbConn, err := sql.Open("sqlite3", "file:"+path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open stats datase: %w", err)
+		return nil, fmt.Errorf("failed to open stats datase \u25B6 %w", err)
 	}
 	return &Database{
 		sizesCache: make(map[string]int),

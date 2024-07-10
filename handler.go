@@ -40,7 +40,7 @@ func (a *Actions) ParseQuery(ctx *gin.Context) {
 	if err != nil {
 		uniresp.RespondWithErrorJSON(
 			ctx,
-			fmt.Errorf("failed to parse query: %w", err),
+			fmt.Errorf("failed to parse query \u25B6 %w", err),
 			http.StatusUnprocessableEntity,
 		)
 		return
@@ -54,7 +54,7 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 	if err != nil {
 		uniresp.RespondWithErrorJSON(
 			ctx,
-			fmt.Errorf("failed to parse query: %w", err),
+			fmt.Errorf("failed to parse query \u25B6 %w", err),
 			http.StatusUnprocessableEntity,
 		)
 		return
