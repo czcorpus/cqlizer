@@ -728,7 +728,18 @@ RgAlt <-
         return ans, nil
     }
 
-RgAltVal <- v:RgChar {
+RgAltVal <-
+    t1:AnyLetter "-" t2:AnyLetter {
+        ans := &RgAltVal{
+            variant3: &rgAltValVariant3{
+                From: ASTString(typedOrPanic[string](t1)),
+                To: ASTString(typedOrPanic[string](t2)),
+            },
+        }
+        return ans, nil
+    }
+
+    / v:RgChar {
         ans := &RgAltVal{
             variant1: &rgAltValVariant1{
                 RgChar: typedOrPanic[*RgChar](v),

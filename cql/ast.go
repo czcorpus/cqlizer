@@ -1726,11 +1726,13 @@ func (r *RgAlt) Text() string {
 
 func (r *RgAlt) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		RuleName  string
-		Expansion RgAlt
+		RuleName        string
+		Expansion       RgAlt
+		ExhaustionScore float64
 	}{
-		RuleName:  "RgAlt",
-		Expansion: *r,
+		RuleName:        "RgAlt",
+		Expansion:       *r,
+		ExhaustionScore: r.ExhaustionScore(),
 	})
 }
 
@@ -1746,6 +1748,14 @@ func (r *RgAlt) DFS(fn func(v ASTNode)) {
 		item.DFS(fn)
 	}
 	fn(r)
+}
+
+func (r *RgAlt) ExhaustionScore() float64 {
+	ans := 0.0
+	for _, v := range r.Values {
+		ans += v.ExhaustionScore()
+	}
+	return ans
 }
 
 // --------------------------------------------------------
@@ -1967,9 +1977,15 @@ type rgAltValVariant2 struct {
 	Value ASTString
 }
 
+type rgAltValVariant3 struct {
+	From ASTString
+	To   ASTString
+}
+
 type RgAltVal struct {
 	variant1 *rgAltValVariant1
 	variant2 *rgAltValVariant2
+	variant3 *rgAltValVariant3
 }
 
 func (rc *RgAltVal) Text() string {
@@ -1977,27 +1993,29 @@ func (rc *RgAltVal) Text() string {
 }
 
 func (rc *RgAltVal) MarshalJSON() ([]byte, error) {
+	var variant any
 	if rc.variant1 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			Expansion rgAltValVariant1
-		}{
-			RuleName:  "RgAltVal",
-			Expansion: *rc.variant1,
-		})
+		variant = rc.variant1
 
 	} else if rc.variant2 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			Expansion rgAltValVariant2
-		}{
-			RuleName:  "RgAltVal",
-			Expansion: *rc.variant2,
-		})
+		variant = rc.variant2
+
+	} else if rc.variant3 != nil {
+		variant = rc.variant3
 
 	} else {
-		return json.Marshal(struct{}{})
+		variant = struct{}{}
 	}
+
+	return json.Marshal(struct {
+		RuleName        string
+		Expansion       any
+		ExhaustionScore float64
+	}{
+		RuleName:        "RgAltVal",
+		Expansion:       variant,
+		ExhaustionScore: rc.ExhaustionScore(),
+	})
 }
 
 func (r *RgAltVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -2007,6 +2025,10 @@ func (r *RgAltVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 
 	} else if r.variant2 != nil {
 		fn(r, r.variant2.Value)
+
+	} else if r.variant3 != nil {
+		fn(r, r.variant3.From)
+		fn(r, r.variant3.To)
 	}
 }
 
@@ -2016,6 +2038,25 @@ func (r *RgAltVal) DFS(fn func(v ASTNode)) {
 
 	} else if r.variant2 != nil {
 		fn(r.variant2.Value)
+
+	} else if r.variant3 != nil {
+		fn(r.variant3.From)
+		fn(r.variant3.To)
 	}
 	fn(r)
+}
+
+func (r *RgAltVal) ExhaustionScore() float64 {
+	if r.variant1 != nil {
+		return 2.0 // TODO
+	}
+	if r.variant2 != nil {
+		return 2
+	}
+	if r.variant3 != nil {
+		ch1 := []rune(r.variant3.From.String())
+		ch2 := []rune(r.variant3.To.String())
+		return float64(ch2[0]-ch1[0]+1) * 1.05
+	}
+	return 0
 }

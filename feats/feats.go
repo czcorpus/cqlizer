@@ -26,6 +26,10 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
+const (
+	numReducedDimensions = 5
+)
+
 type Record struct {
 	matrix         *mat.Dense
 	fullWHSize     int
@@ -35,13 +39,13 @@ type Record struct {
 func NewRecord() Record {
 	ans := Record{}
 	ans.fullWHSize = 36
-	ans.numReducedCols = 4
+	ans.numReducedCols = numReducedDimensions
 
 	return ans
 }
 
 func (rec Record) ReduceDim(from *mat.Dense) *mat.Dense {
-	p := pca.NewPCA(4)
+	p := pca.NewPCA(rec.numReducedCols)
 	p.Fit(from)
 	return p.Transform(from)
 }
@@ -169,10 +173,10 @@ func (rec *Record) ImportFrom(query *cql.Query) {
 			i2 := rec.GetNodeTypeIdx(parent)
 			v := 1.0
 			if tNode.IsProblematicAttrSearch() {
-				v = 25.0
+				v = 250.0
 
 			} else if tNode.IsNegation() {
-				v = 40.0
+				v = 400.0
 			}
 			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+v)
 		case *cql.Repetition:
@@ -180,7 +184,7 @@ func (rec *Record) ImportFrom(query *cql.Query) {
 			i2 := rec.GetNodeTypeIdx(parent)
 			v := 1.0
 			if tNode.IsAnyPosition() {
-				v = 100.0
+				v = 1000.0
 			}
 			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+v)
 		case *cql.Structure:
