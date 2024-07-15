@@ -199,6 +199,7 @@ func main() {
 	cmdEvaluate := flag.NewFlagSet(actionEvaluate.String(), flag.ExitOnError)
 	numSamples := cmdEvaluate.Int("num-samples", 10, "Number of samples for the validation action")
 	sampleSize := cmdEvaluate.Int("sample-size", 500, "Sample size for the validation action")
+	allowTrainingRecs := cmdEvaluate.Bool("allow-training-records", false, "If set, then even records used for training the model may occur in validation sets")
 	cmdEvaluate.Usage = func() {
 		fmt.Fprintf(
 			os.Stderr,
@@ -312,7 +313,7 @@ func main() {
 		cmdEvaluate.Parse(os.Args[2:])
 		conf := setupConfAndLogging(cmdEvaluate, 0)
 		trainingID := parseTrainingIdOrExit(cmdEvaluate.Arg(1))
-		runEvaluation(conf, trainingID, *numSamples, *sampleSize)
+		runEvaluation(conf, trainingID, *numSamples, *sampleSize, *allowTrainingRecs)
 
 	case actionLearn:
 		cmdLearn.Parse(os.Args[2:])
