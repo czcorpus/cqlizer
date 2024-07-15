@@ -129,7 +129,7 @@ func runTrainingReplay(conf *cnf.Conf, trainingID int) {
 	}
 }
 
-func runEvaluation(conf *cnf.Conf, trainingID, numSamples, sampleSize int) {
+func runEvaluation(conf *cnf.Conf, trainingID, numSamples, sampleSize int, allowTrainingRecords bool) {
 	statsDB, err := stats.NewDatabase(conf.WorkingDBPath)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to run evaluation")
@@ -160,7 +160,7 @@ func runEvaluation(conf *cnf.Conf, trainingID, numSamples, sampleSize int) {
 	}
 
 	recs, err := statsDB.GetAllRecords(
-		stats.ListFilter{}.SetBenchmarked(true).SetTrainingExcluded(true))
+		stats.ListFilter{}.SetBenchmarked(true).SetTrainingExcluded(!allowTrainingRecords))
 	if err != nil {
 		color.New(errColor).Fprintln(os.Stderr, err)
 		os.Exit(1)
