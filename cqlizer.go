@@ -227,6 +227,8 @@ func main() {
 	}
 
 	cmdLearn := flag.NewFlagSet(actionLearn.String(), flag.ExitOnError)
+	anyCorpusSearch := cmdLearn.Bool("any-corpus", false, "Do not restrict to queries to syn* corpora")
+	ratioOfTrues := cmdLearn.Float64("ratio-of-trues", 0.1, "Ratio of values above the threshold")
 	cmdLearn.Usage = func() {
 		fmt.Fprintf(
 			os.Stderr,
@@ -234,7 +236,7 @@ func main() {
 			filepath.Base(os.Args[0]), actionLearn.String())
 		fmt.Fprintf(os.Stderr, "\nArguments:\n")
 		fmt.Fprintf(os.Stderr, "\tconfig.json\ta path to a config file\n")
-		fmt.Fprintf(os.Stderr, "\threshold\tA threshold value (in seconds) for what is considered a problematic query in a benchmark environment\n")
+		fmt.Fprintf(os.Stderr, "\tthreshold\tA threshold value (in seconds) for what is considered a problematic query in a benchmark environment\n")
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmdLearn.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nLearn a new model based on queries stored in database (the ones without the `trainingExclude` flag)\n")
@@ -320,7 +322,7 @@ func main() {
 			color.New(errColor).Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		runLearning(conf, thr)
+		runLearning(conf, thr, *ratioOfTrues, !*anyCorpusSearch)
 
 	default:
 		log.Fatal().Msgf("Unknown action %s", action)

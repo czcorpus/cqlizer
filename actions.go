@@ -63,7 +63,7 @@ func runBenchmark(conf *cnf.Conf, overwriteBenchmarked bool) {
 	}
 }
 
-func runLearning(conf *cnf.Conf, threshold float64) {
+func runLearning(conf *cnf.Conf, threshold, ratioOfTrues float64, synCompat bool) {
 	db, err := stats.NewDatabase(conf.WorkingDBPath)
 	if err != nil {
 		color.New(errColor).Fprintln(os.Stderr, err)
@@ -75,7 +75,7 @@ func runLearning(conf *cnf.Conf, threshold float64) {
 		os.Exit(1)
 	}
 	eng := prediction.NewEngine(conf, db)
-	err = eng.Train(threshold)
+	err = eng.Train(threshold, ratioOfTrues, synCompat)
 	if err != nil {
 		color.New(errColor).Fprintln(os.Stderr, err)
 		os.Exit(1)

@@ -3,7 +3,6 @@ package cql
 import (
 	"encoding/json"
 	"fmt"
-	"reflect"
 
 	"github.com/rs/zerolog/log"
 )
@@ -23,6 +22,7 @@ const (
 	SingleDotExhaustiveness  = 20.0
 	InfRepeatPenalty         = 5.0
 	QuestionMarkPenalty      = 1.05
+	AltCharPenalty           = 1.1
 )
 
 type RgSimple struct {
@@ -80,10 +80,17 @@ func (r *RgSimple) ExhaustionScore() float64 {
 						ans *= RangePenalty * float64(RangeInfReplac-v[0])
 					}
 				}
-			case *RgAlt, *RgPosixClass:
+			case *RgAlt:
+				if ans == 0 {
+					ans = tVal.ExhaustionScore()
+
+				} else {
+					ans += tVal.ExhaustionScore() // TODO what about the adding operation?
+				}
+
+			case *RgPosixClass:
 				// currently NOP
 			default:
-				fmt.Println("kokot: ", reflect.TypeOf(val))
 				log.Error().Type("inputType", val).Msg("Rg parsing error in state ConstChar")
 			}
 		case Repeat:

@@ -34,12 +34,11 @@ type Engine struct {
 	statsDB *stats.Database
 }
 
-func (eng *Engine) Train(threshold float64) error {
-	var listFilter stats.ListFilter
-	rows, err := eng.statsDB.GetAllRecords(
-		listFilter.
-			SetBenchmarked(true).
-			SetTrainingExcluded(false),
+func (eng *Engine) Train(threshold, ratioOfTrues float64, synCompat bool) error {
+	rows, err := eng.statsDB.MixBiasedTrainingList(
+		threshold,
+		ratioOfTrues,
+		synCompat,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to run prediction test \u25B6 %w", err)
@@ -137,7 +136,7 @@ func (eng *Engine) train(
 	}
 	forest := randomforest.Forest{}
 	forest.Data = randomforest.ForestData{X: xData, Class: yData}
-	forest.Train(1200)
+	forest.Train(1000)
 	fmt.Println("training done")
 	fmt.Printf("total training items: %d\n", len(training))
 

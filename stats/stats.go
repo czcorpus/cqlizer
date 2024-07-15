@@ -20,10 +20,12 @@ import (
 	"bufio"
 	"database/sql"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/czcorpus/cnc-gokit/collections"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog/log"
 )
@@ -120,6 +122,93 @@ func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
 		ans = append(ans, rec)
 	}
 	return ans, nil
+}
+
+func (database *Database) MixBiasedTrainingList(
+	threshold float64,
+	ratioOfTrues float64,
+	syn2020Compat bool,
+) ([]DBRecord, error) {
+
+	query1 := "SELECT id, datetime, query, corpname, procTime, benchTime, trainingExclude " +
+		"FROM query_stats WHERE %s "
+	whereChunks := make([]string, 0, 2)
+	whereChunks = append(whereChunks, "trainingExclude = 0", "benchTime >= ?")
+	whereArgs := []any{threshold}
+	if syn2020Compat {
+		whereChunks = append(whereChunks, "corpname LIKE '%syn%'")
+	}
+	rows1, err := database.db.Query(
+		fmt.Sprintf(query1, strings.Join(whereChunks, " AND ")), whereArgs...)
+	if err != nil {
+		return []DBRecord{}, fmt.Errorf("failed to fetch training biased records \u25B6 %w", err)
+	}
+	ans1 := make([]DBRecord, 0, 500)
+	for rows1.Next() {
+		var rec DBRecord
+		var benchTime sql.NullFloat64
+		err := rows1.Scan(
+			&rec.ID,
+			&rec.Datetime,
+			&rec.Query,
+			&rec.Corpname,
+			&rec.ProcTime,
+			&benchTime,
+			&rec.TrainingExclude,
+		)
+		if err != nil {
+			return []DBRecord{}, fmt.Errorf("failed to fetch training biased records \u25B6 %w", err)
+		}
+		if benchTime.Valid {
+			rec.BenchTime = benchTime.Float64
+		}
+		ans1 = append(ans1, rec)
+	}
+	// now we calculate total required size as `total = ans1 / ratioOfTrues`
+	requiredTotal := int(math.Ceil(float64(len(ans1)) / ratioOfTrues))
+
+	query2 := "SELECT id, datetime, query, corpname, procTime, benchTime, trainingExclude " +
+		"FROM query_stats WHERE %s "
+	whereChunks2 := make([]string, 0, 2)
+	whereChunks2 = append(whereChunks2, "trainingExclude = 0", "benchTime < ?")
+	whereArgs2 := []any{threshold}
+	if syn2020Compat {
+		whereChunks2 = append(whereChunks2, "corpname LIKE '%syn%'")
+	}
+	rows2, err := database.db.Query(
+		fmt.Sprintf(query2, strings.Join(whereChunks2, " AND ")), whereArgs2...)
+	if err != nil {
+		return []DBRecord{}, fmt.Errorf("failed to fetch training biased records \u25B6 %w", err)
+	}
+
+	ans2 := make([]DBRecord, 0, 4000)
+	for rows2.Next() {
+		var rec DBRecord
+		var benchTime sql.NullFloat64
+		err := rows2.Scan(
+			&rec.ID,
+			&rec.Datetime,
+			&rec.Query,
+			&rec.Corpname,
+			&rec.ProcTime,
+			&benchTime,
+			&rec.TrainingExclude,
+		)
+		if err != nil {
+			return []DBRecord{}, fmt.Errorf("failed to fetch training biased records \u25B6 %w", err)
+		}
+		if benchTime.Valid {
+			rec.BenchTime = benchTime.Float64
+		}
+		ans2 = append(ans2, rec)
+	}
+
+	if len(ans1)+len(ans2) < requiredTotal {
+		return []DBRecord{}, fmt.Errorf("failed to fetch training biased records due to unfulfillable ratio of trues")
+	}
+	ans3 := collections.SliceSample(ans2, requiredTotal-len(ans1))
+	return append(ans1, ans3...), nil
+
 }
 
 // GetAllRecords loads stats records containing imported queries with their
