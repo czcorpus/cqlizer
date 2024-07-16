@@ -773,28 +773,60 @@ RgAltVal <-
 
 
 RgChar <-
-    rg:RG_ESCAPED {
+    RG_ESCAPED {
         ans := &RgChar{
             variant1: &rgCharVariant1{
-                Value: ASTString(typedOrPanic[string](rg)),
+                Value: ASTString(string(c.text)),
             },
         }
 
         return ans, nil
     }
-    / rg:AnyLetter {
+    / RG_REPEAT {
+        ans := &RgChar{
+            variant3: &rgCharVariant3{
+                RgRepeat: &RgRepeat{
+                    Value: ASTString(string(c.text)),
+                },
+            },
+        }
+        return ans, nil
+    }
+    / RG_QM {
+        ans := &RgChar{
+            variant5: &rgCharVariant5{
+                RgQM: &RgQM{
+                    Value: ASTString("?"),
+                },
+            },
+        }
+        return ans, nil
+    }
+    / RG_ANY {
+        ans := &RgChar{
+            variant4: &rgCharVariant4{
+                RgAny: &RgAny{
+                    Value: ASTString("."),
+                },
+            },
+        }
+        return ans, nil
+    }
+    / AnyLetter {
         ans := &RgChar{
             variant1: &rgCharVariant1{
-                Value: ASTString(typedOrPanic[string](rg)),
+                Value: ASTString(string(c.text)),
             },
         }
 
         return ans, nil
     }
-    / rg:RG_OP {
+    / RG_OP {
         ans := &RgChar{
             variant2: &rgCharVariant2{
-                Value: typedOrPanic[*RgOp](rg),
+                RgOp: &RgOp{
+                    Value: ASTString(string(c.text)),
+                },
             },
         }
 
@@ -837,21 +869,14 @@ RgChar <-
         return ans, nil
     }
 
+RG_REPEAT <- [*+]
+
+RG_QM <- "?"
+
+RG_ANY <- "."
+
 RG_OP <-
-    v:[-,_^$ ] {
-        ans := &RgOp{
-            Value: ASTString(c.text),
-        }
-
-        return ans, nil
-    }
-    / v:[0-9?*+.] {
-        ans := &RgOp{
-            Value: ASTString(c.text),
-        }
-
-        return ans, nil
-    }
+    [-,_^$ ] / [0-9]
 
 RG_ESCAPED <-
     "\\{" / "\\}" / "\\(" / "\\)" / "\\[" / "\\]" / "\\?" / "\\!" / "\\." / "\\\"" / "\\*" / "\\+" / "\\^" / "\\$" / "\\|"

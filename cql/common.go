@@ -27,12 +27,31 @@ func (s ASTString) Text() string {
 	return string(s)
 }
 
+func (s ASTString) IsEmpty() bool {
+	return s.String() == ""
+}
+
+func (s ASTString) Effect() float64 {
+	return 1
+}
+
+func (s ASTString) SetEffect(v float64) {
+	// ASTString is a leaf node so this has no effect and should not be normally called
+}
+
+func (s ASTString) IsLeaf() bool {
+	return true
+}
+
 func (s ASTString) String() string {
 	return string(s)
 }
 
 type ASTNode interface {
 	Text() string
+	Effect() float64
+	SetEffect(v float64)
+	IsLeaf() bool
 }
 
 func fromIdxOfUntypedSlice[T any](arr any, idx int) T {
@@ -74,7 +93,8 @@ func typedOrPanic[T any](v any) T {
 	}
 	vt, ok := v.(T)
 	if !ok {
-		panic(fmt.Sprintf("unexpected type %s", reflect.TypeOf(v)))
+		var e T
+		panic(fmt.Sprintf("unexpected type %s (expected: %s)", reflect.TypeOf(v), reflect.TypeOf(e)))
 	}
 	return vt
 }

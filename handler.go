@@ -24,6 +24,7 @@ import (
 	"github.com/czcorpus/cnc-gokit/uniresp"
 	"github.com/czcorpus/cqlizer/cql"
 	"github.com/czcorpus/cqlizer/feats"
+	"github.com/czcorpus/cqlizer/feats/heatmap"
 	"github.com/czcorpus/cqlizer/stats"
 	"github.com/gin-gonic/gin"
 	randomforest "github.com/malaschitz/randomForest"
@@ -45,6 +46,7 @@ func (a *Actions) ParseQuery(ctx *gin.Context) {
 		)
 		return
 	}
+	//feats.CalculateEffect(parsed)
 	uniresp.WriteJSONResponse(ctx.Writer, parsed)
 }
 
@@ -61,7 +63,7 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 	}
 	features := feats.NewRecord()
 	features.ImportFrom(parsed)
-	features.ExportHeatmap(fmt.Sprintf("./data/query-%s.png", stats.IdempotentID(time.Now(), q)))
+	features.ExportHeatmapToFile(fmt.Sprintf("./data/query-%s.png", stats.IdempotentID(time.Now(), q)))
 
 	ans := a.rfModel.Vote(features.AsVector())
 
@@ -97,4 +99,41 @@ func (a *Actions) StoreQuery(ctx *gin.Context) {
 		return
 	}
 	uniresp.WriteJSONResponse(ctx.Writer, map[string]any{"newID": newID})
+}
+
+func (a *Actions) Features(ctx *gin.Context) {
+	q := ctx.Query("q")
+	parsed, err := cql.ParseCQL("#", q)
+	if err != nil {
+		uniresp.RespondWithErrorJSON(
+			ctx,
+			fmt.Errorf("failed to parse query \u25B6 %w", err),
+			http.StatusUnprocessableEntity,
+		)
+		return
+	}
+	features := feats.NewRecord()
+	var result [][]float64
+
+	if ctx.Query("full") == "1" {
+		fullFeats := features.ImportFromGetFullFeats(parsed)
+		rows, cols := fullFeats.Dims()
+		rawData := fullFeats.RawMatrix().Data
+		result = make([][]float64, rows)
+		for i := 0; i < rows; i++ {
+			result[i] = rawData[i*cols : (i+1)*cols]
+		}
+
+	} else {
+		features.ImportFrom(parsed)
+		rows, cols := features.Matrix().Dims()
+		rawData := features.Matrix().RawMatrix().Data
+		result = make([][]float64, rows)
+		for i := 0; i < rows; i++ {
+			result[i] = rawData[i*cols : (i+1)*cols]
+		}
+	}
+	ctx.Header("content-type", "image/png")
+	heatmap.GenerateHeatmapToWriter(result, ctx.Writer, 20, heatmap.Percentile)
+
 }

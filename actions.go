@@ -129,7 +129,7 @@ func runTrainingReplay(conf *cnf.Conf, trainingID int) {
 	}
 }
 
-func runEvaluation(conf *cnf.Conf, trainingID, numSamples, sampleSize int, allowTrainingRecords bool) {
+func runEvaluation(conf *cnf.Conf, trainingID, numSamples, sampleSize int, allowTrainingRecords bool, synCompat bool) {
 	statsDB, err := stats.NewDatabase(conf.WorkingDBPath)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to run evaluation")

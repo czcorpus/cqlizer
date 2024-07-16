@@ -234,6 +234,11 @@ func (database *Database) GetAllRecords(filter ListFilter) ([]DBRecord, error) {
 			whereChunks = append(whereChunks, "trainingExclude = 0")
 		}
 	}
+	if filter.SynCompat != nil {
+		if *filter.SynCompat {
+			whereChunks = append(whereChunks, "corpname LIKE '%syn%'")
+		}
+	}
 
 	rows, err := database.db.Query(fmt.Sprintf(query, strings.Join(whereChunks, " AND ")))
 	if err != nil {

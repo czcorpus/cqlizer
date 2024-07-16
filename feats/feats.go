@@ -30,6 +30,18 @@ const (
 	numReducedDimensions = 5
 )
 
+func CalculateEffect(query *cql.Query) {
+	stack := new(cql.Stack)
+	query.DFS(
+		func(v cql.ASTNode, currStack *cql.Stack) {
+			if v.IsLeaf() {
+				currStack.PathEffect()
+			}
+		},
+		stack,
+	)
+}
+
 type Record struct {
 	matrix         *mat.Dense
 	fullWHSize     int
@@ -38,10 +50,14 @@ type Record struct {
 
 func NewRecord() Record {
 	ans := Record{}
-	ans.fullWHSize = 36
+	ans.fullWHSize = 40
 	ans.numReducedCols = numReducedDimensions
 
 	return ans
+}
+
+func (rec Record) Matrix() *mat.Dense {
+	return rec.matrix
 }
 
 func (rec Record) ReduceDim(from *mat.Dense) *mat.Dense {
@@ -131,18 +147,26 @@ func (rec *Record) GetNodeTypeIdx(v any) int {
 		return 31
 	case *cql.AnyLetter:
 		return 32
-	case *cql.RgOp:
+	case *cql.RgChar:
 		return 33
-	case *cql.RgAltVal:
+	case *cql.RgOp:
 		return 34
-	case *cql.MeetOp:
+	case *cql.RgAltVal:
 		return 35
+	case *cql.RgRepeat:
+		return 36
+	case *cql.RgQM:
+		return 37
+	case *cql.RgAny:
+		return 38
+	case *cql.MeetOp:
+		return 39
 	default:
 		panic(fmt.Sprintf("unsupported node type: %s", reflect.TypeOf(v)))
 	}
 }
 
-func (rec *Record) ExportHeatmap(path string) {
+func (rec *Record) ExportHeatmapToFile(path string) {
 	rows, cols := rec.matrix.Dims()
 	rawData := rec.matrix.RawMatrix().Data
 	result := make([][]float64, rows)
@@ -152,55 +176,36 @@ func (rec *Record) ExportHeatmap(path string) {
 	heatmap.GenerateHeatmap(result, path, 20, heatmap.Percentile)
 }
 
-func (rec *Record) ImportFrom(query *cql.Query) {
+func (rec *Record) FullMatrix(query *cql.Query) *mat.Dense {
+	//CalculateEffect(query)
 	largeMatrix := mat.NewDense(rec.fullWHSize, rec.fullWHSize, nil)
 	query.ForEachElement(func(parent, v cql.ASTNode) {
 		switch parent.(type) {
-		case *cql.Query, *cql.RgChar:
+		case *cql.Query:
 			return
 		}
-		switch tNode := v.(type) {
-		case cql.ASTString:
-			// NOP (mostly attribute names)
-		case *cql.Query, *cql.RgChar:
-			// NOP (the matrix itself)
-		case *cql.RegExpRaw:
-			i1 := rec.GetNodeTypeIdx(tNode)
-			i2 := rec.GetNodeTypeIdx(parent)
-			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+tNode.ExhaustionScore())
-		case *cql.AttVal:
-			i1 := rec.GetNodeTypeIdx(tNode)
-			i2 := rec.GetNodeTypeIdx(parent)
-			v := 1.0
-			if tNode.IsProblematicAttrSearch() {
-				v = 250.0
-
-			} else if tNode.IsNegation() {
-				v = 400.0
-			}
-			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+v)
-		case *cql.Repetition:
-			i1 := rec.GetNodeTypeIdx(tNode)
-			i2 := rec.GetNodeTypeIdx(parent)
-			v := 1.0
-			if tNode.IsAnyPosition() {
-				v = 1000.0
-			}
-			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+v)
-		case *cql.Structure:
-			i1 := rec.GetNodeTypeIdx(tNode)
-			i2 := rec.GetNodeTypeIdx(parent)
-			if tNode.IsBigStructure() {
-				largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+10)
-
-			} else {
-				largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+1)
-			}
+		switch v.(type) {
+		case *cql.Query, cql.ASTString:
+			// NOP
 		default:
-			i1 := rec.GetNodeTypeIdx(tNode)
+			i1 := rec.GetNodeTypeIdx(v)
 			i2 := rec.GetNodeTypeIdx(parent)
-			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+1)
+			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+v.Effect())
 		}
 	})
-	rec.matrix = rec.ReduceDim(largeMatrix)
+
+	return largeMatrix
+}
+
+func (rec *Record) ImportFrom(query *cql.Query) {
+	rec.matrix = rec.ReduceDim(rec.FullMatrix(query))
+}
+
+func (rec *Record) ImportFromGetFullFeats(query *cql.Query) *mat.Dense {
+	fullFeats := rec.FullMatrix(query)
+	rows, cols := fullFeats.Dims()
+	ans := mat.NewDense(rows, cols, nil)
+	ans.CloneFrom(fullFeats)
+	rec.matrix = rec.ReduceDim(fullFeats)
+	return ans
 }

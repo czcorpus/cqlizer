@@ -131,6 +131,8 @@ func runApiServer(
 
 	engine.PUT("/query", cqlActions.StoreQuery)
 
+	engine.GET("/feats", cqlActions.Features)
+
 	log.Info().Msg("Starting CQLizer API server")
 	log.Info().
 		Str("address", conf.ListenAddress).

@@ -199,6 +199,7 @@ func main() {
 	cmdEvaluate := flag.NewFlagSet(actionEvaluate.String(), flag.ExitOnError)
 	numSamples := cmdEvaluate.Int("num-samples", 10, "Number of samples for the validation action")
 	sampleSize := cmdEvaluate.Int("sample-size", 500, "Sample size for the validation action")
+	anyCorpusSearch := cmdEvaluate.Bool("any-corpus", false, "Do not restrict to queries to syn* corpora")
 	allowTrainingRecs := cmdEvaluate.Bool("allow-training-records", false, "If set, then even records used for training the model may occur in validation sets")
 	cmdEvaluate.Usage = func() {
 		fmt.Fprintf(
@@ -228,7 +229,7 @@ func main() {
 	}
 
 	cmdLearn := flag.NewFlagSet(actionLearn.String(), flag.ExitOnError)
-	anyCorpusSearch := cmdLearn.Bool("any-corpus", false, "Do not restrict to queries to syn* corpora")
+	anyCorpusSearch2 := cmdLearn.Bool("any-corpus", false, "Do not restrict to queries to syn* corpora")
 	ratioOfTrues := cmdLearn.Float64("ratio-of-trues", 0.1, "Ratio of values above the threshold")
 	cmdLearn.Usage = func() {
 		fmt.Fprintf(
@@ -313,7 +314,7 @@ func main() {
 		cmdEvaluate.Parse(os.Args[2:])
 		conf := setupConfAndLogging(cmdEvaluate, 0)
 		trainingID := parseTrainingIdOrExit(cmdEvaluate.Arg(1))
-		runEvaluation(conf, trainingID, *numSamples, *sampleSize, *allowTrainingRecs)
+		runEvaluation(conf, trainingID, *numSamples, *sampleSize, *allowTrainingRecs, !*anyCorpusSearch)
 
 	case actionLearn:
 		cmdLearn.Parse(os.Args[2:])
@@ -323,7 +324,7 @@ func main() {
 			color.New(errColor).Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		runLearning(conf, thr, *ratioOfTrues, !*anyCorpusSearch)
+		runLearning(conf, thr, *ratioOfTrues, !*anyCorpusSearch2)
 
 	default:
 		log.Fatal().Msgf("Unknown action %s", action)

@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"math"
 	"os"
 	"sort"
@@ -23,6 +24,16 @@ const (
 
 // GenerateHeatmap creates a heatmap image from a matrix with customizable cell size and color scaling
 func GenerateHeatmap(matrix Matrix, filename string, cellSize int, method ScalingMethod) error {
+	// Save the image
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return GenerateHeatmapToWriter(matrix, f, cellSize, method)
+}
+
+func GenerateHeatmapToWriter(matrix Matrix, writer io.Writer, cellSize int, method ScalingMethod) error {
 	height := len(matrix)
 	width := len(matrix[0])
 
@@ -56,14 +67,7 @@ func GenerateHeatmap(matrix Matrix, filename string, cellSize int, method Scalin
 		}
 	}
 
-	// Save the image
-	f, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	return png.Encode(f, img)
+	return png.Encode(writer, img)
 }
 
 // flattenMatrix converts a 2D matrix to a 1D slice

@@ -22,6 +22,7 @@ import "encoding/json"
 //
 //	Sequence (_ BINAND _ GlobPart)? (_ WithinOrContaining)* EOF {
 type Query struct {
+	effect             float64
 	origValue          string
 	Sequence           *Sequence
 	GlobPart           *GlobPart
@@ -32,9 +33,11 @@ func (q *Query) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Expansion Query
 		RuleName  string
+		Effect    float64
 	}{
 		RuleName:  "Query",
 		Expansion: *q,
+		Effect:    q.effect,
 	})
 }
 
@@ -44,6 +47,21 @@ func (q *Query) Len() int {
 
 func (q *Query) Text() string {
 	return q.origValue
+}
+
+func (q *Query) Effect() float64 {
+	if q.effect == 0 {
+		q.effect = 1
+	}
+	return q.effect
+}
+
+func (q *Query) SetEffect(v float64) {
+	q.effect = v
+}
+
+func (q *Query) IsLeaf() bool {
+	return false
 }
 
 func (q *Query) ForEachElement(fn func(parent, v ASTNode)) {
@@ -59,15 +77,17 @@ func (q *Query) ForEachElement(fn func(parent, v ASTNode)) {
 	}
 }
 
-func (q *Query) DFS(fn func(v ASTNode)) {
+func (q *Query) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(q)
 	if q.Sequence != nil {
-		q.Sequence.DFS(fn)
+		q.Sequence.DFS(fn, path)
 	}
 	if q.GlobPart != nil {
-		q.GlobPart.DFS(fn)
+		q.GlobPart.DFS(fn, path)
 	}
 	for _, item := range q.WithinOrContaining {
-		item.DFS(fn)
+		item.DFS(fn, path)
 	}
-	fn(q)
+	fn(q, path)
+	path.Pop()
 }

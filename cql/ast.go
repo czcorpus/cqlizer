@@ -26,6 +26,7 @@ import (
 
 // Seq (_ BINOR _ Seq)* / Seq
 type Sequence struct {
+	effect    float64
 	origValue string
 	Seq       []*Seq
 }
@@ -34,13 +35,30 @@ func (q *Sequence) Text() string {
 	return q.origValue
 }
 
+func (q *Sequence) Effect() float64 {
+	if q.effect == 0 {
+		q.effect = 1
+	}
+	return q.effect
+}
+
+func (q *Sequence) SetEffect(v float64) {
+	q.effect = v
+}
+
+func (q *Sequence) IsLeaf() bool {
+	return false
+}
+
 func (q *Sequence) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Expansion Sequence
 		RuleName  string
+		Effect    float64
 	}{
 		RuleName:  "Sequence",
 		Expansion: *q,
+		Effect:    q.effect,
 	})
 }
 
@@ -51,16 +69,19 @@ func (q *Sequence) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (q *Sequence) DFS(fn func(v ASTNode)) {
+func (q *Sequence) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(q)
 	for _, item := range q.Seq {
-		item.DFS(fn)
+		item.DFS(fn, path)
 	}
-	fn(q)
+	fn(q, path)
+	path.Pop()
 }
 
 // --------------------------------------------------------------------
 
 type Seq struct {
+	effect      float64
 	origValue   string
 	isOrChained bool
 	Not         ASTString
@@ -83,16 +104,33 @@ func (s *Seq) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (s *Seq) DFS(fn func(v ASTNode)) {
-	fn(s.Not)
+func (s *Seq) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(s)
+	fn(s.Not, path)
 	for _, item := range s.Repetition {
-		item.DFS(fn)
+		item.DFS(fn, path)
 	}
-	fn(s)
+	fn(s, path)
+	path.Pop()
 }
 
 func (s *Seq) Text() string {
 	return string(s.origValue)
+}
+
+func (s *Seq) Effect() float64 {
+	if s.effect == 0 {
+		s.effect = 1
+	}
+	return s.effect
+}
+
+func (s *Seq) SetEffect(v float64) {
+	s.effect = v
+}
+
+func (q *Seq) IsLeaf() bool {
+	return false
 }
 
 // -----------------------------------------------------
@@ -100,6 +138,7 @@ func (s *Seq) Text() string {
 // GlobPart
 // gc:GlobCond gc2:(_ BINAND _ GlobCond)*
 type GlobPart struct {
+	effect   float64
 	GlobCond []*GlobCond
 }
 
@@ -107,9 +146,11 @@ func (g *GlobPart) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Expansion GlobPart
 		RuleName  string
+		Effect    float64
 	}{
 		RuleName:  "GlobPart",
 		Expansion: *g,
+		Effect:    g.effect,
 	})
 }
 
@@ -120,15 +161,32 @@ func (q *GlobPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (q *GlobPart) DFS(fn func(v ASTNode)) {
+func (q *GlobPart) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(q)
 	for _, item := range q.GlobCond {
-		item.DFS(fn)
+		item.DFS(fn, path)
 	}
-	fn(q)
+	fn(q, path)
+	path.Pop()
 }
 
 func (q *GlobPart) Text() string {
 	return "#GlobPart" // TODO
+}
+
+func (q *GlobPart) Effect() float64 {
+	if q.effect == 0 {
+		q.effect = 1
+	}
+	return q.effect
+}
+
+func (q *GlobPart) SetEffect(v float64) {
+	q.effect = v
+}
+
+func (q *GlobPart) IsLeaf() bool {
+	return false
 }
 
 // ---------------------------------------
@@ -137,6 +195,7 @@ func (q *GlobPart) Text() string {
 //
 //	NOT? (KW_WITHIN / KW_CONTAINING) _ WithinContainingPart {
 type WithinOrContaining struct {
+	effect                float64
 	numWithinParts        int
 	numNegWithinParts     int
 	numContainingParts    int
@@ -166,9 +225,11 @@ func (w *WithinOrContaining) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Expansion WithinOrContaining
 		RuleName  string
+		Effect    float64
 	}{
 		RuleName:  "WithinOrContaining",
 		Expansion: *w,
+		Effect:    w.effect,
 	})
 }
 
@@ -181,17 +242,34 @@ func (w *WithinOrContaining) ForEachElement(parent ASTNode, fn func(parent, v AS
 	}
 }
 
-func (w *WithinOrContaining) DFS(fn func(v ASTNode)) {
-	fn(w.KwWithin)
-	fn(w.KwContaining)
+func (w *WithinOrContaining) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(w)
+	fn(w.KwWithin, path)
+	fn(w.KwContaining, path)
 	if w.WithinContainingPart != nil {
-		w.WithinContainingPart.DFS(fn)
+		w.WithinContainingPart.DFS(fn, path)
 	}
-	fn(w)
+	fn(w, path)
+	path.Pop()
 }
 
 func (w *WithinOrContaining) Text() string {
 	return "#WithinOrContaining"
+}
+
+func (w *WithinOrContaining) Effect() float64 {
+	if w.effect == 0 {
+		w.effect = 1
+	}
+	return w.effect
+}
+
+func (w *WithinOrContaining) SetEffect(v float64) {
+	w.effect = v
+}
+
+func (w *WithinOrContaining) IsLeaf() bool {
+	return false
 }
 
 // -----------------------------------------------------
@@ -212,6 +290,8 @@ type withinContainingPartVariant3 struct {
 //
 //	Sequence / WithinNumber / NOT? AlignedPart
 type WithinContainingPart struct {
+	effect float64
+
 	variant1 *withinContainingPartVariant1
 
 	variant2 *withinContainingPartVariant2
@@ -223,14 +303,31 @@ func (wcp *WithinContainingPart) Text() string {
 	return "#WithinContainingPart"
 }
 
+func (wcp *WithinContainingPart) Effect() float64 {
+	if wcp.effect == 0 {
+		wcp.effect = 1
+	}
+	return wcp.effect
+}
+
+func (wcp *WithinContainingPart) SetEffect(v float64) {
+	wcp.effect = v
+}
+
+func (wcp *WithinContainingPart) IsLeaf() bool {
+	return false
+}
+
 func (wcp *WithinContainingPart) MarshalJSON() ([]byte, error) {
 	if wcp.variant1 != nil {
 		return json.Marshal(struct {
 			Expansion withinContainingPartVariant1
 			RuleName  string
+			Effect    float64
 		}{
 			Expansion: *wcp.variant1,
 			RuleName:  "WithinContainingPart",
+			Effect:    wcp.effect,
 		})
 
 	} else if wcp.variant2 != nil {
@@ -260,17 +357,19 @@ func (wcp *WithinContainingPart) ForEachElement(parent ASTNode, fn func(parent, 
 	}
 }
 
-func (wcp *WithinContainingPart) DFS(fn func(v ASTNode)) {
+func (wcp *WithinContainingPart) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(wcp)
 	if wcp.variant1 != nil {
-		wcp.variant1.Sequence.DFS(fn)
+		wcp.variant1.Sequence.DFS(fn, path)
 
 	} else if wcp.variant2 != nil {
-		fn(wcp.variant2.WithinNumber.Value)
+		fn(wcp.variant2.WithinNumber.Value, path)
 
 	} else if wcp.variant3 != nil {
-		wcp.variant3.AlignedPart.DFS(fn)
+		wcp.variant3.AlignedPart.DFS(fn, path)
 	}
-	fn(wcp)
+	fn(wcp, path)
+	path.Pop()
 }
 
 // --------------------------------------------------
@@ -300,6 +399,8 @@ type globCondVariant2 struct {
 }
 
 type GlobCond struct {
+	effect float64
+
 	variant1 *globCondVariant1
 
 	variant2 *globCondVariant2
@@ -309,14 +410,31 @@ func (gc *GlobCond) Text() string {
 	return "#GlobCond"
 }
 
+func (gc *GlobCond) Effect() float64 {
+	if gc.effect == 0 {
+		gc.effect = 1
+	}
+	return gc.effect
+}
+
+func (gc *GlobCond) SetEffect(v float64) {
+	gc.effect = v
+}
+
+func (gc *GlobCond) IsLeaf() bool {
+	return false
+}
+
 func (gc *GlobCond) MarshalJSON() ([]byte, error) {
 	if gc.variant1 != nil {
 		return json.Marshal(struct {
 			Expansion globCondVariant1
 			RuleName  string
+			Effect    float64
 		}{
 			Expansion: *gc.variant1,
 			RuleName:  "GlobCond",
+			Effect:    gc.effect,
 		})
 
 	} else if gc.variant2 != nil {
@@ -353,24 +471,26 @@ func (gc *GlobCond) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (gc *GlobCond) DFS(fn func(v ASTNode)) {
+func (gc *GlobCond) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(gc)
 	if gc.variant1 != nil {
-		fn(gc.variant1.Number1)
-		fn(gc.variant1.AttName3)
-		fn(gc.variant1.Not4)
-		fn(gc.variant1.Eq5)
-		fn(gc.variant1.Number6)
-		fn(gc.variant1.AttName8)
+		fn(gc.variant1.Number1, path)
+		fn(gc.variant1.AttName3, path)
+		fn(gc.variant1.Not4, path)
+		fn(gc.variant1.Eq5, path)
+		fn(gc.variant1.Number6, path)
+		fn(gc.variant1.AttName8, path)
 
 	} else if gc.variant2 != nil {
-		fn(gc.variant2.KwFreq1)
-		fn(gc.variant2.Number2)
-		fn(gc.variant2.AttName3)
-		fn(gc.variant2.Not4)
-		fn(gc.variant2.Operator5)
-		fn(gc.variant2.Number6)
+		fn(gc.variant2.KwFreq1, path)
+		fn(gc.variant2.Number2, path)
+		fn(gc.variant2.AttName3, path)
+		fn(gc.variant2.Not4, path)
+		fn(gc.variant2.Operator5, path)
+		fn(gc.variant2.Number6, path)
 	}
-	fn(gc)
+	fn(gc, path)
+	path.Pop()
 }
 
 // ----------------------------------------------------
@@ -379,6 +499,7 @@ func (gc *GlobCond) DFS(fn func(v ASTNode)) {
 //
 // AttName _ AttValList?
 type Structure struct {
+	effect     float64
 	AttName    ASTString
 	AttValList *AttValList
 }
@@ -387,7 +508,22 @@ func (s *Structure) Text() string {
 	return s.AttName.Text()
 }
 
-func (s *Structure) IsBigStructure() bool {
+func (s *Structure) Effect() float64 {
+	if s.effect == 0 {
+		s.effect = 1
+	}
+	return s.effect
+}
+
+func (s *Structure) SetEffect(v float64) {
+	s.effect = v
+}
+
+func (s *Structure) IsLeaf() bool {
+	return false
+}
+
+func (s *Structure) isBigStructure() bool {
 	v := s.AttName.Text()
 	return v == "s" || v == "g" || v == "p"
 }
@@ -396,9 +532,11 @@ func (s *Structure) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
 		Expansion Structure
+		Effect    float64
 	}{
 		RuleName:  "Structure",
 		Expansion: *s,
+		Effect:    s.effect,
 	})
 }
 
@@ -410,12 +548,14 @@ func (s *Structure) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (s *Structure) DFS(fn func(v ASTNode)) {
-	fn(s.AttName)
+func (s *Structure) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(s)
+	fn(s.AttName, path)
 	if s.AttValList != nil {
-		s.AttValList.DFS(fn)
+		s.AttValList.DFS(fn, path)
 	}
-	fn(s)
+	fn(s, path)
+	path.Pop()
 }
 
 // ---------------------------------------------------------
@@ -424,12 +564,28 @@ func (s *Structure) DFS(fn func(v ASTNode)) {
 //
 //	av1:AttValAnd av2:(_ BINOR _ AttValAnd)*
 type AttValList struct {
+	effect    float64
 	origValue string
 	AttValAnd []*AttValAnd
 }
 
 func (a *AttValList) Text() string {
 	return a.origValue
+}
+
+func (a *AttValList) Effect() float64 {
+	if a.effect == 0 {
+		a.effect = 1
+	}
+	return a.effect
+}
+
+func (a *AttValList) SetEffect(v float64) {
+	a.effect = v
+}
+
+func (a *AttValList) IsLeaf() bool {
+	return false
 }
 
 func (a *AttValList) IsEmpty() bool {
@@ -443,20 +599,24 @@ func (a *AttValList) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) 
 	}
 }
 
-func (a *AttValList) DFS(fn func(v ASTNode)) {
+func (a *AttValList) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(a)
 	for _, v := range a.AttValAnd {
-		v.DFS(fn)
+		v.DFS(fn, path)
 	}
-	fn(a)
+	fn(a, path)
+	path.Pop()
 }
 
 func (a *AttValList) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
 		Expansion AttValList
+		Effect    float64
 	}{
 		RuleName:  "AttValList",
 		Expansion: *a,
+		Effect:    a.effect,
 	})
 }
 
@@ -466,6 +626,7 @@ func (a *AttValList) MarshalJSON() ([]byte, error) {
 //
 // NUMBER COLON OnePosition
 type NumberedPosition struct {
+	effect      float64
 	Number      ASTString
 	Colon       ASTString
 	OnePosition *OnePosition
@@ -473,6 +634,21 @@ type NumberedPosition struct {
 
 func (n *NumberedPosition) Text() string {
 	return "#NumberedPosition"
+}
+
+func (n *NumberedPosition) Effect() float64 {
+	if n.effect == 0 {
+		n.effect = 1
+	}
+	return n.effect
+}
+
+func (n *NumberedPosition) SetEffect(v float64) {
+	n.effect = v
+}
+
+func (n *NumberedPosition) IsLeaf() bool {
+	return false
 }
 
 func (n *NumberedPosition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -484,13 +660,15 @@ func (n *NumberedPosition) ForEachElement(parent ASTNode, fn func(parent, v ASTN
 	}
 }
 
-func (n *NumberedPosition) DFS(fn func(v ASTNode)) {
-	fn(n.Number)
-	fn(n.Colon)
+func (n *NumberedPosition) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(n)
+	fn(n.Number, path)
+	fn(n.Colon, path)
 	if n.OnePosition != nil {
-		n.OnePosition.DFS(fn)
+		n.OnePosition.DFS(fn, path)
 	}
-	fn(n)
+	fn(n, path)
+	path.Pop()
 }
 
 // --------------------------------------------------
@@ -523,6 +701,7 @@ type onePositionVariant5 struct {
 // var4: KW_MU
 // var5: MuPart
 type OnePosition struct {
+	effect    float64
 	origValue string
 	Variant1  *onePositionVariant1
 	Variant2  *onePositionVariant2
@@ -535,16 +714,33 @@ func (op *OnePosition) Text() string {
 	return op.origValue
 }
 
+func (op *OnePosition) Effect() float64 {
+	if op.effect == 0 {
+		op.effect = 1
+	}
+	return op.effect
+}
+
+func (op *OnePosition) SetEffect(v float64) {
+	op.effect = v
+}
+
+func (op *OnePosition) IsLeaf() bool {
+	return false
+}
+
 func (op *OnePosition) MarshalJSON() ([]byte, error) {
 	if op.Variant1 != nil {
 		return json.Marshal(struct {
 			RuleName  string
 			RawValue  string
 			Expansion *onePositionVariant1
+			Effect    float64
 		}{
 			RuleName:  "OnePosition",
 			RawValue:  op.Text(),
 			Expansion: op.Variant1,
+			Effect:    op.effect,
 		})
 
 	} else if op.Variant2 != nil {
@@ -616,24 +812,26 @@ func (op *OnePosition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)
 	}
 }
 
-func (op *OnePosition) DFS(fn func(v ASTNode)) {
+func (op *OnePosition) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(op)
 	if op.Variant1 != nil && op.Variant1.AttValList != nil {
-		op.Variant1.AttValList.DFS(fn)
+		op.Variant1.AttValList.DFS(fn, path)
 
 	} else if op.Variant2 != nil {
-		op.Variant2.RegExp.DFS(fn)
+		op.Variant2.RegExp.DFS(fn, path)
 
 	} else if op.Variant3 != nil {
-		fn(op.Variant3.Number)
-		op.Variant3.RegExp.DFS(fn)
+		fn(op.Variant3.Number, path)
+		op.Variant3.RegExp.DFS(fn, path)
 
 	} else if op.Variant4 != nil {
-		fn(op.Variant4.Value)
+		fn(op.Variant4.Value, path)
 
 	} else if op.Variant5 != nil {
-		op.Variant5.MuPart.DFS(fn)
+		op.Variant5.MuPart.DFS(fn, path)
 	}
-	fn(op)
+	fn(op, path)
+	path.Pop()
 }
 
 // -----------------------------------------------------
@@ -650,6 +848,7 @@ type positionVariant2 struct {
 //
 //	OnePosition / NumberedPosition
 type Position struct {
+	effect    float64
 	origValue string
 	variant1  *positionVariant1
 	variant2  *positionVariant2
@@ -659,14 +858,31 @@ func (p *Position) Text() string {
 	return p.origValue
 }
 
+func (p *Position) Effect() float64 {
+	if p.effect == 0 {
+		p.effect = 1
+	}
+	return p.effect
+}
+
+func (p *Position) SetEffect(v float64) {
+	p.effect = v
+}
+
+func (p *Position) IsLeaf() bool {
+	return false
+}
+
 func (p *Position) MarshalJSON() ([]byte, error) {
 	if p.variant1 != nil {
 		return json.Marshal(struct {
 			RuleName  string
 			Expansion *positionVariant1
+			Effect    float64
 		}{
 			RuleName:  "Position",
 			Expansion: p.variant1,
+			Effect:    p.effect,
 		})
 
 	} else if p.variant2 != nil {
@@ -693,25 +909,43 @@ func (p *Position) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (p *Position) DFS(fn func(v ASTNode)) {
+func (p *Position) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(p)
 	if p.variant1 != nil {
-		p.variant1.OnePosition.DFS(fn)
+		p.variant1.OnePosition.DFS(fn, path)
 
 	} else if p.variant2 != nil {
-		p.variant2.NumberedPosition.DFS(fn)
+		p.variant2.NumberedPosition.DFS(fn, path)
 	}
-	fn(p)
+	fn(p, path)
+	path.Pop()
 }
 
 // -------------------------------------------------------
 
 type RegExp struct {
+	effect    float64
 	origValue string
 	RegExpRaw []*RegExpRaw // these are A|B|C
 }
 
 func (r *RegExp) Text() string {
 	return r.origValue
+}
+
+func (r *RegExp) Effect() float64 {
+	if r.effect == 0 {
+		r.effect = 1
+	}
+	return r.effect
+}
+
+func (r *RegExp) SetEffect(v float64) {
+	r.effect = v
+}
+
+func (r *RegExp) IsLeaf() bool {
+	return false
 }
 
 func (r *RegExp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -721,11 +955,13 @@ func (r *RegExp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RegExp) DFS(fn func(v ASTNode)) {
+func (r *RegExp) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
 	for _, v := range r.RegExpRaw {
-		v.DFS(fn)
+		v.DFS(fn, path)
 	}
-	fn(r)
+	fn(r, path)
+	path.Pop()
 }
 
 // --------------------------------------------------------
@@ -739,6 +975,7 @@ type muPartVariant2 struct {
 }
 
 type MuPart struct {
+	effect    float64
 	origValue string
 	Variant1  *muPartVariant1
 	Variant2  *muPartVariant2
@@ -748,13 +985,30 @@ func (m *MuPart) Text() string {
 	return m.origValue
 }
 
+func (m *MuPart) Effect() float64 {
+	if m.effect == 0 {
+		m.effect = 1
+	}
+	return m.effect
+}
+
+func (m *MuPart) SetEffect(v float64) {
+	m.effect = v
+}
+
+func (m *MuPart) IsLeaf() bool {
+	return false
+}
+
 func (m *MuPart) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
 		Expansion MuPart
+		Effect    float64
 	}{
 		RuleName:  "MuPart",
 		Expansion: *m,
+		Effect:    m.effect,
 	})
 }
 
@@ -768,19 +1022,22 @@ func (m *MuPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (m *MuPart) DFS(fn func(v ASTNode)) {
+func (m *MuPart) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(m)
 	if m.Variant1 != nil {
-		m.Variant1.UnionOp.DFS(fn)
+		m.Variant1.UnionOp.DFS(fn, path)
 
 	} else if m.Variant2 != nil {
-		m.Variant2.MeetOp.DFS(fn)
+		m.Variant2.MeetOp.DFS(fn, path)
 	}
-	fn(m)
+	fn(m, path)
+	path.Pop()
 }
 
 // --------------------------------------------------------------
 
 type UnionOp struct {
+	effect    float64
 	origValue string
 	Position1 *Position
 	Position2 *Position
@@ -790,21 +1047,39 @@ func (m *UnionOp) Text() string {
 	return m.origValue
 }
 
+func (m *UnionOp) Effect() float64 {
+	if m.effect == 0 {
+		m.effect = 1
+	}
+	return m.effect
+}
+
+func (m *UnionOp) SetEffect(v float64) {
+	m.effect = v
+}
+
+func (m *UnionOp) IsLeaf() bool {
+	return false
+}
+
 func (m *UnionOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, m)
 	m.Position1.ForEachElement(m, fn)
 	m.Position2.ForEachElement(m, fn)
 }
 
-func (m *UnionOp) DFS(fn func(v ASTNode)) {
-	m.Position1.DFS(fn)
-	m.Position2.DFS(fn)
-	fn(m)
+func (m *UnionOp) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(m)
+	m.Position1.DFS(fn, path)
+	m.Position2.DFS(fn, path)
+	fn(m, path)
+	path.Pop()
 }
 
 // ---------------------------------------------------------------
 
 type MeetOp struct {
+	effect    float64
 	origValue string
 	Position1 *Position
 	Position2 *Position
@@ -814,16 +1089,33 @@ func (m *MeetOp) Text() string {
 	return m.origValue
 }
 
+func (m *MeetOp) Effect() float64 {
+	if m.effect == 0 {
+		m.effect = 1
+	}
+	return m.effect
+}
+
+func (m *MeetOp) SetEffect(v float64) {
+	m.effect = v
+}
+
+func (m *MeetOp) IsLeaf() bool {
+	return false
+}
+
 func (m *MeetOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, m)
 	m.Position1.ForEachElement(m, fn)
 	m.Position2.ForEachElement(m, fn)
 }
 
-func (m *MeetOp) DFS(fn func(v ASTNode)) {
-	m.Position1.DFS(fn)
-	m.Position2.DFS(fn)
-	fn(m)
+func (m *MeetOp) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(m)
+	m.Position1.DFS(fn, path)
+	m.Position2.DFS(fn, path)
+	fn(m, path)
+	path.Pop()
 }
 
 // --------------------------------------------------------------------------
@@ -847,6 +1139,7 @@ type repetitionVariant3 struct {
 }
 
 type Repetition struct {
+	effect         float64
 	origValue      string
 	isTailPosition bool
 	Variant1       *repetitionVariant1
@@ -854,7 +1147,7 @@ type Repetition struct {
 	Variant3       *repetitionVariant3
 }
 
-func (r *Repetition) IsAnyPosition() bool {
+func (r *Repetition) isAnyPosition() bool {
 	if r.Variant1 != nil && r.Variant1.AtomQuery.variant1 != nil &&
 		r.Variant1.AtomQuery.variant1.Position.variant1 != nil &&
 		r.Variant1.AtomQuery.variant1.Position.variant1.OnePosition.Variant1 != nil {
@@ -866,6 +1159,21 @@ func (r *Repetition) IsAnyPosition() bool {
 
 func (r *Repetition) Text() string {
 	return r.origValue
+}
+
+func (r *Repetition) Effect() float64 {
+	if r.effect == 0 {
+		r.effect = 1
+	}
+	return r.effect
+}
+
+func (r *Repetition) SetEffect(v float64) {
+	r.effect = v
+}
+
+func (r *Repetition) IsLeaf() bool {
+	return false
 }
 
 func (r *Repetition) GetRepOpt() string {
@@ -917,10 +1225,12 @@ func (r *Repetition) MarshalJSON() ([]byte, error) {
 			RuleName      string
 			Expansion     any
 			IsAnyPosition bool
+			Effect        float64
 		}{
 			RuleName:      "Repetition",
 			Expansion:     variant,
-			IsAnyPosition: r.IsAnyPosition(),
+			IsAnyPosition: r.isAnyPosition(),
+			Effect:        r.effect,
 		})
 }
 
@@ -928,7 +1238,9 @@ func (r *Repetition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) 
 	fn(parent, r)
 	if r.Variant1 != nil {
 		r.Variant1.AtomQuery.ForEachElement(r, fn)
-		fn(r, r.Variant1.RepOpt)
+		if r.Variant1.RepOpt != nil {
+			fn(r, r.Variant1.RepOpt)
+		}
 
 	} else if r.Variant2 != nil {
 		r.Variant2.OpenStructTag.ForEachElement(r, fn)
@@ -938,18 +1250,20 @@ func (r *Repetition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) 
 	}
 }
 
-func (r *Repetition) DFS(fn func(v ASTNode)) {
+func (r *Repetition) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
 	if r.Variant1 != nil {
-		r.Variant1.AtomQuery.DFS(fn)
-		fn(r.Variant1.RepOpt)
+		r.Variant1.AtomQuery.DFS(fn, path)
+		fn(r.Variant1.RepOpt, path)
 
 	} else if r.Variant2 != nil {
-		r.Variant2.OpenStructTag.DFS(fn)
+		r.Variant2.OpenStructTag.DFS(fn, path)
 
 	} else if r.Variant3 != nil {
-		r.Variant3.CloseStructTag.DFS(fn)
+		r.Variant3.CloseStructTag.DFS(fn, path)
 	}
-	fn(r)
+	fn(r, path)
+	path.Pop()
 }
 
 // ----------------------------------------------------------------
@@ -967,6 +1281,7 @@ type atomQueryVariant2 struct {
 // var1: Position
 // var2: LPAREN _ Sequence (_ NOT? (KW_WITHIN / KW_CONTAINING) _ WithinContainingPart)* _ RPAREN {
 type AtomQuery struct {
+	effect                float64
 	origValue             string
 	variant1              *atomQueryVariant1
 	variant2              *atomQueryVariant2
@@ -980,14 +1295,31 @@ func (aq *AtomQuery) Text() string {
 	return aq.origValue
 }
 
+func (aq *AtomQuery) Effect() float64 {
+	if aq.effect == 0 {
+		aq.effect = 1
+	}
+	return aq.effect
+}
+
+func (aq *AtomQuery) SetEffect(v float64) {
+	aq.effect = v
+}
+
+func (aq *AtomQuery) IsLeaf() bool {
+	return false
+}
+
 func (aq *AtomQuery) MarshalJSON() ([]byte, error) {
 	if aq.variant1 != nil {
 		return json.Marshal(struct {
 			RuleName  string
 			Expansion *atomQueryVariant1
+			Effect    float64
 		}{
 			RuleName:  "AtomQuery",
 			Expansion: aq.variant1,
+			Effect:    aq.effect,
 		})
 
 	} else if aq.variant2 != nil {
@@ -1033,17 +1365,19 @@ func (aq *AtomQuery) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) 
 	}
 }
 
-func (aq *AtomQuery) DFS(fn func(v ASTNode)) {
+func (aq *AtomQuery) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(aq)
 	if aq.variant1 != nil {
-		aq.variant1.Position.DFS(fn)
+		aq.variant1.Position.DFS(fn, path)
 
 	} else if aq.variant2 != nil {
-		aq.variant2.Sequence.DFS(fn)
+		aq.variant2.Sequence.DFS(fn, path)
 		if aq.variant2.WithinContainingPart != nil {
-			aq.variant2.WithinContainingPart.DFS(fn)
+			aq.variant2.WithinContainingPart.DFS(fn, path)
 		}
 	}
-	fn(aq)
+	fn(aq, path)
+	path.Pop()
 }
 
 // --------------------------------------------------------------
@@ -1058,6 +1392,7 @@ type repOptVariant2 struct {
 }
 
 type RepOpt struct {
+	effect   float64
 	Variant1 *repOptVariant1
 	Variant2 *repOptVariant2
 }
@@ -1076,14 +1411,31 @@ func (r *RepOpt) Text() string {
 	return ""
 }
 
+func (r *RepOpt) Effect() float64 {
+	if r.effect == 0 {
+		r.effect = 1
+	}
+	return r.effect
+}
+
+func (r *RepOpt) SetEffect(v float64) {
+	r.effect = v
+}
+
+func (r *RepOpt) IsLeaf() bool {
+	return false
+}
+
 func (r *RepOpt) MarshalJSON() ([]byte, error) {
 	if r.Variant1 != nil {
 		return json.Marshal(struct {
 			RuleName  string
 			Expansion repOptVariant1
+			Effect    float64
 		}{
 			RuleName:  "RepOpt",
 			Expansion: *r.Variant1,
+			Effect:    r.effect,
 		})
 
 	} else if r.Variant2 != nil {
@@ -1111,20 +1463,23 @@ func (r *RepOpt) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RepOpt) DFS(fn func(v ASTNode)) {
+func (r *RepOpt) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
 	if r.Variant1 != nil {
-		fn(r.Variant1.Value)
+		fn(r.Variant1.Value, path)
 
 	} else if r.Variant2 != nil {
-		fn(r.Variant2.From)
-		fn(r.Variant2.To)
+		fn(r.Variant2.From, path)
+		fn(r.Variant2.To, path)
 	}
-	fn(r)
+	fn(r, path)
+	path.Pop()
 }
 
 // ----------------------------------------------------------------
 
 type OpenStructTag struct {
+	effect    float64
 	origValue string
 	Structure *Structure
 }
@@ -1133,13 +1488,30 @@ func (ost *OpenStructTag) Text() string {
 	return ost.origValue
 }
 
+func (ost *OpenStructTag) Effect() float64 {
+	if ost.effect == 0 {
+		ost.effect = 1
+	}
+	return ost.effect
+}
+
+func (ost *OpenStructTag) SetEffect(v float64) {
+	ost.effect = v
+}
+
+func (ost *OpenStructTag) IsLeaf() bool {
+	return false
+}
+
 func (ost *OpenStructTag) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
 		Expansion OpenStructTag
+		Effect    float64
 	}{
 		RuleName:  "OpenStructTag",
 		Expansion: *ost,
+		Effect:    ost.effect,
 	})
 }
 
@@ -1148,14 +1520,17 @@ func (ost *OpenStructTag) ForEachElement(parent ASTNode, fn func(parent, v ASTNo
 	ost.Structure.ForEachElement(ost, fn)
 }
 
-func (ost *OpenStructTag) DFS(fn func(v ASTNode)) {
-	ost.Structure.DFS(fn)
-	fn(ost)
+func (ost *OpenStructTag) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(ost)
+	ost.Structure.DFS(fn, path)
+	fn(ost, path)
+	path.Pop()
 }
 
 // --------------------------------------------------------------
 
 type CloseStructTag struct {
+	effect    float64
 	Structure *Structure
 }
 
@@ -1163,13 +1538,30 @@ func (ost *CloseStructTag) Text() string {
 	return "#CloseStructTag"
 }
 
+func (ost *CloseStructTag) Effect() float64 {
+	if ost.effect == 0 {
+		ost.effect = 1
+	}
+	return ost.effect
+}
+
+func (ost *CloseStructTag) SetEffect(v float64) {
+	ost.effect = v
+}
+
+func (ost *CloseStructTag) IsLeaf() bool {
+	return false
+}
+
 func (ost *CloseStructTag) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
 		Expansion CloseStructTag
+		Effect    float64
 	}{
 		RuleName:  "CloseStructTag",
 		Expansion: *ost,
+		Effect:    ost.effect,
 	})
 }
 
@@ -1178,18 +1570,36 @@ func (ost *CloseStructTag) ForEachElement(parent ASTNode, fn func(parent, v ASTN
 	ost.Structure.ForEachElement(ost, fn)
 }
 
-func (ost *CloseStructTag) DFS(fn func(v ASTNode)) {
-	ost.Structure.DFS(fn)
-	fn(ost)
+func (ost *CloseStructTag) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(ost)
+	ost.Structure.DFS(fn, path)
+	fn(ost, path)
+	path.Pop()
 }
 
 // ---------------------------------------------------------
 
 type AlignedPart struct {
+	effect float64
 }
 
 func (a *AlignedPart) Text() string {
 	return "#AlignedPart"
+}
+
+func (a *AlignedPart) Effect() float64 {
+	if a.effect == 0 {
+		a.effect = 1000000
+	}
+	return a.effect
+}
+
+func (a *AlignedPart) SetEffect(v float64) {
+	a.effect = v
+}
+
+func (a *AlignedPart) IsLeaf() bool {
+	return true // TODO
 }
 
 func (a *AlignedPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1197,8 +1607,10 @@ func (a *AlignedPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode))
 	// TODO
 }
 
-func (a *AlignedPart) DFS(fn func(v ASTNode)) {
-	fn(a)
+func (a *AlignedPart) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(a)
+	fn(a, path)
+	path.Pop()
 }
 
 // -----------------------------------------------------------
@@ -1207,11 +1619,27 @@ func (a *AlignedPart) DFS(fn func(v ASTNode)) {
 //
 //	av1:AttVal av2:(_ BINAND _ AttVal)*
 type AttValAnd struct {
+	effect float64
 	AttVal []*AttVal
 }
 
 func (a *AttValAnd) Text() string {
 	return "#AttValAnd"
+}
+
+func (a *AttValAnd) Effect() float64 {
+	if a.effect == 0 {
+		a.effect = 1
+	}
+	return a.effect
+}
+
+func (a *AttValAnd) SetEffect(v float64) {
+	a.effect = v
+}
+
+func (a *AttValAnd) IsLeaf() bool {
+	return false
 }
 
 func (a *AttValAnd) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1221,11 +1649,13 @@ func (a *AttValAnd) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (a *AttValAnd) DFS(fn func(v ASTNode)) {
+func (a *AttValAnd) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(a)
 	for _, item := range a.AttVal {
-		item.DFS(fn)
+		item.DFS(fn, path)
 	}
-	fn(a)
+	fn(a, path)
+	path.Pop()
 }
 
 // --------------------------------------------------------------
@@ -1277,6 +1707,7 @@ type attValVariant9 struct {
 }
 
 type AttVal struct {
+	effect    float64
 	origValue string
 	Variant1  *attValVariant1
 	Variant2  *attValVariant2
@@ -1289,12 +1720,36 @@ type AttVal struct {
 	Variant9  *attValVariant9
 }
 
-func (a *AttVal) IsNegation() bool {
+func (a *AttVal) Text() string {
+	return a.origValue
+}
+
+func (a *AttVal) Effect() float64 {
+	if a.effect == 0 {
+		if a.isNegation() {
+			a.effect = -1
+
+		} else {
+			a.effect = 1
+		}
+	}
+	return a.effect
+}
+
+func (a *AttVal) SetEffect(v float64) {
+	a.effect = v
+}
+
+func (a *AttVal) IsLeaf() bool {
+	return false
+}
+
+func (a *AttVal) isNegation() bool {
 	return a.Variant1 != nil && a.Variant1.Not ||
 		a.Variant2 != nil && a.Variant2.Not
 }
 
-func (a *AttVal) IsProblematicAttrSearch() bool {
+func (a *AttVal) isProblematicAttrSearch() bool {
 	if a.Variant1 != nil {
 		return (a.Variant1.AttName == "tag" || a.Variant1.AttName == "pos" || a.Variant1.AttName == "verbtag" ||
 			a.Variant1.AttName == "upos" || a.Variant1.AttName == "afun" || a.Variant1.AttName == "case") &&
@@ -1308,10 +1763,6 @@ func (a *AttVal) IsProblematicAttrSearch() bool {
 			(strings.Contains(a.Variant2.RegExp.Text(), ".*") || strings.Contains(a.Variant2.RegExp.Text(), ".+"))
 	}
 	return false
-}
-
-func (a *AttVal) Text() string {
-	return a.origValue
 }
 
 func (a *AttVal) MarshalJSON() ([]byte, error) {
@@ -1350,10 +1801,12 @@ func (a *AttVal) MarshalJSON() ([]byte, error) {
 		RuleName                string
 		Expansion               any
 		IsProblematicAttrSearch bool
+		Effect                  float64
 	}{
 		RuleName:                "AttVal",
 		Expansion:               variant,
-		IsProblematicAttrSearch: a.IsProblematicAttrSearch(),
+		IsProblematicAttrSearch: a.isProblematicAttrSearch(),
+		Effect:                  a.effect,
 	})
 }
 
@@ -1392,16 +1845,17 @@ func (a *AttVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (a *AttVal) DFS(fn func(v ASTNode)) {
+func (a *AttVal) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(a)
 	if a.Variant1 != nil {
-		fn(a.Variant1.AttName)
-		fn(a.Variant1.Eeq)
-		a.Variant1.RawString.DFS(fn)
+		fn(a.Variant1.AttName, path)
+		fn(a.Variant1.Eeq, path)
+		a.Variant1.RawString.DFS(fn, path)
 
 	} else if a.Variant2 != nil {
-		fn(a.Variant2.AttName)
-		fn(a.Variant2.Op)
-		a.Variant2.RegExp.DFS(fn)
+		fn(a.Variant2.AttName, path)
+		fn(a.Variant2.Op, path)
+		a.Variant2.RegExp.DFS(fn, path)
 
 	} else if a.Variant3 != nil {
 		// TODO a.variant3
@@ -1410,10 +1864,10 @@ func (a *AttVal) DFS(fn func(v ASTNode)) {
 		// TODO a.variant4
 
 	} else if a.Variant5 != nil {
-		a.Variant5.AttVal.DFS(fn)
+		a.Variant5.AttVal.DFS(fn, path)
 
 	} else if a.Variant6 != nil {
-		a.Variant6.AttValList.DFS(fn)
+		a.Variant6.AttValList.DFS(fn, path)
 
 	} else if a.Variant7 != nil {
 		// TODO a.variant7
@@ -1424,26 +1878,45 @@ func (a *AttVal) DFS(fn func(v ASTNode)) {
 	} else if a.Variant9 != nil {
 		// TODO a.variant9
 	}
-	fn(a)
+	fn(a, path)
+	path.Pop()
 }
 
 // ---------------------------------------------------
 
 type WithinNumber struct {
-	Value ASTString
+	effect float64
+	Value  ASTString
 }
 
 func (w *WithinNumber) Text() string {
 	return "#WithinNumber"
 }
 
+func (w *WithinNumber) Effect() float64 {
+	if w.effect == 0 {
+		w.effect = 10000000
+	}
+	return w.effect
+}
+
+func (w *WithinNumber) SetEffect(v float64) {
+	w.effect = v
+}
+
+func (w *WithinNumber) IsLeaf() bool {
+	return true
+}
+
 func (w *WithinNumber) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
 		Expansion WithinNumber
+		Effect    float64
 	}{
 		RuleName:  "WithinNumber",
 		Expansion: *w,
+		Effect:    w.effect,
 	})
 }
 
@@ -1451,13 +1924,16 @@ func (w *WithinNumber) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)
 	fn(parent, w.Value)
 }
 
-func (w *WithinNumber) DFS(fn func(v ASTNode)) {
-	fn(w.Value)
+func (w *WithinNumber) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(w)
+	fn(w.Value, path)
+	path.Pop()
 }
 
 // ----------------------------------------------------------
 
 type RegExpRaw struct {
+	effect    float64
 	origValue string
 	// RgLook / RgGrouped / RgSimple
 	Values []any
@@ -1467,28 +1943,30 @@ func (r *RegExpRaw) Text() string {
 	return r.origValue
 }
 
-func (r *RegExpRaw) ExhaustionScore() float64 {
-	var ans float64
-	for _, v := range r.Values {
-		switch tValue := v.(type) {
-		case *RgGrouped:
-			ans += tValue.ExhaustionScore()
-		case *RgSimple:
-			ans += tValue.ExhaustionScore()
-		}
+func (r *RegExpRaw) Effect() float64 {
+	if r.effect == 0 {
+		r.effect = 1
 	}
-	return ans
+	return r.effect
+}
+
+func (r *RegExpRaw) SetEffect(v float64) {
+	r.effect = v
+}
+
+func (r *RegExpRaw) IsLeaf() bool {
+	return false
 }
 
 func (r *RegExpRaw) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		RuleName        string
-		Expansion       RegExpRaw
-		ExhaustionScore float64
+		RuleName  string
+		Expansion RegExpRaw
+		Effect    float64
 	}{
-		RuleName:        "RegExpRaw",
-		Expansion:       *r,
-		ExhaustionScore: r.ExhaustionScore(),
+		RuleName:  "RegExpRaw",
+		Expansion: *r,
+		Effect:    r.effect,
 	})
 }
 
@@ -1506,23 +1984,26 @@ func (r *RegExpRaw) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RegExpRaw) DFS(fn func(v ASTNode)) {
+func (r *RegExpRaw) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
 	for _, item := range r.Values {
 		switch tItem := item.(type) {
 		case *RgLook:
-			tItem.DFS(fn)
+			tItem.DFS(fn, path)
 		case *RgGrouped:
-			tItem.DFS(fn)
+			tItem.DFS(fn, path)
 		case *RgSimple:
-			tItem.DFS(fn)
+			tItem.DFS(fn, path)
 		}
 	}
-	fn(r)
+	fn(r, path)
+	path.Pop()
 }
 
 // ------------------------------------------------------------------
 
 type RawString struct {
+	effect       float64
 	SimpleString *SimpleString
 }
 
@@ -1530,13 +2011,30 @@ func (r *RawString) Text() string {
 	return "#RawString"
 }
 
+func (r *RawString) Effect() float64 {
+	if r.effect == 0 {
+		r.effect = 1
+	}
+	return r.effect
+}
+
+func (r *RawString) SetEffect(v float64) {
+	r.effect = v
+}
+
+func (r *RawString) IsLeaf() bool {
+	return false
+}
+
 func (r *RawString) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
 		Expansion RawString
+		Effect    float64
 	}{
 		RuleName:  "RawString",
 		Expansion: *r,
+		Effect:    r.effect,
 	})
 }
 
@@ -1545,16 +2043,42 @@ func (r *RawString) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	r.SimpleString.ForEachElement(r, fn)
 }
 
-func (r *RawString) DFS(fn func(v ASTNode)) {
-	r.SimpleString.DFS(fn)
-	fn(r)
+func (r *RawString) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
+	r.SimpleString.DFS(fn, path)
+	fn(r, path)
+	path.Pop()
 }
 
 // ------------------------------------------------------------------------
 
 type SimpleString struct {
+	effect    float64
 	origValue string
 	Values    []ASTString
+}
+
+func (r *SimpleString) Text() string {
+	var ans strings.Builder
+	for _, v := range r.Values {
+		ans.WriteString(string(v))
+	}
+	return ans.String()
+}
+
+func (r *SimpleString) Effect() float64 {
+	if r.effect == 0 {
+		r.effect = 1
+	}
+	return r.effect
+}
+
+func (r *SimpleString) SetEffect(v float64) {
+	r.effect = v
+}
+
+func (r *SimpleString) IsLeaf() bool {
+	return true
 }
 
 func (r *SimpleString) UppercaseRatio() float64 {
@@ -1568,21 +2092,15 @@ func (r *SimpleString) UppercaseRatio() float64 {
 	return float64(len(src)) / float64(upper)
 }
 
-func (r *SimpleString) Text() string {
-	var ans strings.Builder
-	for _, v := range r.Values {
-		ans.WriteString(string(v))
-	}
-	return ans.String()
-}
-
 func (r *SimpleString) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
 		Expansion SimpleString
+		Effect    float64
 	}{
 		RuleName:  "SimpleString",
 		Expansion: *r,
+		Effect:    r.effect,
 	})
 }
 
@@ -1590,13 +2108,16 @@ func (r *SimpleString) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)
 	fn(parent, ASTString(r.Text()))
 }
 
-func (r *SimpleString) DFS(fn func(v ASTNode)) {
-	fn(ASTString(r.Text()))
+func (r *SimpleString) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
+	fn(ASTString(r.Text()), path)
+	path.Pop()
 }
 
 // -------------------------------------------------
 
 type RgGrouped struct {
+	effect float64
 	Values []*RegExpRaw // the stuff here is A|B|C...
 }
 
@@ -1604,15 +2125,30 @@ func (r *RgGrouped) Text() string {
 	return "#RgGrouped"
 }
 
+func (r *RgGrouped) Effect() float64 {
+	if r.effect == 0 {
+		r.effect = 1
+	}
+	return r.effect
+}
+
+func (r *RgGrouped) SetEffect(v float64) {
+	r.effect = v
+}
+
+func (r *RgGrouped) IsLeaf() bool {
+	return false
+}
+
 func (r *RgGrouped) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		RuleName        string
-		Expansion       RgGrouped
-		ExhaustionScore float64
+		RuleName  string
+		Expansion RgGrouped
+		Effect    float64
 	}{
-		RuleName:        "RgGrouped",
-		Expansion:       *r,
-		ExhaustionScore: r.ExhaustionScore(),
+		RuleName:  "RgGrouped",
+		Expansion: *r,
+		Effect:    r.effect,
 	})
 }
 
@@ -1623,46 +2159,39 @@ func (r *RgGrouped) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RgGrouped) DFS(fn func(v ASTNode)) {
+func (r *RgGrouped) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
 	for _, v := range r.Values {
-		v.DFS(fn)
+		v.DFS(fn, path)
 	}
-	fn(r)
-}
-
-func (r *RgGrouped) ExhaustionScore() float64 {
-	var ans float64
-	for _, v := range r.Values {
-		ans += v.ExhaustionScore()
-	}
-	return ans
-}
-
-// ---------------------------------------------------------
-
-type RgSimpleProps struct {
-	Ops        []string
-	Constansts []string
-	Alts       []int
-}
-
-func (p RgSimpleProps) ContainsWildcards() bool {
-	for _, v := range p.Ops {
-		if v == ".+" || v == ".*" {
-			return true
-		}
-	}
-	return false
+	fn(r, path)
+	path.Pop()
 }
 
 // ----------------------------------------------------
 
 type RgPosixClass struct {
-	Value ASTString
+	effect float64
+	Value  ASTString
 }
 
 func (r *RgPosixClass) Text() string {
 	return "#RgPosixClass"
+}
+
+func (r *RgPosixClass) Effect() float64 {
+	if r.effect == 0 {
+		r.effect = 1
+	}
+	return r.effect
+}
+
+func (r *RgPosixClass) SetEffect(v float64) {
+	r.effect = v
+}
+
+func (r *RgPosixClass) IsLeaf() bool {
+	return true
 }
 
 func (r *RgPosixClass) MarshalJSON() ([]byte, error) {
@@ -1673,27 +2202,44 @@ func (r *RgPosixClass) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)
 	fn(parent, r.Value)
 }
 
-func (r *RgPosixClass) DFS(fn func(v ASTNode)) {
-	fn(r.Value)
+func (r *RgPosixClass) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
+	fn(r.Value, path)
+	path.Pop()
 }
 
 // ----------------------------------------------------
 
 type RgLook struct {
-	Value ASTString
+	effect float64
+	Value  ASTString
 }
 
 func (r *RgLook) Text() string {
 	return "#RgLook"
 }
 
+func (r *RgLook) Effect() float64 {
+	return 10
+}
+
+func (r *RgLook) SetEffect(v float64) {
+	r.effect = v
+}
+
+func (r *RgLook) IsLeaf() bool {
+	return true
+}
+
 func (r *RgLook) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
 		Expansion RgLook
+		Effect    float64
 	}{
 		RuleName:  "RgLook",
 		Expansion: *r,
+		Effect:    r.effect,
 	})
 }
 
@@ -1701,8 +2247,10 @@ func (r *RgLook) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, r.Value)
 }
 
-func (r *RgLook) DFS(fn func(v ASTNode)) {
-	fn(r.Value)
+func (r *RgLook) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
+	fn(r.Value, path)
+	path.Pop()
 }
 
 // ----------------------------------------------------
@@ -1713,6 +2261,7 @@ type RgLookOperator struct {
 // -----------------------------------------------------
 
 type RgAlt struct {
+	effect float64
 	Values []*RgAltVal
 }
 
@@ -1724,15 +2273,30 @@ func (r *RgAlt) Text() string {
 	return "#RgAlt"
 }
 
+func (r *RgAlt) Effect() float64 {
+	if r.effect == 0 {
+		r.effect = 1
+	}
+	return r.effect
+}
+
+func (r *RgAlt) SetEffect(v float64) {
+	r.effect = v
+}
+
+func (r *RgAlt) IsLeaf() bool {
+	return false
+}
+
 func (r *RgAlt) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		RuleName        string
-		Expansion       RgAlt
-		ExhaustionScore float64
+		RuleName  string
+		Expansion RgAlt
+		Effect    float64
 	}{
-		RuleName:        "RgAlt",
-		Expansion:       *r,
-		ExhaustionScore: r.ExhaustionScore(),
+		RuleName:  "RgAlt",
+		Expansion: *r,
+		Effect:    r.effect,
 	})
 }
 
@@ -1743,19 +2307,13 @@ func (r *RgAlt) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RgAlt) DFS(fn func(v ASTNode)) {
+func (r *RgAlt) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
 	for _, item := range r.Values {
-		item.DFS(fn)
+		item.DFS(fn, path)
 	}
-	fn(r)
-}
-
-func (r *RgAlt) ExhaustionScore() float64 {
-	ans := 0.0
-	for _, v := range r.Values {
-		ans += v.ExhaustionScore()
-	}
-	return ans
+	fn(r, path)
+	path.Pop()
 }
 
 // --------------------------------------------------------
@@ -1765,48 +2323,78 @@ type rgCharVariant1 struct {
 }
 
 type rgCharVariant2 struct {
-	Value *RgOp
+	RgOp *RgOp
+}
+
+type rgCharVariant3 struct {
+	RgRepeat *RgRepeat
+}
+
+type rgCharVariant4 struct {
+	RgAny *RgAny
+}
+
+type rgCharVariant5 struct {
+	RgQM *RgQM
 }
 
 type RgChar struct {
+	effect   float64
 	variant1 *rgCharVariant1
 	variant2 *rgCharVariant2
+	variant3 *rgCharVariant3
+	variant4 *rgCharVariant4
+	variant5 *rgCharVariant5
 }
 
 func (rc *RgChar) Text() string {
 	return "#RgChar"
 }
 
-func (rc *RgChar) IsRgOperator(v string) bool {
-	return rc.variant2 != nil && rc.variant2.Value.Value.String() == v
+func (rc *RgChar) Effect() float64 {
+	if rc.effect == 0 {
+		rc.effect = 1
+	}
+	return rc.effect
 }
 
-func (rc *RgChar) IsConstant() bool {
-	return rc.variant1 != nil
+func (rc *RgChar) SetEffect(v float64) {
+	rc.effect = v
+}
+
+func (rc *RgChar) IsLeaf() bool {
+	return false
 }
 
 func (rc *RgChar) MarshalJSON() ([]byte, error) {
+	var variant any
 	if rc.variant1 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			Expansion rgCharVariant1
-		}{
-			RuleName:  "RgChar",
-			Expansion: *rc.variant1,
-		})
+		variant = rc.variant1
 
 	} else if rc.variant2 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			Expansion rgCharVariant2
-		}{
-			RuleName:  "RgChar",
-			Expansion: *rc.variant2,
-		})
+		variant = rc.variant2
+
+	} else if rc.variant3 != nil {
+		variant = rc.variant3
+
+	} else if rc.variant4 != nil {
+		variant = rc.variant4
+
+	} else if rc.variant5 != nil {
+		variant = rc.variant5
 
 	} else {
-		return json.Marshal(struct{}{})
+		variant = struct{}{}
 	}
+	return json.Marshal(struct {
+		RuleName  string
+		Expansion any
+		Effect    float64
+	}{
+		RuleName:  "RgChar",
+		Expansion: variant,
+		Effect:    rc.effect,
+	})
 }
 
 func (r *RgChar) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1815,23 +2403,193 @@ func (r *RgChar) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 		fn(r, r.variant1.Value)
 
 	} else if r.variant2 != nil {
-		r.variant2.Value.ForEachElement(r, fn)
+		r.variant2.RgOp.ForEachElement(r, fn)
+
+	} else if r.variant3 != nil {
+		r.variant3.RgRepeat.ForEachElement(r, fn)
+
+	} else if r.variant4 != nil {
+		r.variant4.RgAny.ForEachElement(r, fn)
+
+	} else if r.variant5 != nil {
+		r.variant5.RgQM.ForEachElement(r, fn)
 	}
 }
 
-func (r *RgChar) DFS(fn func(v ASTNode)) {
+func (r *RgChar) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
 	if r.variant1 != nil {
-		fn(r.variant1.Value)
+		fn(r.variant1.Value, path)
 
 	} else if r.variant2 != nil {
-		r.variant2.Value.DFS(fn)
+		r.variant2.RgOp.DFS(fn, path)
+	} else if r.variant3 != nil {
+		r.variant3.RgRepeat.DFS(fn, path)
+
+	} else if r.variant4 != nil {
+		r.variant4.RgAny.DFS(fn, path)
+
+	} else if r.variant5 != nil {
+		r.variant5.RgQM.DFS(fn, path)
 	}
-	fn(r)
+	fn(r, path)
+	path.Pop()
+}
+
+// -----------------------------------------------------------
+
+type RgRepeat struct {
+	effect float64
+	Value  ASTString
+}
+
+func (rr *RgRepeat) Text() string {
+	return rr.Value.String()
+}
+
+func (rr *RgRepeat) Effect() float64 {
+	if rr.effect == 0 {
+		rr.effect = 100
+	}
+	return rr.effect
+}
+
+func (rr *RgRepeat) SetEffect(v float64) {
+	rr.effect = v
+}
+
+func (rr *RgRepeat) IsLeaf() bool {
+	return true
+}
+
+func (rr *RgRepeat) MarshalJSON() ([]byte, error) {
+	return json.Marshal(
+		struct {
+			RuleName  string
+			Expansion string
+			Effect    float64
+		}{
+			RuleName:  "RgRepeat",
+			Expansion: string(rr.Value),
+			Effect:    rr.effect,
+		},
+	)
+}
+
+func (rr *RgRepeat) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
+	fn(parent, rr.Value)
+}
+
+func (rr *RgRepeat) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(rr)
+	fn(rr.Value, path)
+	path.Pop()
+}
+
+// -----------------------------------------------------------
+
+type RgQM struct {
+	effect float64
+	Value  ASTString
+}
+
+func (rr *RgQM) Text() string {
+	return rr.Value.String()
+}
+
+func (rr *RgQM) Effect() float64 {
+	if rr.effect == 0 {
+		rr.effect = 1000
+	}
+	return rr.effect
+}
+
+func (rr *RgQM) SetEffect(v float64) {
+	rr.effect = v
+}
+
+func (rr *RgQM) IsLeaf() bool {
+	return true
+}
+
+func (rr *RgQM) MarshalJSON() ([]byte, error) {
+	return json.Marshal(
+		struct {
+			RuleName  string
+			Expansion string
+			Effect    float64
+		}{
+			RuleName:  "RgQM",
+			Expansion: string(rr.Value),
+			Effect:    rr.effect,
+		},
+	)
+}
+
+func (rr *RgQM) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
+	fn(parent, rr.Value)
+}
+
+func (rr *RgQM) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(rr)
+	fn(rr.Value, path)
+	path.Pop()
+}
+
+// -----------------------------------------------------------
+
+type RgAny struct {
+	effect float64
+	Value  ASTString
+}
+
+func (rr *RgAny) Text() string {
+	return rr.Value.String()
+}
+
+func (rr *RgAny) Effect() float64 {
+	if rr.effect == 0 {
+		rr.effect = 10000
+	}
+	return rr.effect
+}
+
+func (rr *RgAny) SetEffect(v float64) {
+	rr.effect = v
+}
+
+func (rr *RgAny) IsLeaf() bool {
+	return true
+}
+
+func (rr *RgAny) MarshalJSON() ([]byte, error) {
+	return json.Marshal(
+		struct {
+			RuleName  string
+			Expansion string
+			Effect    float64
+		}{
+			RuleName:  "RgAny",
+			Expansion: string(rr.Value),
+			Effect:    rr.effect,
+		},
+	)
+}
+
+func (rr *RgAny) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
+	fn(parent, rr.Value)
+}
+
+func (rr *RgAny) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(rr)
+	fn(rr.Value, path)
+	path.Pop()
 }
 
 // -----------------------------------------------------------
 
 type RgRange struct {
+	effect      float64
 	RgRangeSpec *RgRangeSpec
 }
 
@@ -1842,13 +2600,30 @@ func (r *RgRange) Text() string {
 	return "RgRange{?, ?}"
 }
 
+func (r *RgRange) Effect() float64 {
+	if r.effect == 0 {
+		r.effect = 1
+	}
+	return r.effect
+}
+
+func (r *RgRange) SetEffect(v float64) {
+	r.effect = v
+}
+
+func (r *RgRange) IsLeaf() bool {
+	return false
+}
+
 func (r *RgRange) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
 		Expansion RgRange
+		Effect    float64
 	}{
 		RuleName:  "RgRange",
 		Expansion: *r,
+		Effect:    r.effect,
 	})
 }
 
@@ -1878,14 +2653,17 @@ func (r *RgRange) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	r.RgRangeSpec.ForEachElement(r, fn)
 }
 
-func (r *RgRange) DFS(fn func(v ASTNode)) {
-	r.RgRangeSpec.DFS(fn)
-	fn(r)
+func (r *RgRange) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
+	r.RgRangeSpec.DFS(fn, path)
+	fn(r, path)
+	path.Pop()
 }
 
 // -------------------------------------------------------------
 
 type RgRangeSpec struct {
+	effect    float64
 	origValue string
 	Number1   ASTString
 	Number2   ASTString
@@ -1895,13 +2673,31 @@ func (r *RgRangeSpec) Text() string {
 	return r.origValue
 }
 
+func (r *RgRangeSpec) Effect() float64 {
+	if r.effect == 0 {
+		r.effect = 1
+
+	}
+	return r.effect
+}
+
+func (r *RgRangeSpec) SetEffect(v float64) {
+	r.effect = v
+}
+
+func (r *RgRangeSpec) IsLeaf() bool {
+	return false
+}
+
 func (r *RgRangeSpec) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
 		Expansion RgRangeSpec
+		Effect    float64
 	}{
 		RuleName:  "RgRangeSpec",
 		Expansion: *r,
+		Effect:    r.effect,
 	})
 }
 
@@ -1911,20 +2707,38 @@ func (r *RgRangeSpec) ForEachElement(parent ASTNode, fn func(parent, v ASTNode))
 	fn(parent, r.Number2)
 }
 
-func (r *RgRangeSpec) DFS(fn func(v ASTNode)) {
-	fn(r.Number1)
-	fn(r.Number2)
-	fn(r)
+func (r *RgRangeSpec) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
+	fn(r.Number1, path)
+	fn(r.Number2, path)
+	fn(r, path)
+	path.Pop()
 }
 
 // -------------------------------------------------------------
 
 type AnyLetter struct {
-	Value ASTString
+	effect float64
+	Value  ASTString
 }
 
 func (a *AnyLetter) Text() string {
 	return string(a.Value)
+}
+
+func (a *AnyLetter) Effect() float64 {
+	if a.effect == 0 {
+		a.effect = 1
+	}
+	return a.effect
+}
+
+func (a *AnyLetter) SetEffect(v float64) {
+	a.effect = v
+}
+
+func (a *AnyLetter) IsLeaf() bool {
+	return true
 }
 
 func (a *AnyLetter) MarshalJSON() ([]byte, error) {
@@ -1935,27 +2749,47 @@ func (a *AnyLetter) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, a.Value)
 }
 
-func (a *AnyLetter) DFS(fn func(v ASTNode)) {
-	fn(a.Value)
+func (a *AnyLetter) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(a)
+	fn(a.Value, path)
+	path.Pop()
 }
 
 // -------------------------------------------------------------
 
 type RgOp struct {
-	Value ASTString
+	effect float64
+	Value  ASTString
 }
 
 func (r *RgOp) Text() string {
 	return string(r.Value)
 }
 
+func (r *RgOp) Effect() float64 {
+	if r.effect == 0 {
+		r.effect = 100000
+	}
+	return r.effect
+}
+
+func (r *RgOp) SetEffect(v float64) {
+	r.effect = v
+}
+
+func (r *RgOp) IsLeaf() bool {
+	return true
+}
+
 func (r *RgOp) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
 		Expansion RgOp
+		Effect    float64
 	}{
 		RuleName:  "RgOp",
 		Expansion: *r,
+		Effect:    r.effect,
 	})
 }
 
@@ -1963,8 +2797,10 @@ func (r *RgOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, r.Value)
 }
 
-func (r *RgOp) DFS(fn func(v ASTNode)) {
-	fn(r.Value)
+func (r *RgOp) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
+	fn(r.Value, path)
+	path.Pop()
 }
 
 // ----------------------------------------------------------------
@@ -1983,6 +2819,7 @@ type rgAltValVariant3 struct {
 }
 
 type RgAltVal struct {
+	effect   float64
 	variant1 *rgAltValVariant1
 	variant2 *rgAltValVariant2
 	variant3 *rgAltValVariant3
@@ -1990,6 +2827,21 @@ type RgAltVal struct {
 
 func (rc *RgAltVal) Text() string {
 	return "#RgAltVal"
+}
+
+func (rc *RgAltVal) Effect() float64 {
+	if rc.effect == 0 {
+		rc.effect = 1
+	}
+	return rc.effect
+}
+
+func (rc *RgAltVal) SetEffect(v float64) {
+	rc.effect = v
+}
+
+func (rc *RgAltVal) IsLeaf() bool {
+	return false
 }
 
 func (rc *RgAltVal) MarshalJSON() ([]byte, error) {
@@ -2008,13 +2860,13 @@ func (rc *RgAltVal) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(struct {
-		RuleName        string
-		Expansion       any
-		ExhaustionScore float64
+		RuleName  string
+		Expansion any
+		Effect    float64
 	}{
-		RuleName:        "RgAltVal",
-		Expansion:       variant,
-		ExhaustionScore: rc.ExhaustionScore(),
+		RuleName:  "RgAltVal",
+		Expansion: variant,
+		Effect:    rc.effect,
 	})
 }
 
@@ -2032,31 +2884,18 @@ func (r *RgAltVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RgAltVal) DFS(fn func(v ASTNode)) {
+func (r *RgAltVal) DFS(fn func(ASTNode, *Stack), path *Stack) {
+	path.Push(r)
 	if r.variant1 != nil {
-		r.variant1.RgChar.DFS(fn)
+		r.variant1.RgChar.DFS(fn, path)
 
 	} else if r.variant2 != nil {
-		fn(r.variant2.Value)
+		fn(r.variant2.Value, path)
 
 	} else if r.variant3 != nil {
-		fn(r.variant3.From)
-		fn(r.variant3.To)
+		fn(r.variant3.From, path)
+		fn(r.variant3.To, path)
 	}
-	fn(r)
-}
-
-func (r *RgAltVal) ExhaustionScore() float64 {
-	if r.variant1 != nil {
-		return 2.0 // TODO
-	}
-	if r.variant2 != nil {
-		return 2
-	}
-	if r.variant3 != nil {
-		ch1 := []rune(r.variant3.From.String())
-		ch2 := []rune(r.variant3.To.String())
-		return float64(ch2[0]-ch1[0]+1) * 1.05
-	}
-	return 0
+	fn(r, path)
+	path.Pop()
 }
