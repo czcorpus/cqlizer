@@ -150,24 +150,6 @@ func runSizesImport(conf *cnf.Conf, path string) {
 	}
 }
 
-func runRecalcPercentiles(conf *cnf.Conf) {
-	db, err := stats.NewDatabase(conf.WorkingDBPath)
-	if err != nil {
-		fmt.Println("FAILED: ", err)
-		os.Exit(1)
-	}
-	err = db.Init()
-	if err != nil {
-		fmt.Println("FAILED: ", err)
-		os.Exit(1)
-	}
-	err = db.RecalculatePercentiles()
-	if err != nil {
-		fmt.Println("FAILED: ", err)
-		os.Exit(1)
-	}
-}
-
 func runBenchmark(conf *cnf.Conf, overwriteBenchmarked bool) {
 	db, err := stats.NewDatabase(conf.WorkingDBPath)
 	if err != nil {
@@ -337,8 +319,6 @@ func main() {
 		runKontextImport(conf, flag.Arg(2))
 	case "corpsizes":
 		runSizesImport(conf, flag.Arg(2))
-	case "percentiles":
-		runRecalcPercentiles(conf)
 	case "benchmark":
 		runBenchmark(conf, *overwriteAll)
 	case "optimize-params":

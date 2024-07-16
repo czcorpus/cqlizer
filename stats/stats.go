@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"database/sql"
 	"fmt"
-	"math"
 	"os"
 	"strings"
 	"time"
@@ -14,14 +13,12 @@ import (
 )
 
 type DBRecord struct {
-	ID           string
-	Datetime     int
-	Query        string
-	Corpname     string
-	ProcTime     float64
-	PTPercentile int
-	BenchTime    float64
-	FeatsJSON    string
+	ID        string
+	Datetime  int
+	Query     string
+	Corpname  string
+	ProcTime  float64
+	BenchTime float64
 }
 
 type Database struct {
@@ -38,9 +35,7 @@ func (database *Database) CreateQueryStatsTable() error {
 			"query TEXT NOT NULL, " +
 			"corpname TEXT NOT NULL, " +
 			"procTime FLOAT NOT NULL," +
-			"ptPercentile INTEGER, " +
-			"benchTime FLOAT, " +
-			"featsJSON TEXT" +
+			"benchTime FLOAT " +
 			")",
 	)
 	if err != nil {
@@ -88,7 +83,7 @@ func (database *Database) AddBenchmarkResult(id string, dur time.Duration) error
 }
 
 func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
-	query := "SELECT id, datetime, query, corpname, procTime, ptPercentile, benchTime, featsJSON " +
+	query := "SELECT id, datetime, query, corpname, procTime, benchTime " +
 		"FROM query_stats " +
 		"ORDER BY benchTime"
 	rows, err := database.db.Query(query)
@@ -98,30 +93,20 @@ func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
 	ans := make([]DBRecord, 0, 500)
 	for rows.Next() {
 		var rec DBRecord
-		var pTPercentile sql.NullInt64
 		var benchTime sql.NullFloat64
-		var featsJSON sql.NullString
 		err := rows.Scan(
 			&rec.ID,
 			&rec.Datetime,
 			&rec.Query,
 			&rec.Corpname,
 			&rec.ProcTime,
-			&pTPercentile,
 			&benchTime,
-			&featsJSON,
 		)
 		if err != nil {
 			return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
 		}
-		if pTPercentile.Valid {
-			rec.PTPercentile = int(pTPercentile.Int64)
-		}
 		if benchTime.Valid {
 			rec.BenchTime = benchTime.Float64
-		}
-		if featsJSON.Valid {
-			rec.FeatsJSON = featsJSON.String
 		}
 		ans = append(ans, rec)
 	}
@@ -129,7 +114,7 @@ func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
 }
 
 func (database *Database) GetAllRecords(onlyWithoutBenchmark bool) ([]DBRecord, error) {
-	qTpl := "SELECT id, datetime, query, corpname, procTime, ptPercentile, benchTime, featsJSON " +
+	qTpl := "SELECT id, datetime, query, corpname, procTime, benchTime " +
 		"FROM query_stats %s ORDER BY benchTime"
 	var query string
 	if onlyWithoutBenchmark {
@@ -145,30 +130,20 @@ func (database *Database) GetAllRecords(onlyWithoutBenchmark bool) ([]DBRecord, 
 	ans := make([]DBRecord, 0, 500)
 	for rows.Next() {
 		var rec DBRecord
-		var pTPercentile sql.NullInt64
 		var benchTime sql.NullFloat64
-		var featsJSON sql.NullString
 		err := rows.Scan(
 			&rec.ID,
 			&rec.Datetime,
 			&rec.Query,
 			&rec.Corpname,
 			&rec.ProcTime,
-			&pTPercentile,
 			&benchTime,
-			&featsJSON,
 		)
 		if err != nil {
 			return []DBRecord{}, fmt.Errorf("failed to fetch all records: %w", err)
 		}
-		if pTPercentile.Valid {
-			rec.PTPercentile = int(pTPercentile.Int64)
-		}
 		if benchTime.Valid {
 			rec.BenchTime = benchTime.Float64
-		}
-		if featsJSON.Valid {
-			rec.FeatsJSON = featsJSON.String
 		}
 		ans = append(ans, rec)
 	}
@@ -283,39 +258,6 @@ func (database *Database) AddRecord(query, corpname string, rec feats.Record, dt
 		return -1, fmt.Errorf("failed to add record: %w", err)
 	}
 	return lastID, err
-}
-
-func (database *Database) RecalculatePercentiles() error {
-	tx, err := database.db.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to recalculate percentiles: %w", err)
-	}
-
-	row := tx.QueryRow("SELECT COUNT(*) FROM query_stats")
-	var total int
-	err = row.Scan(&total)
-	if err != nil {
-		return fmt.Errorf("failed to recalculate percentiles: %w", err)
-	}
-
-	rows, err := tx.Query("SELECT id FROM query_stats ORDER BY procTime DESC")
-	if err != nil {
-		return fmt.Errorf("failed to recalculate percentiles: %w", err)
-	}
-	var i int
-	for rows.Next() {
-		var id string
-		err := rows.Scan(&id)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to recalculate percentiles: %w", err)
-		}
-		perc := int(math.RoundToEven(float64(i) / float64(total) * 100))
-		fmt.Println(">>> ABOUTTO UPD ", id, perc)
-		tx.Exec("UPDATE query_stats SET ptPercentile = ? WHERE id = ?", perc, id)
-		i++
-	}
-	return tx.Commit()
 }
 
 func (database *Database) ImportCorpusSizesFromCSV(path string) error {
