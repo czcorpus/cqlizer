@@ -7,6 +7,7 @@ import (
 	"github.com/czcorpus/cnc-gokit/collections"
 	"github.com/czcorpus/cqlizer/benchmark"
 	"github.com/czcorpus/cqlizer/cnf"
+	"github.com/czcorpus/cqlizer/cql"
 	"github.com/czcorpus/cqlizer/logproc"
 	"github.com/czcorpus/cqlizer/prediction"
 	"github.com/czcorpus/cqlizer/stats"
@@ -129,6 +130,80 @@ func runTrainingReplay(conf *cnf.Conf, trainingID int) {
 	}
 }
 
+func runEvaluation2(
+	conf *cnf.Conf,
+	threshold float64,
+	numSamples,
+	sampleSize int,
+	allowTrainingRecords bool,
+	anyCorpus bool,
+) {
+	statsDB, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to run evaluation")
+		os.Exit(1)
+		return
+	}
+
+	err = statsDB.Init()
+	if err != nil {
+		color.New(errColor).Fprintln(os.Stderr, err)
+		return
+	}
+
+	recs, err := statsDB.GetAllRecords(
+		stats.ListFilter{}.
+			SetBenchmarked(true).
+			SetTrainingExcluded(!allowTrainingRecords).
+			SetAnyCorpus(anyCorpus),
+	)
+	if err != nil {
+		color.New(errColor).Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	var avgPrecision, avgRecall float64
+	for i := 0; i < numSamples; i++ {
+		smpl := collections.SliceSample(recs, sampleSize)
+		log.Debug().Int("sampleNum", i).Msg("going to evaluate next sample")
+
+		result, err := prediction.EvaluateBySimilarity(
+			smpl,
+			threshold,
+			statsDB,
+			anyCorpus,
+		)
+		if err != nil {
+			color.New(errColor).Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Println("RESULT: ", result)
+
+		if err != nil {
+			log.Error().Err(err).Msg("failed to run validation, exiting")
+			os.Exit(1)
+		}
+		log.Info().
+			Int("sampleNum", i).
+			Int("truePositives", result.TruePositives).
+			Int("falsePositives", result.FalsePositives).
+			Int("falseNegatives", result.FalseNegatives).
+			Int("total", result.TotalTests).
+			Float64("precision", result.Precision()).
+			Float64("recall", result.Recall()).
+			Send()
+		avgPrecision += result.Precision()
+		avgRecall += result.Recall()
+	}
+	fmt.Println("----------------------------------------------------")
+	fmt.Println("sample size: ", sampleSize)
+	fmt.Println("number of samples (test runs): ", numSamples)
+	fmt.Printf("AVG PRECISION: %01.2f\n", avgPrecision/float64(numSamples))
+	fmt.Printf("AVG RECALL: %01.2f\n", avgRecall/float64(numSamples))
+	fmt.Println("----------------------------------------------------")
+
+}
+
 func runEvaluation(conf *cnf.Conf, trainingID, numSamples, sampleSize int, allowTrainingRecords bool) {
 	statsDB, err := stats.NewDatabase(conf.WorkingDBPath)
 	if err != nil {
@@ -204,4 +279,55 @@ func runEvaluation(conf *cnf.Conf, trainingID, numSamples, sampleSize int, allow
 	fmt.Printf("AVG PRECISION: %01.2f\n", avgPrecision/float64(numSamples))
 	fmt.Printf("AVG RECALL: %01.2f\n", avgRecall/float64(numSamples))
 	fmt.Println("----------------------------------------------------")
+}
+
+func runQueryNormalization(conf *cnf.Conf) {
+	statsDB, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to run normalization")
+		os.Exit(1)
+		return
+	}
+
+	err = statsDB.Init()
+	if err != nil {
+		color.New(errColor).Fprintln(os.Stderr, err)
+		return
+	}
+
+	items, err := statsDB.GetAllRecords(stats.ListFilter{}.SetWithNormalizedQuery(false))
+	if err != nil {
+		log.Error().Err(err).Msg("failed to run normalization")
+		os.Exit(1)
+		return
+	}
+	err = statsDB.StartTx()
+	if err != nil {
+		log.Error().Err(err).Msg("failed to run normalization")
+		os.Exit(1)
+		return
+	}
+	for _, item := range items {
+		parsed, err := cql.ParseCQL("#", item.Query)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("q", item.Query).
+				Msg("failed to process query (skipping)")
+			continue
+		}
+		normalized := parsed.Normalize()
+		fmt.Printf("Query: %s -> %s\n", item.Query, normalized)
+		item.QueryNormalized = normalized
+		err = statsDB.UpdateRecord(item)
+		if err != nil {
+			log.Error().Err(err).Str("recordId", item.ID).Msg("failed to update record")
+		}
+	}
+	err = statsDB.CommitTx()
+	if err != nil {
+		log.Error().Err(err).Msg("failed to run normalization")
+		os.Exit(1)
+		return
+	}
 }

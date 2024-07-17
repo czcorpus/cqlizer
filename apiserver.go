@@ -127,9 +127,13 @@ func runApiServer(
 
 	engine.GET("/analyze", cqlActions.AnalyzeQuery)
 
+	engine.GET("/analyze2", cqlActions.AnalyzeQuery2)
+
 	engine.GET("/parse", cqlActions.ParseQuery)
 
 	engine.PUT("/query", cqlActions.StoreQuery)
+
+	engine.GET("/normalize", cqlActions.Normalize)
 
 	log.Info().Msg("Starting CQLizer API server")
 	log.Info().

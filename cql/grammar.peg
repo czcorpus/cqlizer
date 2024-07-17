@@ -306,9 +306,13 @@ Sequence <-
     }
 
 Seq <-
-    NOT? r1:Repetition r2:(_ Repetition)* {
+    n:NOT? r1:Repetition r2:(_ Repetition)* {
         ans := &Seq{
             origValue: string(c.text),
+        }
+
+        if n != nil {
+            ans.Not = ASTString("!")
         }
 
         ans.Repetition = make([]*Repetition, 0, 10)
@@ -396,24 +400,14 @@ AtomQuery <-
 
         for _, item := range anyToSlice(wcp) {
             tmp := anyToSlice(item)
-            neg := tmp[1]
+            neg := tmp[1] != nil
             tp := typedOrPanic[string](tmp[2])
-            if neg != nil {
-                if tp == "within" {
-                    ans.numNegWithinParts++
-
-                } else if tp == "containing" {
-                    ans.numNegContainingParts++
-                }
-
-            } else {
-                if tp == "within" {
-                    ans.numWithinParts++
-
-                } else if tp == "containing" {
-                    ans.numContainingParts++
-                }
+            wcBlock := &withinContainingBlock{
+                Not: neg,
+                Keyword: ASTString(tp),
+                WithinContainingPart: typedOrPanic[*WithinContainingPart](tmp[4]),
             }
+            ans.variant2.WCBlock = append(ans.variant2.WCBlock, wcBlock)
         }
 
         return ans, nil
@@ -660,10 +654,10 @@ RegExpRaw <-
         vSlice := anyToSlice(v)
         ans := &RegExpRaw{
             origValue: string(c.text),
-            Values: make([]any, 0, len(vSlice)),
+            Values: make([]ASTNode, 0, len(vSlice)),
         }
         for _, item := range vSlice {
-            ans.Values = append(ans.Values, item)
+            ans.Values = append(ans.Values, typedOrPanic[ASTNode](item))
         }
 
         return ans, nil
@@ -689,10 +683,10 @@ RgSimple <-
         vSlice := anyToSlice(v)
         ans := &RgSimple{
             origValue: string(c.text),
-            Values: make([]any, 0, len(vSlice)),
+            Values: make([]ASTNode, 0, len(vSlice)),
         }
         for _, item := range vSlice {
-            ans.Values = append(ans.Values, item)
+            ans.Values = append(ans.Values, typedOrPanic[ASTNode](item))
         }
 
         return ans, nil
@@ -717,9 +711,12 @@ RgLookOperator <-
 
 
 RgAlt <-
-    LBRACKET v:RgAltVal+ RBRACKET {
+    LBRACKET rgc:RG_CARET? v:RgAltVal+ RBRACKET {
         ans := &RgAlt{
             Values: make([]*RgAltVal, 0, 10),
+        }
+        if rgc != nil {
+            ans.Not = true
         }
         for _, item := range anyToSlice(v) {
             ans.Values = append(ans.Values, typedOrPanic[*RgAltVal](item))
@@ -773,28 +770,60 @@ RgAltVal <-
 
 
 RgChar <-
-    rg:RG_ESCAPED {
+    RG_ESCAPED {
         ans := &RgChar{
             variant1: &rgCharVariant1{
-                Value: ASTString(typedOrPanic[string](rg)),
+                Value: ASTString(string(c.text)),
             },
         }
 
         return ans, nil
     }
-    / rg:AnyLetter {
+    / RG_REPEAT {
+        ans := &RgChar{
+            variant3: &rgCharVariant3{
+                RgRepeat: &RgRepeat{
+                    Value: ASTString(string(c.text)),
+                },
+            },
+        }
+        return ans, nil
+    }
+    / RG_QM {
+        ans := &RgChar{
+            variant5: &rgCharVariant5{
+                RgQM: &RgQM{
+                    Value: ASTString("?"),
+                },
+            },
+        }
+        return ans, nil
+    }
+    / RG_ANY {
+        ans := &RgChar{
+            variant4: &rgCharVariant4{
+                RgAny: &RgAny{
+                    Value: ASTString("."),
+                },
+            },
+        }
+        return ans, nil
+    }
+    / AnyLetter {
         ans := &RgChar{
             variant1: &rgCharVariant1{
-                Value: ASTString(typedOrPanic[string](rg)),
+                Value: ASTString(string(c.text)),
             },
         }
 
         return ans, nil
     }
-    / rg:RG_OP {
+    / RG_OP {
         ans := &RgChar{
             variant2: &rgCharVariant2{
-                Value: typedOrPanic[*RgOp](rg),
+                RgOp: &RgOp{
+                    Value: ASTString(string(c.text)),
+                },
             },
         }
 
@@ -837,21 +866,17 @@ RgChar <-
         return ans, nil
     }
 
+RG_REPEAT <- [*+]
+
+RG_QM <- "?"
+
+RG_ANY <- "."
+
 RG_OP <-
-    v:[-,_^$ ] {
-        ans := &RgOp{
-            Value: ASTString(c.text),
-        }
+    [-,_^$ ]
+    / [0-9]
 
-        return ans, nil
-    }
-    / v:[0-9?*+.] {
-        ans := &RgOp{
-            Value: ASTString(c.text),
-        }
-
-        return ans, nil
-    }
+RG_CARET <- "^"
 
 RG_ESCAPED <-
     "\\{" / "\\}" / "\\(" / "\\)" / "\\[" / "\\]" / "\\?" / "\\!" / "\\." / "\\\"" / "\\*" / "\\+" / "\\^" / "\\$" / "\\|"

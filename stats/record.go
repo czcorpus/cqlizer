@@ -16,6 +16,9 @@ type DBRecord struct {
 	// Query contains the original version of imported query
 	Query string
 
+	// QueryNormalized contains the original version of imported query
+	QueryNormalized string
+
 	// Corpname is the original corpus query was run with
 	Corpname string
 

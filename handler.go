@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/agnivade/levenshtein"
 	"github.com/czcorpus/cnc-gokit/uniresp"
 	"github.com/czcorpus/cqlizer/cql"
 	"github.com/czcorpus/cqlizer/feats"
@@ -48,6 +49,20 @@ func (a *Actions) ParseQuery(ctx *gin.Context) {
 	uniresp.WriteJSONResponse(ctx.Writer, parsed)
 }
 
+func (a *Actions) Normalize(ctx *gin.Context) {
+	q := ctx.Query("q")
+	parsed, err := cql.ParseCQL("#", q)
+	if err != nil {
+		uniresp.RespondWithErrorJSON(
+			ctx,
+			fmt.Errorf("failed to parse query \u25B6 %w", err),
+			http.StatusUnprocessableEntity,
+		)
+		return
+	}
+	uniresp.WriteJSONResponse(ctx.Writer, map[string]any{"normalized": parsed.Normalize()})
+}
+
 func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 	q := ctx.Query("q")
 	parsed, err := cql.ParseCQL("#", q)
@@ -66,6 +81,49 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 	ans := a.rfModel.Vote(features.AsVector())
 
 	uniresp.WriteJSONResponse(ctx.Writer, map[string]float64{"no": ans[0], "yes": ans[1]})
+}
+
+func (a *Actions) AnalyzeQuery2(ctx *gin.Context) {
+	q := ctx.Query("q")
+	parsed, err := cql.ParseCQL("#", q)
+	if err != nil {
+		uniresp.RespondWithErrorJSON(
+			ctx,
+			fmt.Errorf("failed to parse query \u25B6 %w", err),
+			http.StatusUnprocessableEntity,
+		)
+		return
+	}
+
+	norm := parsed.Normalize()
+	recs, err := a.StatsDB.GetAllRecords(
+		stats.ListFilter{}.
+			SetBenchmarked(true).
+			SetTrainingExcluded(false).
+			SetWithNormalizedQuery(true),
+	)
+	if err != nil {
+		uniresp.RespondWithErrorJSON(
+			ctx,
+			fmt.Errorf("failed to get records: %w", err),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+	matches := stats.NewBestMatches(5)
+	for _, rec := range recs {
+		dist := levenshtein.ComputeDistance(rec.QueryNormalized, norm)
+		item := rec
+		matches.TryAdd(&item, dist)
+	}
+
+	uniresp.WriteJSONResponse(
+		ctx.Writer,
+		map[string]any{
+			"estimation":      matches.SmartBenchTime(),
+			"normalizedQuery": norm,
+			"similarQueries":  matches.Items(),
+		})
 }
 
 type storeQueryBody struct {
