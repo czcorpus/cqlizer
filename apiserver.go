@@ -104,6 +104,14 @@ func runApiServer(
 			return
 		}
 	}
+
+	threshold, err := statsDB.GetTrainingThreshold(trainingID)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to start service")
+		syscallChan <- syscall.SIGTERM
+		return
+	}
+
 	model, _, err := loadModel(conf, statsDB, trainingID)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to initialize model")
@@ -121,15 +129,20 @@ func runApiServer(
 	engine.NoRoute(uniresp.NotFoundHandler)
 
 	cqlActions := Actions{
-		StatsDB: statsDB,
-		rfModel: model,
+		StatsDB:   statsDB,
+		rfModel:   model,
+		threshold: threshold,
 	}
 
 	engine.GET("/analyze", cqlActions.AnalyzeQuery)
 
+	engine.GET("/analyze-verbose/", cqlActions.AnalyzeQuery2)
+
 	engine.GET("/parse", cqlActions.ParseQuery)
 
 	engine.PUT("/query", cqlActions.StoreQuery)
+
+	engine.GET("/normalize", cqlActions.Normalize)
 
 	log.Info().Msg("Starting CQLizer API server")
 	log.Info().

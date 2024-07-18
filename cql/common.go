@@ -27,12 +27,17 @@ func (s ASTString) Text() string {
 	return string(s)
 }
 
+func (s ASTString) Normalize() string {
+	return "x"
+}
+
 func (s ASTString) String() string {
 	return string(s)
 }
 
 type ASTNode interface {
 	Text() string
+	Normalize() string
 }
 
 func fromIdxOfUntypedSlice[T any](arr any, idx int) T {

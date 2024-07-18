@@ -16,7 +16,15 @@
 
 package cql
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"regexp"
+	"strings"
+)
+
+var (
+	rgLong = regexp.MustCompile(`xx+`)
+)
 
 // Query
 //
@@ -44,6 +52,18 @@ func (q *Query) Len() int {
 
 func (q *Query) Text() string {
 	return q.origValue
+}
+
+func (q *Query) Normalize() string {
+	var ans strings.Builder
+	ans.WriteString(q.Sequence.Normalize())
+	if q.GlobPart != nil {
+		ans.WriteString(" & " + q.GlobPart.Normalize())
+	}
+	for _, v := range q.WithinOrContaining {
+		ans.WriteString(v.Normalize())
+	}
+	return ans.String()
 }
 
 func (q *Query) ForEachElement(fn func(parent, v ASTNode)) {

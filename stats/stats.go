@@ -93,7 +93,7 @@ func (database *Database) AddBenchmarkResult(id string, dur time.Duration) error
 }
 
 func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
-	query := "SELECT id, datetime, query, corpname, procTime, benchTime, trainingExclude " +
+	query := "SELECT id, datetime, query, queryNormalized, corpname, procTime, benchTime, trainingExclude " +
 		"FROM query_stats " +
 		"ORDER BY benchTime"
 	rows, err := database.db.Query(query)
@@ -104,10 +104,12 @@ func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
 	for rows.Next() {
 		var rec DBRecord
 		var benchTime sql.NullFloat64
+		var normQuery sql.NullString
 		err := rows.Scan(
 			&rec.ID,
 			&rec.Datetime,
 			&rec.Query,
+			&normQuery,
 			&rec.Corpname,
 			&rec.ProcTime,
 			&benchTime,
@@ -119,9 +121,23 @@ func (database *Database) GetCzechBenchmarkedRecords() ([]DBRecord, error) {
 		if benchTime.Valid {
 			rec.BenchTime = benchTime.Float64
 		}
+		if normQuery.Valid {
+			rec.QueryNormalized = normQuery.String
+		}
 		ans = append(ans, rec)
 	}
 	return ans, nil
+}
+
+func (database *Database) UpdateRecord(rec DBRecord) error {
+	_, err := database.tx.Exec(
+		"UPDATE query_stats "+
+			"SET datetime = ?, query = ?, queryNormalized = ?, corpname = ?, procTime = ?, "+
+			"benchTime = ?, trainingExclude = ? "+
+			"WHERE id = ?",
+		rec.Datetime, rec.Query, rec.QueryNormalized, rec.Corpname, rec.ProcTime, rec.BenchTime,
+		rec.TrainingExclude, rec.ID)
+	return err
 }
 
 func (database *Database) MixBiasedTrainingList(
@@ -130,7 +146,7 @@ func (database *Database) MixBiasedTrainingList(
 	syn2020Compat bool,
 ) ([]DBRecord, error) {
 
-	query1 := "SELECT id, datetime, query, corpname, procTime, benchTime, trainingExclude " +
+	query1 := "SELECT id, datetime, query, queryNormalized, corpname, procTime, benchTime, trainingExclude " +
 		"FROM query_stats WHERE %s "
 	whereChunks := make([]string, 0, 2)
 	whereChunks = append(whereChunks, "trainingExclude = 0", "benchTime >= ?")
@@ -147,10 +163,12 @@ func (database *Database) MixBiasedTrainingList(
 	for rows1.Next() {
 		var rec DBRecord
 		var benchTime sql.NullFloat64
+		var normQuery sql.NullString
 		err := rows1.Scan(
 			&rec.ID,
 			&rec.Datetime,
 			&rec.Query,
+			&normQuery,
 			&rec.Corpname,
 			&rec.ProcTime,
 			&benchTime,
@@ -162,12 +180,15 @@ func (database *Database) MixBiasedTrainingList(
 		if benchTime.Valid {
 			rec.BenchTime = benchTime.Float64
 		}
+		if normQuery.Valid {
+			rec.QueryNormalized = normQuery.String
+		}
 		ans1 = append(ans1, rec)
 	}
 	// now we calculate total required size as `total = ans1 / ratioOfTrues`
 	requiredTotal := int(math.Ceil(float64(len(ans1)) / ratioOfTrues))
 
-	query2 := "SELECT id, datetime, query, corpname, procTime, benchTime, trainingExclude " +
+	query2 := "SELECT id, datetime, query, queryNormalized, corpname, procTime, benchTime, trainingExclude " +
 		"FROM query_stats WHERE %s "
 	whereChunks2 := make([]string, 0, 2)
 	whereChunks2 = append(whereChunks2, "trainingExclude = 0", "benchTime < ?")
@@ -185,10 +206,12 @@ func (database *Database) MixBiasedTrainingList(
 	for rows2.Next() {
 		var rec DBRecord
 		var benchTime sql.NullFloat64
+		var normQuery sql.NullString
 		err := rows2.Scan(
 			&rec.ID,
 			&rec.Datetime,
 			&rec.Query,
+			&normQuery,
 			&rec.Corpname,
 			&rec.ProcTime,
 			&benchTime,
@@ -199,6 +222,9 @@ func (database *Database) MixBiasedTrainingList(
 		}
 		if benchTime.Valid {
 			rec.BenchTime = benchTime.Float64
+		}
+		if normQuery.Valid {
+			rec.QueryNormalized = normQuery.String
 		}
 		ans2 = append(ans2, rec)
 	}
@@ -214,7 +240,7 @@ func (database *Database) MixBiasedTrainingList(
 // GetAllRecords loads stats records containing imported queries with their
 // benchmark times (if already benchmarked).
 func (database *Database) GetAllRecords(filter ListFilter) ([]DBRecord, error) {
-	query := "SELECT id, datetime, query, corpname, procTime, benchTime, trainingExclude " +
+	query := "SELECT id, datetime, query, queryNormalized, corpname, procTime, benchTime, trainingExclude " +
 		"FROM query_stats WHERE %s ORDER BY benchTime"
 	whereChunks := make([]string, 0, 3)
 	whereChunks = append(whereChunks, "1 = 1")
@@ -234,6 +260,19 @@ func (database *Database) GetAllRecords(filter ListFilter) ([]DBRecord, error) {
 			whereChunks = append(whereChunks, "trainingExclude = 0")
 		}
 	}
+	if filter.WithNormalizedQuery != nil {
+		if *filter.WithNormalizedQuery {
+			whereChunks = append(whereChunks, "queryNormalized IS NOT NULL")
+
+		} else {
+			whereChunks = append(whereChunks, "queryNormalized IS NULL")
+		}
+	}
+	if filter.AnyCorpus != nil {
+		if !*filter.AnyCorpus {
+			whereChunks = append(whereChunks, "corpname LIKE '%syn%'")
+		}
+	}
 
 	rows, err := database.db.Query(fmt.Sprintf(query, strings.Join(whereChunks, " AND ")))
 	if err != nil {
@@ -243,10 +282,12 @@ func (database *Database) GetAllRecords(filter ListFilter) ([]DBRecord, error) {
 	for rows.Next() {
 		var rec DBRecord
 		var benchTime sql.NullFloat64
+		var normQuery sql.NullString
 		err := rows.Scan(
 			&rec.ID,
 			&rec.Datetime,
 			&rec.Query,
+			&normQuery,
 			&rec.Corpname,
 			&rec.ProcTime,
 			&benchTime,
@@ -257,6 +298,9 @@ func (database *Database) GetAllRecords(filter ListFilter) ([]DBRecord, error) {
 		}
 		if benchTime.Valid {
 			rec.BenchTime = benchTime.Float64
+		}
+		if normQuery.Valid {
+			rec.QueryNormalized = normQuery.String
 		}
 		ans = append(ans, rec)
 	}

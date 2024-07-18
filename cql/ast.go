@@ -34,6 +34,19 @@ func (q *Sequence) Text() string {
 	return q.origValue
 }
 
+func (q *Sequence) Normalize() string {
+	var ans strings.Builder
+	for i, v := range q.Seq {
+		if i > 0 {
+			ans.WriteString("<OR>" + v.Normalize())
+
+		} else {
+			ans.WriteString(v.Normalize())
+		}
+	}
+	return ans.String()
+}
+
 func (q *Sequence) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Expansion Sequence
@@ -60,6 +73,7 @@ func (q *Sequence) DFS(fn func(v ASTNode)) {
 
 // --------------------------------------------------------------------
 
+// NOT? r1:Repetition r2:(_ Repetition)*
 type Seq struct {
 	origValue   string
 	isOrChained bool
@@ -93,6 +107,14 @@ func (s *Seq) DFS(fn func(v ASTNode)) {
 
 func (s *Seq) Text() string {
 	return string(s.origValue)
+}
+
+func (q *Seq) Normalize() string {
+	var ans strings.Builder
+	for _, v := range q.Repetition {
+		ans.WriteString(v.Normalize())
+	}
+	return ans.String()
 }
 
 // -----------------------------------------------------
@@ -131,12 +153,21 @@ func (q *GlobPart) Text() string {
 	return "#GlobPart" // TODO
 }
 
+func (q *GlobPart) Normalize() string {
+	var ans strings.Builder
+	for _, v := range q.GlobCond {
+		ans.WriteString(v.Normalize())
+	}
+	return ans.String()
+}
+
 // ---------------------------------------
 
 // WithinOrContaining
 //
 //	NOT? (KW_WITHIN / KW_CONTAINING) _ WithinContainingPart {
 type WithinOrContaining struct {
+	not                   bool
 	numWithinParts        int
 	numNegWithinParts     int
 	numContainingParts    int
@@ -194,6 +225,21 @@ func (w *WithinOrContaining) Text() string {
 	return "#WithinOrContaining"
 }
 
+func (w *WithinOrContaining) Normalize() string {
+	//	NOT? (KW_WITHIN / KW_CONTAINING) _ WithinContainingPart {
+	var ans strings.Builder
+	if w.not {
+		ans.WriteString("<NEGATION>")
+	}
+	if w.numNegWithinParts > 0 {
+		ans.WriteString("within")
+	}
+	if w.numContainingParts > 0 {
+		ans.WriteString("containing")
+	}
+	return ans.String()
+}
+
 // -----------------------------------------------------
 
 type withinContainingPartVariant1 struct {
@@ -220,6 +266,19 @@ type WithinContainingPart struct {
 }
 
 func (wcp *WithinContainingPart) Text() string {
+	return "#WithinContainingPart"
+}
+
+func (wcp *WithinContainingPart) Normalize() string {
+	if wcp.variant1 != nil {
+		return wcp.variant1.Sequence.Normalize()
+	}
+	if wcp.variant2 != nil {
+		return wcp.variant2.WithinNumber.Normalize()
+	}
+	if wcp.variant3 != nil {
+		wcp.variant3.AlignedPart.Normalize() // TODO missing NOT
+	}
 	return "#WithinContainingPart"
 }
 
@@ -309,6 +368,26 @@ func (gc *GlobCond) Text() string {
 	return "#GlobCond"
 }
 
+func (gc *GlobCond) Normalize() string {
+	// NUMBER DOT AttName _ NOT? EQ _ NUMBER DOT AttName
+	// KW_FREQ LPAREN _ NUMBER DOT AttName _ RPAREN NOT? _ ( EQ / LEQ / GEQ / LSTRUCT / RSTRUCT ) _ NUMBER {
+	if gc.variant1 != nil {
+		var ans strings.Builder
+		ans.WriteString("att ")
+		ans.WriteString(gc.variant1.Not4.Normalize())
+		ans.WriteString("att ")
+		return ans.String()
+	}
+	if gc.variant2 != nil {
+		var ans strings.Builder
+		ans.WriteString(gc.variant2.Number2.Normalize())
+		ans.WriteString("att ")
+		ans.WriteString(gc.variant2.Number6.Normalize())
+		return ans.String()
+	}
+	return "#GlobCond"
+}
+
 func (gc *GlobCond) MarshalJSON() ([]byte, error) {
 	if gc.variant1 != nil {
 		return json.Marshal(struct {
@@ -387,6 +466,14 @@ func (s *Structure) Text() string {
 	return s.AttName.Text()
 }
 
+func (s *Structure) Normalize() string {
+	// // AttName _ AttValList?
+	if s.AttValList != nil {
+		return fmt.Sprintf("(struct %s)", s.AttValList.Normalize())
+	}
+	return "(struct)"
+}
+
 func (s *Structure) IsBigStructure() bool {
 	v := s.AttName.Text()
 	return v == "s" || v == "g" || v == "p"
@@ -432,6 +519,20 @@ func (a *AttValList) Text() string {
 	return a.origValue
 }
 
+func (a *AttValList) Normalize() string {
+	// //	av1:AttValAnd av2:(_ BINOR _ AttValAnd)*
+	var ans strings.Builder
+	for i, v := range a.AttValAnd {
+		if i > 0 {
+			ans.WriteString("<OR>" + v.Normalize())
+
+		} else {
+			ans.WriteString(v.Normalize())
+		}
+	}
+	return ans.String()
+}
+
 func (a *AttValList) IsEmpty() bool {
 	return a == nil || len(a.AttValAnd) == 0
 }
@@ -473,6 +574,10 @@ type NumberedPosition struct {
 
 func (n *NumberedPosition) Text() string {
 	return "#NumberedPosition"
+}
+
+func (n *NumberedPosition) Normalize() string {
+	return fmt.Sprintf("(%s %s %s)", n.Number.Normalize(), n.Colon.Normalize(), n.OnePosition.Normalize())
 }
 
 func (n *NumberedPosition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -533,6 +638,36 @@ type OnePosition struct {
 
 func (op *OnePosition) Text() string {
 	return op.origValue
+}
+
+func (op *OnePosition) Normalize() string {
+	// var1: LBRACKET _ AttValList? _ RBRACKET
+	// var2: RegExp
+	// var3: TEQ NUMBER? RegExp
+	// var4: KW_MU
+	// var5: MuPart
+	var ans strings.Builder
+	if op.Variant1 != nil {
+		if op.Variant1.AttValList != nil {
+			ans.WriteString("(pos " + op.Variant1.AttValList.Normalize() + ")")
+
+		} else {
+			ans.WriteString("(pos ())")
+		}
+
+	} else if op.Variant2 != nil {
+		ans.WriteString("(pos " + op.Variant2.RegExp.Normalize() + ")")
+
+	} else if op.Variant3 != nil {
+		ans.WriteString("(pos " + op.Variant3.RegExp.origValue + ")")
+
+	} else if op.Variant4 != nil {
+		ans.WriteString("(pos " + op.Variant4.Value.Normalize() + ")")
+
+	} else if op.Variant5 != nil {
+		ans.WriteString("(pos " + op.Variant5.MuPart.Normalize() + ")")
+	}
+	return ans.String()
 }
 
 func (op *OnePosition) MarshalJSON() ([]byte, error) {
@@ -659,6 +794,17 @@ func (p *Position) Text() string {
 	return p.origValue
 }
 
+func (p *Position) Normalize() string {
+	var ans strings.Builder
+	if p.variant1 != nil {
+		ans.WriteString(p.variant1.OnePosition.Normalize())
+
+	} else if p.variant2 != nil {
+		ans.WriteString(p.variant2.NumberedPosition.Normalize())
+	}
+	return ans.String()
+}
+
 func (p *Position) MarshalJSON() ([]byte, error) {
 	if p.variant1 != nil {
 		return json.Marshal(struct {
@@ -714,6 +860,19 @@ func (r *RegExp) Text() string {
 	return r.origValue
 }
 
+func (r *RegExp) Normalize() string {
+	var ans strings.Builder
+	for i, v := range r.RegExpRaw {
+		if i > 0 {
+			ans.WriteString("<OR>" + v.Normalize())
+
+		} else {
+			ans.WriteString(v.Normalize())
+		}
+	}
+	return ans.String()
+}
+
 func (r *RegExp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, r)
 	for _, v := range r.RegExpRaw {
@@ -746,6 +905,17 @@ type MuPart struct {
 
 func (m *MuPart) Text() string {
 	return m.origValue
+}
+
+func (m *MuPart) Normalize() string {
+	var ans strings.Builder
+	if m.Variant1 != nil {
+		ans.WriteString(m.Variant1.UnionOp.Normalize())
+
+	} else if m.Variant2 != nil {
+		ans.WriteString(m.Variant2.MeetOp.Normalize())
+	}
+	return ans.String()
 }
 
 func (m *MuPart) MarshalJSON() ([]byte, error) {
@@ -790,6 +960,10 @@ func (m *UnionOp) Text() string {
 	return m.origValue
 }
 
+func (m *UnionOp) Normalize() string {
+	return fmt.Sprintf("%s %s", m.Position1.Normalize(), m.Position2.Normalize())
+}
+
 func (m *UnionOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, m)
 	m.Position1.ForEachElement(m, fn)
@@ -812,6 +986,10 @@ type MeetOp struct {
 
 func (m *MeetOp) Text() string {
 	return m.origValue
+}
+
+func (m *MeetOp) Normalize() string {
+	return fmt.Sprintf("%s %s", m.Position1.Normalize(), m.Position2.Normalize())
 }
 
 func (m *MeetOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -866,6 +1044,20 @@ func (r *Repetition) IsAnyPosition() bool {
 
 func (r *Repetition) Text() string {
 	return r.origValue
+}
+
+func (r *Repetition) Normalize() string {
+	var ans strings.Builder
+	if r.Variant1 != nil {
+		ans.WriteString(r.Variant1.AtomQuery.Normalize() + " " + r.Variant1.RepOpt.Normalize())
+
+	} else if r.Variant2 != nil {
+		ans.WriteString(r.Variant2.OpenStructTag.Normalize())
+
+	} else if r.Variant3 != nil {
+		ans.WriteString(r.Variant3.CloseStructTag.Normalize())
+	}
+	return ans.String()
 }
 
 func (r *Repetition) GetRepOpt() string {
@@ -958,26 +1150,39 @@ type atomQueryVariant1 struct {
 	Position *Position
 }
 
-type atomQueryVariant2 struct {
-	Sequence             *Sequence
+type withinContainingBlock struct {
+	Not                  bool
+	Keyword              ASTString // either `within` or `containing`
 	WithinContainingPart *WithinContainingPart
+}
+
+type atomQueryVariant2 struct {
+	Sequence *Sequence
+	WCBlock  []*withinContainingBlock
 }
 
 // AtomQuery
 // var1: Position
 // var2: LPAREN _ Sequence (_ NOT? (KW_WITHIN / KW_CONTAINING) _ WithinContainingPart)* _ RPAREN {
 type AtomQuery struct {
-	origValue             string
-	variant1              *atomQueryVariant1
-	variant2              *atomQueryVariant2
-	numWithinParts        int
-	numNegWithinParts     int
-	numContainingParts    int
-	numNegContainingParts int
+	origValue string
+	variant1  *atomQueryVariant1
+	variant2  *atomQueryVariant2
 }
 
 func (aq *AtomQuery) Text() string {
 	return aq.origValue
+}
+
+func (aq *AtomQuery) Normalize() string {
+	var ans strings.Builder
+	if aq.variant1 != nil {
+		ans.WriteString(aq.variant1.Position.Normalize())
+
+	} else if aq.variant2 != nil {
+		ans.WriteString(aq.variant2.Sequence.Normalize())
+	}
+	return ans.String()
 }
 
 func (aq *AtomQuery) MarshalJSON() ([]byte, error) {
@@ -1004,22 +1209,6 @@ func (aq *AtomQuery) MarshalJSON() ([]byte, error) {
 	}
 }
 
-func (aq *AtomQuery) NumWithinParts() int {
-	return aq.numWithinParts
-}
-
-func (aq *AtomQuery) NumNegWithinParts() int {
-	return aq.numNegWithinParts
-}
-
-func (aq *AtomQuery) NumContainingParts() int {
-	return aq.numContainingParts
-}
-
-func (aq *AtomQuery) NumNegContainingParts() int {
-	return aq.numNegContainingParts
-}
-
 func (aq *AtomQuery) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, aq)
 	if aq.variant1 != nil {
@@ -1027,8 +1216,14 @@ func (aq *AtomQuery) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) 
 
 	} else if aq.variant2 != nil {
 		aq.variant2.Sequence.ForEachElement(aq, fn)
-		if aq.variant2.WithinContainingPart != nil {
-			aq.variant2.WithinContainingPart.ForEachElement(aq, fn)
+		if aq.variant2.WCBlock != nil {
+			for _, v := range aq.variant2.WCBlock {
+				if v.Not {
+					fn(aq, ASTString("!"))
+				}
+				fn(aq, v.Keyword)
+				v.WithinContainingPart.ForEachElement(aq, fn)
+			}
 		}
 	}
 }
@@ -1039,8 +1234,14 @@ func (aq *AtomQuery) DFS(fn func(v ASTNode)) {
 
 	} else if aq.variant2 != nil {
 		aq.variant2.Sequence.DFS(fn)
-		if aq.variant2.WithinContainingPart != nil {
-			aq.variant2.WithinContainingPart.DFS(fn)
+		if aq.variant2.WCBlock != nil {
+			for _, v := range aq.variant2.WCBlock {
+				if v.Not {
+					fn(ASTString("!"))
+				}
+				fn(v.Keyword)
+				v.WithinContainingPart.DFS(fn)
+			}
 		}
 	}
 	fn(aq)
@@ -1074,6 +1275,21 @@ func (r *RepOpt) Text() string {
 		return fmt.Sprintf("{%s, %s}", r.Variant2.From, r.Variant2.To)
 	}
 	return ""
+}
+
+func (r *RepOpt) Normalize() string {
+	if r == nil {
+		return ""
+	}
+	var ans strings.Builder
+	if r.Variant1 != nil {
+		ans.WriteString(r.Variant1.Value.Normalize())
+
+	} else if r.Variant2 != nil {
+		ans.WriteString(r.Variant2.From.Normalize())
+		ans.WriteString(r.Variant2.To.Normalize())
+	}
+	return ans.String()
 }
 
 func (r *RepOpt) MarshalJSON() ([]byte, error) {
@@ -1133,6 +1349,10 @@ func (ost *OpenStructTag) Text() string {
 	return ost.origValue
 }
 
+func (ost *OpenStructTag) Normalize() string {
+	return ost.Structure.Normalize()
+}
+
 func (ost *OpenStructTag) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
@@ -1161,6 +1381,10 @@ type CloseStructTag struct {
 
 func (ost *CloseStructTag) Text() string {
 	return "#CloseStructTag"
+}
+
+func (ost *CloseStructTag) Normalize() string {
+	return ost.Structure.Normalize()
 }
 
 func (ost *CloseStructTag) MarshalJSON() ([]byte, error) {
@@ -1192,6 +1416,10 @@ func (a *AlignedPart) Text() string {
 	return "#AlignedPart"
 }
 
+func (a *AlignedPart) Normalize() string {
+	return "#AlignedPart"
+}
+
 func (a *AlignedPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, a)
 	// TODO
@@ -1212,6 +1440,19 @@ type AttValAnd struct {
 
 func (a *AttValAnd) Text() string {
 	return "#AttValAnd"
+}
+
+func (a *AttValAnd) Normalize() string {
+	var ans strings.Builder
+	for i, v := range a.AttVal {
+		if i > 0 {
+			ans.WriteString("<AND>" + v.Normalize())
+
+		} else {
+			ans.WriteString(v.Normalize())
+		}
+	}
+	return ans.String()
 }
 
 func (a *AttValAnd) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1297,21 +1538,74 @@ func (a *AttVal) IsNegation() bool {
 func (a *AttVal) IsProblematicAttrSearch() bool {
 	if a.Variant1 != nil {
 		return (a.Variant1.AttName == "tag" || a.Variant1.AttName == "pos" || a.Variant1.AttName == "verbtag" ||
-			a.Variant1.AttName == "upos" || a.Variant1.AttName == "afun" || a.Variant1.AttName == "case") &&
-			len(a.Variant1.RawString.Text()) < 6 && // TODO
-			(strings.Contains(a.Variant1.RawString.Text(), ".*") || strings.Contains(a.Variant1.RawString.Text(), ".+"))
+			a.Variant1.AttName == "upos" || a.Variant1.AttName == "afun" || a.Variant1.AttName == "case")
 
 	} else if a.Variant2 != nil {
 		return (a.Variant2.AttName == "tag" || a.Variant2.AttName == "pos" || a.Variant2.AttName == "verbtag" ||
-			a.Variant2.AttName == "upos" || a.Variant2.AttName == "afun" || a.Variant2.AttName == "case") &&
-			len(a.Variant2.RegExp.Text()) < 6 && // TODO
-			(strings.Contains(a.Variant2.RegExp.Text(), ".*") || strings.Contains(a.Variant2.RegExp.Text(), ".+"))
+			a.Variant2.AttName == "upos" || a.Variant2.AttName == "afun" || a.Variant2.AttName == "case")
+	}
+	return false
+}
+
+func (a *AttVal) SearchesInLargeSet() bool {
+	if a.Variant1 != nil {
+		return a.Variant1.RawString.Text() == "\"N\""
+	}
+	if a.Variant2 != nil {
+		return a.Variant2.RegExp.Text() == "\"N.*\"" || a.Variant2.RegExp.Text() == "\"N.+\"" ||
+			a.Variant2.RegExp.Text() == "\".*\"" || a.Variant2.RegExp.Text() == "\".+\""
 	}
 	return false
 }
 
 func (a *AttVal) Text() string {
 	return a.origValue
+}
+
+func (a *AttVal) Normalize() string {
+	var ans strings.Builder
+	if a.Variant1 != nil {
+		// AttName _ (NOT)? EEQ _ RawString
+		var ns string
+		if a.Variant1.Not {
+			ns = "<NEGATION>"
+		}
+		attName := "(att "
+		if a.IsProblematicAttrSearch() {
+			attName = "(ATT "
+		}
+		if a.SearchesInLargeSet() {
+			ans.WriteString(attName + ns + "<LARGE_SUBSET>)")
+
+		} else {
+			ans.WriteString(attName + ns + " " + a.Variant1.RawString.Normalize() + ")")
+		}
+
+	} else if a.Variant2 != nil {
+		// AttName (_ NOT)? _ (EQ / LEQ / GEQ / TEQ NUMBER?) _ RegExp
+		var ns string
+		if a.Variant2.Not {
+			ns = "<NEGATION>"
+		}
+		attName := "(att "
+		if a.IsProblematicAttrSearch() {
+			attName = "(ATT "
+		}
+		if a.SearchesInLargeSet() {
+			ans.WriteString(attName + ns + "<LARGE_SUBSET>)")
+
+		} else {
+			ans.WriteString(attName + ns + " " + a.Variant2.RegExp.Normalize() + ")")
+		}
+
+	} else if a.Variant5 != nil {
+		ans.WriteString("<NEGATION>" + a.Variant5.AttVal.Normalize())
+
+	} else if a.Variant6 != nil {
+		ans.WriteString("(" + a.Variant6.AttValList.Normalize() + ") ")
+	}
+
+	return ans.String()
 }
 
 func (a *AttVal) MarshalJSON() ([]byte, error) {
@@ -1437,6 +1731,10 @@ func (w *WithinNumber) Text() string {
 	return "#WithinNumber"
 }
 
+func (w *WithinNumber) Normalize() string {
+	return w.Value.Normalize()
+}
+
 func (w *WithinNumber) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
@@ -1460,11 +1758,19 @@ func (w *WithinNumber) DFS(fn func(v ASTNode)) {
 type RegExpRaw struct {
 	origValue string
 	// RgLook / RgGrouped / RgSimple
-	Values []any
+	Values []ASTNode
 }
 
 func (r *RegExpRaw) Text() string {
 	return r.origValue
+}
+
+func (r *RegExpRaw) Normalize() string {
+	var ans strings.Builder
+	for _, v := range r.Values {
+		ans.WriteString(v.Normalize())
+	}
+	return ans.String()
 }
 
 func (r *RegExpRaw) ExhaustionScore() float64 {
@@ -1475,6 +1781,8 @@ func (r *RegExpRaw) ExhaustionScore() float64 {
 			ans += tValue.ExhaustionScore()
 		case *RgSimple:
 			ans += tValue.ExhaustionScore()
+		case *RgLook:
+			// TODO
 		}
 	}
 	return ans
@@ -1527,6 +1835,10 @@ type RawString struct {
 }
 
 func (r *RawString) Text() string {
+	return r.SimpleString.Normalize()
+}
+
+func (r *RawString) Normalize() string {
 	return "#RawString"
 }
 
@@ -1576,6 +1888,14 @@ func (r *SimpleString) Text() string {
 	return ans.String()
 }
 
+func (r *SimpleString) Normalize() string {
+	var ans strings.Builder
+	for _, v := range r.Values {
+		ans.WriteString(v.Normalize())
+	}
+	return ans.String()
+}
+
 func (r *SimpleString) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
@@ -1592,471 +1912,4 @@ func (r *SimpleString) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)
 
 func (r *SimpleString) DFS(fn func(v ASTNode)) {
 	fn(ASTString(r.Text()))
-}
-
-// -------------------------------------------------
-
-type RgGrouped struct {
-	Values []*RegExpRaw // the stuff here is A|B|C...
-}
-
-func (r *RgGrouped) Text() string {
-	return "#RgGrouped"
-}
-
-func (r *RgGrouped) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName        string
-		Expansion       RgGrouped
-		ExhaustionScore float64
-	}{
-		RuleName:        "RgGrouped",
-		Expansion:       *r,
-		ExhaustionScore: r.ExhaustionScore(),
-	})
-}
-
-func (r *RgGrouped) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
-	fn(parent, r)
-	for _, v := range r.Values {
-		v.ForEachElement(r, fn)
-	}
-}
-
-func (r *RgGrouped) DFS(fn func(v ASTNode)) {
-	for _, v := range r.Values {
-		v.DFS(fn)
-	}
-	fn(r)
-}
-
-func (r *RgGrouped) ExhaustionScore() float64 {
-	var ans float64
-	for _, v := range r.Values {
-		ans += v.ExhaustionScore()
-	}
-	return ans
-}
-
-// ---------------------------------------------------------
-
-type RgSimpleProps struct {
-	Ops        []string
-	Constansts []string
-	Alts       []int
-}
-
-func (p RgSimpleProps) ContainsWildcards() bool {
-	for _, v := range p.Ops {
-		if v == ".+" || v == ".*" {
-			return true
-		}
-	}
-	return false
-}
-
-// ----------------------------------------------------
-
-type RgPosixClass struct {
-	Value ASTString
-}
-
-func (r *RgPosixClass) Text() string {
-	return "#RgPosixClass"
-}
-
-func (r *RgPosixClass) MarshalJSON() ([]byte, error) {
-	return json.Marshal(r.Value)
-}
-
-func (r *RgPosixClass) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
-	fn(parent, r.Value)
-}
-
-func (r *RgPosixClass) DFS(fn func(v ASTNode)) {
-	fn(r.Value)
-}
-
-// ----------------------------------------------------
-
-type RgLook struct {
-	Value ASTString
-}
-
-func (r *RgLook) Text() string {
-	return "#RgLook"
-}
-
-func (r *RgLook) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion RgLook
-	}{
-		RuleName:  "RgLook",
-		Expansion: *r,
-	})
-}
-
-func (r *RgLook) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
-	fn(parent, r.Value)
-}
-
-func (r *RgLook) DFS(fn func(v ASTNode)) {
-	fn(r.Value)
-}
-
-// ----------------------------------------------------
-
-type RgLookOperator struct {
-}
-
-// -----------------------------------------------------
-
-type RgAlt struct {
-	Values []*RgAltVal
-}
-
-func (r *RgAlt) NumItems() int {
-	return len(r.Values)
-}
-
-func (r *RgAlt) Text() string {
-	return "#RgAlt"
-}
-
-func (r *RgAlt) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName        string
-		Expansion       RgAlt
-		ExhaustionScore float64
-	}{
-		RuleName:        "RgAlt",
-		Expansion:       *r,
-		ExhaustionScore: r.ExhaustionScore(),
-	})
-}
-
-func (r *RgAlt) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
-	fn(parent, r)
-	for _, item := range r.Values {
-		item.ForEachElement(r, fn)
-	}
-}
-
-func (r *RgAlt) DFS(fn func(v ASTNode)) {
-	for _, item := range r.Values {
-		item.DFS(fn)
-	}
-	fn(r)
-}
-
-func (r *RgAlt) ExhaustionScore() float64 {
-	ans := 0.0
-	for _, v := range r.Values {
-		ans += v.ExhaustionScore()
-	}
-	return ans
-}
-
-// --------------------------------------------------------
-
-type rgCharVariant1 struct {
-	Value ASTString
-}
-
-type rgCharVariant2 struct {
-	Value *RgOp
-}
-
-type RgChar struct {
-	variant1 *rgCharVariant1
-	variant2 *rgCharVariant2
-}
-
-func (rc *RgChar) Text() string {
-	return "#RgChar"
-}
-
-func (rc *RgChar) IsRgOperator(v string) bool {
-	return rc.variant2 != nil && rc.variant2.Value.Value.String() == v
-}
-
-func (rc *RgChar) IsConstant() bool {
-	return rc.variant1 != nil
-}
-
-func (rc *RgChar) MarshalJSON() ([]byte, error) {
-	if rc.variant1 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			Expansion rgCharVariant1
-		}{
-			RuleName:  "RgChar",
-			Expansion: *rc.variant1,
-		})
-
-	} else if rc.variant2 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			Expansion rgCharVariant2
-		}{
-			RuleName:  "RgChar",
-			Expansion: *rc.variant2,
-		})
-
-	} else {
-		return json.Marshal(struct{}{})
-	}
-}
-
-func (r *RgChar) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
-	fn(parent, r)
-	if r.variant1 != nil {
-		fn(r, r.variant1.Value)
-
-	} else if r.variant2 != nil {
-		r.variant2.Value.ForEachElement(r, fn)
-	}
-}
-
-func (r *RgChar) DFS(fn func(v ASTNode)) {
-	if r.variant1 != nil {
-		fn(r.variant1.Value)
-
-	} else if r.variant2 != nil {
-		r.variant2.Value.DFS(fn)
-	}
-	fn(r)
-}
-
-// -----------------------------------------------------------
-
-type RgRange struct {
-	RgRangeSpec *RgRangeSpec
-}
-
-func (r *RgRange) Text() string {
-	if r.RgRangeSpec != nil {
-		return r.RgRangeSpec.Text()
-	}
-	return "RgRange{?, ?}"
-}
-
-func (r *RgRange) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion RgRange
-	}{
-		RuleName:  "RgRange",
-		Expansion: *r,
-	})
-}
-
-// NumericRepr returns a numeric representation
-// of a repeat range operation ({a, b}). If something
-// is undefined, -1 is used.
-func (r *RgRange) NumericRepr() [2]int {
-	if r.RgRangeSpec == nil {
-		return [2]int{-1, -1}
-	}
-	v1, err := strconv.Atoi(r.RgRangeSpec.Number1.String())
-	if err != nil {
-		panic("non-integer 1st value in RgRange") // should not happen - guaranteed by the parser
-	}
-	v2 := -1
-	if r.RgRangeSpec.Number2 != "" {
-		v2, err = strconv.Atoi(r.RgRangeSpec.Number2.String())
-		if err != nil {
-			panic("non-integer 2nd value in RgRange") // should not happen - guaranteed by the parser
-		}
-	}
-	return [2]int{v1, v2}
-}
-
-func (r *RgRange) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
-	fn(parent, r)
-	r.RgRangeSpec.ForEachElement(r, fn)
-}
-
-func (r *RgRange) DFS(fn func(v ASTNode)) {
-	r.RgRangeSpec.DFS(fn)
-	fn(r)
-}
-
-// -------------------------------------------------------------
-
-type RgRangeSpec struct {
-	origValue string
-	Number1   ASTString
-	Number2   ASTString
-}
-
-func (r *RgRangeSpec) Text() string {
-	return r.origValue
-}
-
-func (r *RgRangeSpec) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion RgRangeSpec
-	}{
-		RuleName:  "RgRangeSpec",
-		Expansion: *r,
-	})
-}
-
-func (r *RgRangeSpec) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
-	fn(parent, r)
-	fn(parent, r.Number1)
-	fn(parent, r.Number2)
-}
-
-func (r *RgRangeSpec) DFS(fn func(v ASTNode)) {
-	fn(r.Number1)
-	fn(r.Number2)
-	fn(r)
-}
-
-// -------------------------------------------------------------
-
-type AnyLetter struct {
-	Value ASTString
-}
-
-func (a *AnyLetter) Text() string {
-	return string(a.Value)
-}
-
-func (a *AnyLetter) MarshalJSON() ([]byte, error) {
-	return json.Marshal(a.Value)
-}
-
-func (a *AnyLetter) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
-	fn(parent, a.Value)
-}
-
-func (a *AnyLetter) DFS(fn func(v ASTNode)) {
-	fn(a.Value)
-}
-
-// -------------------------------------------------------------
-
-type RgOp struct {
-	Value ASTString
-}
-
-func (r *RgOp) Text() string {
-	return string(r.Value)
-}
-
-func (r *RgOp) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion RgOp
-	}{
-		RuleName:  "RgOp",
-		Expansion: *r,
-	})
-}
-
-func (r *RgOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
-	fn(parent, r.Value)
-}
-
-func (r *RgOp) DFS(fn func(v ASTNode)) {
-	fn(r.Value)
-}
-
-// ----------------------------------------------------------------
-
-type rgAltValVariant1 struct {
-	RgChar *RgChar
-}
-
-type rgAltValVariant2 struct {
-	Value ASTString
-}
-
-type rgAltValVariant3 struct {
-	From ASTString
-	To   ASTString
-}
-
-type RgAltVal struct {
-	variant1 *rgAltValVariant1
-	variant2 *rgAltValVariant2
-	variant3 *rgAltValVariant3
-}
-
-func (rc *RgAltVal) Text() string {
-	return "#RgAltVal"
-}
-
-func (rc *RgAltVal) MarshalJSON() ([]byte, error) {
-	var variant any
-	if rc.variant1 != nil {
-		variant = rc.variant1
-
-	} else if rc.variant2 != nil {
-		variant = rc.variant2
-
-	} else if rc.variant3 != nil {
-		variant = rc.variant3
-
-	} else {
-		variant = struct{}{}
-	}
-
-	return json.Marshal(struct {
-		RuleName        string
-		Expansion       any
-		ExhaustionScore float64
-	}{
-		RuleName:        "RgAltVal",
-		Expansion:       variant,
-		ExhaustionScore: rc.ExhaustionScore(),
-	})
-}
-
-func (r *RgAltVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
-	fn(parent, r)
-	if r.variant1 != nil {
-		r.variant1.RgChar.ForEachElement(r, fn)
-
-	} else if r.variant2 != nil {
-		fn(r, r.variant2.Value)
-
-	} else if r.variant3 != nil {
-		fn(r, r.variant3.From)
-		fn(r, r.variant3.To)
-	}
-}
-
-func (r *RgAltVal) DFS(fn func(v ASTNode)) {
-	if r.variant1 != nil {
-		r.variant1.RgChar.DFS(fn)
-
-	} else if r.variant2 != nil {
-		fn(r.variant2.Value)
-
-	} else if r.variant3 != nil {
-		fn(r.variant3.From)
-		fn(r.variant3.To)
-	}
-	fn(r)
-}
-
-func (r *RgAltVal) ExhaustionScore() float64 {
-	if r.variant1 != nil {
-		return 2.0 // TODO
-	}
-	if r.variant2 != nil {
-		return 2
-	}
-	if r.variant3 != nil {
-		ch1 := []rune(r.variant3.From.String())
-		ch2 := []rune(r.variant3.To.String())
-		return float64(ch2[0]-ch1[0]+1) * 1.05
-	}
-	return 0
 }

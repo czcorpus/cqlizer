@@ -24,7 +24,7 @@ import (
 
 func TestRgSimpleExhaustionScoreConstFirst(t *testing.T) {
 	rgs := RgSimple{
-		Values: []any{},
+		Values: []ASTNode{},
 	}
 
 	rgch := &RgChar{
@@ -36,7 +36,7 @@ func TestRgSimpleExhaustionScoreConstFirst(t *testing.T) {
 		Value: ASTString("."),
 	}
 	rgch = &RgChar{
-		variant2: &rgCharVariant2{Value: rgop},
+		variant2: &rgCharVariant2{RgOp: rgop},
 	}
 	rgs.Values = append(rgs.Values, rgch)
 
@@ -44,7 +44,7 @@ func TestRgSimpleExhaustionScoreConstFirst(t *testing.T) {
 		Value: ASTString("*"),
 	}
 	rgch = &RgChar{
-		variant2: &rgCharVariant2{Value: rgop},
+		variant2: &rgCharVariant2{RgOp: rgop},
 	}
 	rgs.Values = append(rgs.Values, rgch)
 	assert.Equal(t, 15, rgs.ExhaustionScore())
@@ -52,14 +52,14 @@ func TestRgSimpleExhaustionScoreConstFirst(t *testing.T) {
 
 func TestRgSimpleExhaustionScoreForWildcardFirst(t *testing.T) {
 	rgs := RgSimple{
-		Values: []any{},
+		Values: []ASTNode{},
 	}
 
 	rgop := &RgOp{
 		Value: ASTString("."),
 	}
 	rgch := &RgChar{
-		variant2: &rgCharVariant2{Value: rgop},
+		variant2: &rgCharVariant2{RgOp: rgop},
 	}
 	rgs.Values = append(rgs.Values, rgch)
 
@@ -67,7 +67,7 @@ func TestRgSimpleExhaustionScoreForWildcardFirst(t *testing.T) {
 		Value: ASTString("*"),
 	}
 	rgch = &RgChar{
-		variant2: &rgCharVariant2{Value: rgop},
+		variant2: &rgCharVariant2{RgOp: rgop},
 	}
 	rgs.Values = append(rgs.Values, rgch)
 
@@ -81,7 +81,7 @@ func TestRgSimpleExhaustionScoreForWildcardFirst(t *testing.T) {
 
 func TestRgSimpleExhaustionScoreRanges(t *testing.T) {
 	rgs := RgSimple{
-		Values: []any{},
+		Values: []ASTNode{},
 	}
 
 	rgch := &RgChar{

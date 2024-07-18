@@ -44,7 +44,8 @@ func (a action) String() string {
 
 func (a action) validate() error {
 	if a != actionServer && a != actionImport && a != actionCorpsizes && a != actionBenchmark &&
-		a != actionReplay && a != actionEvaluate && a != actionLearn && a != actionVersion {
+		a != actionReplay && a != actionEvaluate && a != actionLearn && a != actionVersion &&
+		a != actionNormalize {
 		return fmt.Errorf("unknown action: %s", a)
 	}
 	return nil
@@ -59,6 +60,7 @@ const (
 	actionEvaluate  action = "evaluate"
 	actionLearn     action = "learn"
 	actionVersion   action = "version"
+	actionNormalize action = "normalize"
 )
 
 var (
@@ -197,9 +199,10 @@ func main() {
 	addToTrainingSet := cmdCorpsizes.Bool("add-to-training", false, "If set, than all the imported records will become part of the training&validation set")
 
 	cmdEvaluate := flag.NewFlagSet(actionEvaluate.String(), flag.ExitOnError)
-	numSamples := cmdEvaluate.Int("num-samples", 10, "Number of samples for the validation action")
-	sampleSize := cmdEvaluate.Int("sample-size", 500, "Sample size for the validation action")
+	numSamples := cmdEvaluate.Int("num-samples", 5, "Number of samples for the validation action")
+	sampleSize := cmdEvaluate.Int("sample-size", 300, "Sample size for the validation action")
 	allowTrainingRecs := cmdEvaluate.Bool("allow-training-records", false, "If set, then even records used for training the model may occur in validation sets")
+	anyCorpusSearch2 := cmdEvaluate.Bool("any-corpus", false, "Do not restrict to queries to syn* corpora")
 	cmdEvaluate.Usage = func() {
 		fmt.Fprintf(
 			os.Stderr,
@@ -257,6 +260,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "\nReplay learn and validation for the specified training set.\n")
 	}
 
+	cmdNormalize := flag.NewFlagSet(actionNormalize.String(), flag.ExitOnError)
+	cmdNormalize.Usage = func() {
+		fmt.Fprintf(
+			os.Stderr,
+			"Usage:\t%s %s [options] config.json\n\t",
+			filepath.Base(os.Args[0]), actionNormalize.String())
+		fmt.Fprintf(os.Stderr, "\nGenerate normalized versions for queries.\n")
+	}
+
 	if len(os.Args) < 2 {
 		topLevelUsage()
 		os.Exit(10)
@@ -312,8 +324,13 @@ func main() {
 	case actionEvaluate:
 		cmdEvaluate.Parse(os.Args[2:])
 		conf := setupConfAndLogging(cmdEvaluate, 0)
-		trainingID := parseTrainingIdOrExit(cmdEvaluate.Arg(1))
-		runEvaluation(conf, trainingID, *numSamples, *sampleSize, *allowTrainingRecs)
+		//trainingID := parseTrainingIdOrExit(cmdEvaluate.Arg(1))
+		thr, err := strconv.ParseFloat(cmdEvaluate.Arg(1), 64)
+		if err != nil {
+			color.New(errColor).Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		runEvaluation2(conf, thr, *numSamples, *sampleSize, *allowTrainingRecs, *anyCorpusSearch2)
 
 	case actionLearn:
 		cmdLearn.Parse(os.Args[2:])
@@ -324,6 +341,11 @@ func main() {
 			os.Exit(1)
 		}
 		runLearning(conf, thr, *ratioOfTrues, !*anyCorpusSearch)
+
+	case actionNormalize:
+		cmdNormalize.Parse(os.Args[2:])
+		conf := setupConfAndLogging(cmdNormalize, 0)
+		runQueryNormalization(conf)
 
 	default:
 		log.Fatal().Msgf("Unknown action %s", action)
