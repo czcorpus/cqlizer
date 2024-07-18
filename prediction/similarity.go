@@ -15,11 +15,11 @@ type QueryEstimation struct {
 	ConfidentEstimation bool `json:"confidentEstimation"`
 }
 
-func CombinedEstimation(rfPredict [2]float64, qsPredict, threshold float64) bool {
-	if rfPredict[1] > 0.6 || qsPredict > threshold*1.2 {
+func CombinedEstimation(rfPredict [2]float64, qsPredict *stats.BestMatches, threshold float64) bool {
+	if rfPredict[1] > 0.5 {
 		return true
 	}
-	if rfPredict[1] > 0.4 && qsPredict > threshold/20.0 {
+	if rfPredict[1] > 0.35 && qsPredict.SmartBenchTime() > threshold && qsPredict.At(0).Distance == 0 {
 		return true
 	}
 	return false
@@ -113,14 +113,13 @@ func EvaluateByMultimodel(
 			item := rec
 			matches.TryAdd(&item, dist)
 		}
-		qsPredict := matches.SmartBenchTime()
-		actual := item.BenchTime >= threshold
 
 		features := feats.NewRecord()
 		features.ImportFrom(parsed)
 		rfPredict := rfModel.Vote(features.AsVector())
 		votes := [2]float64{rfPredict[0], rfPredict[1]}
-		predict := CombinedEstimation(votes, qsPredict, threshold)
+		predict := CombinedEstimation(votes, matches, threshold)
+		actual := item.BenchTime >= threshold
 
 		if predict && !actual {
 			fmt.Println("false positive ---------------------------")

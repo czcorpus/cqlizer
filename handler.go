@@ -106,7 +106,7 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 	uniresp.WriteJSONResponse(
 		ctx.Writer,
 		map[string]bool{
-			"problematic": prediction.CombinedEstimation(votes, matches.SmartBenchTime(), a.threshold),
+			"problematic": prediction.CombinedEstimation(votes, matches, a.threshold),
 		},
 	)
 }
@@ -152,7 +152,7 @@ func (a *Actions) AnalyzeQuery2(ctx *gin.Context) {
 	uniresp.WriteJSONResponse(
 		ctx.Writer,
 		map[string]any{
-			"finalPrediction":   prediction.CombinedEstimation(votes, matches.SmartBenchTime(), a.threshold),
+			"finalPrediction":   prediction.CombinedEstimation(votes, matches, a.threshold),
 			"qsModelEstimation": matches.SmartBenchTime(),
 			"rfModelEstimation": map[string]float64{
 				"yes": votes[1],
