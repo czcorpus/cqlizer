@@ -40,8 +40,8 @@ func (bm *BestMatches) AvgBenchTime() float64 {
 
 func (bm *BestMatches) SmartBenchTime() float64 {
 	bestItemDist := bm.data[0].Distance
-	var numIncluded float64
-	var avg float64
+	var numIncluded float64 = 1.0
+	var avg float64 = bm.data[0].Record.BenchTime
 	for i := 1; i < len(bm.data); i++ {
 		if bm.data[i].Distance == bestItemDist {
 			avg += bm.data[i].Record.BenchTime

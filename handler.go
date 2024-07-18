@@ -25,14 +25,16 @@ import (
 	"github.com/czcorpus/cnc-gokit/uniresp"
 	"github.com/czcorpus/cqlizer/cql"
 	"github.com/czcorpus/cqlizer/feats"
+	"github.com/czcorpus/cqlizer/prediction"
 	"github.com/czcorpus/cqlizer/stats"
 	"github.com/gin-gonic/gin"
 	randomforest "github.com/malaschitz/randomForest"
 )
 
 type Actions struct {
-	StatsDB *stats.Database
-	rfModel randomforest.Forest
+	StatsDB   *stats.Database
+	rfModel   randomforest.Forest
+	threshold float64
 }
 
 func (a *Actions) ParseQuery(ctx *gin.Context) {
@@ -74,13 +76,39 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 		)
 		return
 	}
+
+	norm := parsed.Normalize()
+	recs, err := a.StatsDB.GetAllRecords(
+		stats.ListFilter{}.
+			SetBenchmarked(true).
+			SetTrainingExcluded(false).
+			SetWithNormalizedQuery(true),
+	)
+	if err != nil {
+		uniresp.RespondWithErrorJSON(
+			ctx,
+			fmt.Errorf("failed to get records: %w", err),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+	matches := stats.NewBestMatches(5)
+	for _, rec := range recs {
+		dist := levenshtein.ComputeDistance(rec.QueryNormalized, norm)
+		item := rec
+		matches.TryAdd(&item, dist)
+	}
 	features := feats.NewRecord()
 	features.ImportFrom(parsed)
-	features.ExportHeatmap(fmt.Sprintf("./data/query-%s.png", stats.IdempotentID(time.Now(), q)))
-
 	ans := a.rfModel.Vote(features.AsVector())
+	votes := [2]float64{ans[0], ans[1]}
 
-	uniresp.WriteJSONResponse(ctx.Writer, map[string]float64{"no": ans[0], "yes": ans[1]})
+	uniresp.WriteJSONResponse(
+		ctx.Writer,
+		map[string]bool{
+			"problematic": prediction.CombinedEstimation(votes, matches.SmartBenchTime(), a.threshold),
+		},
+	)
 }
 
 func (a *Actions) AnalyzeQuery2(ctx *gin.Context) {
@@ -116,11 +144,20 @@ func (a *Actions) AnalyzeQuery2(ctx *gin.Context) {
 		item := rec
 		matches.TryAdd(&item, dist)
 	}
+	features := feats.NewRecord()
+	features.ImportFrom(parsed)
+	ans := a.rfModel.Vote(features.AsVector())
+	votes := [2]float64{ans[0], ans[1]}
 
 	uniresp.WriteJSONResponse(
 		ctx.Writer,
 		map[string]any{
-			"estimation":      matches.SmartBenchTime(),
+			"finalPrediction":   prediction.CombinedEstimation(votes, matches.SmartBenchTime(), a.threshold),
+			"qsModelEstimation": matches.SmartBenchTime(),
+			"rfModelEstimation": map[string]float64{
+				"yes": votes[1],
+				"no":  votes[0],
+			},
 			"normalizedQuery": norm,
 			"similarQueries":  matches.Items(),
 		})

@@ -173,10 +173,15 @@ func (rec *Record) ImportFrom(query *cql.Query) {
 			i2 := rec.GetNodeTypeIdx(parent)
 			v := 1.0
 			if tNode.IsProblematicAttrSearch() {
-				v = 250.0
+				if tNode.SearchesInLargeSet() {
+					v = 6500.0
 
-			} else if tNode.IsNegation() {
-				v = 400.0
+				} else {
+					v = 550.0
+				}
+			}
+			if tNode.IsNegation() {
+				v *= 10
 			}
 			largeMatrix.Set(i1, i2, largeMatrix.At(i1, i2)+v)
 		case *cql.Repetition:

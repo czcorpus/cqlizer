@@ -1547,6 +1547,17 @@ func (a *AttVal) IsProblematicAttrSearch() bool {
 	return false
 }
 
+func (a *AttVal) SearchesInLargeSet() bool {
+	if a.Variant1 != nil {
+		return a.Variant1.RawString.Text() == "\"N\""
+	}
+	if a.Variant2 != nil {
+		return a.Variant2.RegExp.Text() == "\"N.*\"" || a.Variant2.RegExp.Text() == "\"N.+\"" ||
+			a.Variant2.RegExp.Text() == "\".*\"" || a.Variant2.RegExp.Text() == "\".+\""
+	}
+	return false
+}
+
 func (a *AttVal) Text() string {
 	return a.origValue
 }
@@ -1563,7 +1574,12 @@ func (a *AttVal) Normalize() string {
 		if a.IsProblematicAttrSearch() {
 			attName = "(ATT "
 		}
-		ans.WriteString(attName + ns + " " + a.Variant1.RawString.Normalize() + ")")
+		if a.SearchesInLargeSet() {
+			ans.WriteString(attName + ns + "<LARGE_SUBSET>)")
+
+		} else {
+			ans.WriteString(attName + ns + " " + a.Variant1.RawString.Normalize() + ")")
+		}
 
 	} else if a.Variant2 != nil {
 		// AttName (_ NOT)? _ (EQ / LEQ / GEQ / TEQ NUMBER?) _ RegExp
@@ -1575,7 +1591,12 @@ func (a *AttVal) Normalize() string {
 		if a.IsProblematicAttrSearch() {
 			attName = "(ATT "
 		}
-		ans.WriteString(attName + ns + " " + a.Variant2.RegExp.Normalize() + ")")
+		if a.SearchesInLargeSet() {
+			ans.WriteString(attName + ns + "<LARGE_SUBSET>)")
+
+		} else {
+			ans.WriteString(attName + ns + " " + a.Variant2.RegExp.Normalize() + ")")
+		}
 
 	} else if a.Variant5 != nil {
 		ans.WriteString("<NEGATION>" + a.Variant5.AttVal.Normalize())
@@ -1760,6 +1781,8 @@ func (r *RegExpRaw) ExhaustionScore() float64 {
 			ans += tValue.ExhaustionScore()
 		case *RgSimple:
 			ans += tValue.ExhaustionScore()
+		case *RgLook:
+			// TODO
 		}
 	}
 	return ans
