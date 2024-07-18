@@ -22,6 +22,14 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/czcorpus/cnc-gokit/collections"
+)
+
+var (
+	problematicAttributes = []string{
+		"tag", "pos", "verbtag", "upos", "afun", "case",
+	}
 )
 
 // Seq (_ BINOR _ Seq)* / Seq
@@ -1535,27 +1543,41 @@ func (a *AttVal) IsNegation() bool {
 		a.Variant2 != nil && a.Variant2.Not
 }
 
-func (a *AttVal) IsProblematicAttrSearch() bool {
+func (a *AttVal) getAttName() string {
 	if a.Variant1 != nil {
-		return (a.Variant1.AttName == "tag" || a.Variant1.AttName == "pos" || a.Variant1.AttName == "verbtag" ||
-			a.Variant1.AttName == "upos" || a.Variant1.AttName == "afun" || a.Variant1.AttName == "case")
+		return a.Variant1.AttName.String()
 
 	} else if a.Variant2 != nil {
-		return (a.Variant2.AttName == "tag" || a.Variant2.AttName == "pos" || a.Variant2.AttName == "verbtag" ||
-			a.Variant2.AttName == "upos" || a.Variant2.AttName == "afun" || a.Variant2.AttName == "case")
+		return a.Variant2.AttName.String()
 	}
-	return false
+	return ""
 }
 
-func (a *AttVal) SearchesInLargeSet() bool {
+func (a *AttVal) rawValue() string {
 	if a.Variant1 != nil {
-		return a.Variant1.RawString.Text() == "\"N\""
+		return a.Variant1.RawString.Text()
 	}
 	if a.Variant2 != nil {
-		return a.Variant2.RegExp.Text() == "\"N.*\"" || a.Variant2.RegExp.Text() == "\"N.+\"" ||
-			a.Variant2.RegExp.Text() == "\".*\"" || a.Variant2.RegExp.Text() == "\".+\""
+		return a.Variant2.RegExp.Text()
 	}
-	return false
+	return ""
+}
+
+func (a *AttVal) IsProblematicAttrSearch() bool {
+	attName := a.getAttName()
+	return collections.SliceContains(problematicAttributes, attName)
+}
+
+func (a *AttVal) SearchesInLargeSubset() bool {
+	if !a.IsProblematicAttrSearch() {
+		return false
+	}
+	rawValue := a.rawValue()
+	if a.getAttName() == "pos" && rawValue == "\"N\"" {
+		return true
+	}
+	problValues := []string{"\"N.*\"", "\"N.+\"", "\".*\"", "\".+\""}
+	return collections.SliceContains(problValues, rawValue)
 }
 
 func (a *AttVal) Text() string {
@@ -1574,7 +1596,7 @@ func (a *AttVal) Normalize() string {
 		if a.IsProblematicAttrSearch() {
 			attName = "(ATT "
 		}
-		if a.SearchesInLargeSet() {
+		if a.SearchesInLargeSubset() {
 			ans.WriteString(attName + ns + "<LARGE_SUBSET>)")
 
 		} else {
@@ -1591,7 +1613,7 @@ func (a *AttVal) Normalize() string {
 		if a.IsProblematicAttrSearch() {
 			attName = "(ATT "
 		}
-		if a.SearchesInLargeSet() {
+		if a.SearchesInLargeSubset() {
 			ans.WriteString(attName + ns + "<LARGE_SUBSET>)")
 
 		} else {
