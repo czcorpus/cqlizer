@@ -173,7 +173,7 @@ func (rec *Record) ImportFrom(query *cql.Query) {
 			i2 := rec.GetNodeTypeIdx(parent)
 			v := 1.0
 			if tNode.IsProblematicAttrSearch() {
-				if tNode.SearchesInLargeSet() {
+				if tNode.SearchesInLargeSubset() {
 					v = 6500.0
 
 				} else {
