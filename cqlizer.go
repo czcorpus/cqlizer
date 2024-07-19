@@ -28,7 +28,7 @@ import (
 
 	"github.com/czcorpus/cnc-gokit/logging"
 	"github.com/czcorpus/cqlizer/cnf"
-	"github.com/czcorpus/cqlizer/prediction"
+	"github.com/czcorpus/cqlizer/models/rf"
 	"github.com/czcorpus/cqlizer/stats"
 	"github.com/fatih/color"
 	"github.com/gin-gonic/gin"
@@ -117,7 +117,7 @@ func loadModel(conf *cnf.Conf, statsDB *stats.Database, trainingID int) (randomf
 			fmt.Errorf("failed to load model for training %d \u25B6 %w", trainingID, err)
 	}
 
-	eng := prediction.NewEngine(conf, statsDB)
+	eng := rf.NewEngine(conf, statsDB)
 	model, err := eng.TrainReplay(threshold, tdata, vdata)
 	if err != nil {
 		return randomforest.Forest{},

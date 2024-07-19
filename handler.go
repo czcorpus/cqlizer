@@ -24,8 +24,8 @@ import (
 	"github.com/agnivade/levenshtein"
 	"github.com/czcorpus/cnc-gokit/uniresp"
 	"github.com/czcorpus/cqlizer/cql"
-	"github.com/czcorpus/cqlizer/feats"
-	"github.com/czcorpus/cqlizer/prediction"
+	"github.com/czcorpus/cqlizer/models/combo"
+	"github.com/czcorpus/cqlizer/models/rf"
 	"github.com/czcorpus/cqlizer/stats"
 	"github.com/gin-gonic/gin"
 	randomforest "github.com/malaschitz/randomForest"
@@ -98,7 +98,7 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 		item := rec
 		matches.TryAdd(&item, dist)
 	}
-	features := feats.NewRecord()
+	features := rf.NewFeats()
 	features.ImportFrom(parsed)
 	ans := a.rfModel.Vote(features.AsVector())
 	votes := [2]float64{ans[0], ans[1]}
@@ -106,7 +106,7 @@ func (a *Actions) AnalyzeQuery(ctx *gin.Context) {
 	uniresp.WriteJSONResponse(
 		ctx.Writer,
 		map[string]bool{
-			"problematic": prediction.CombinedEstimation(votes, matches, a.threshold),
+			"problematic": combo.Prediction(votes, matches, a.threshold),
 		},
 	)
 }
@@ -144,7 +144,7 @@ func (a *Actions) AnalyzeQuery2(ctx *gin.Context) {
 		item := rec
 		matches.TryAdd(&item, dist)
 	}
-	features := feats.NewRecord()
+	features := rf.NewFeats()
 	features.ImportFrom(parsed)
 	ans := a.rfModel.Vote(features.AsVector())
 	votes := [2]float64{ans[0], ans[1]}
@@ -152,7 +152,7 @@ func (a *Actions) AnalyzeQuery2(ctx *gin.Context) {
 	uniresp.WriteJSONResponse(
 		ctx.Writer,
 		map[string]any{
-			"finalPrediction":   prediction.CombinedEstimation(votes, matches, a.threshold),
+			"finalPrediction":   combo.Prediction(votes, matches, a.threshold),
 			"qsModelEstimation": matches.SmartBenchTime(),
 			"rfModelEstimation": map[string]float64{
 				"yes": votes[1],

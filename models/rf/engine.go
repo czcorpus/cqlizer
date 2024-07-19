@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package prediction
+package rf
 
 import (
 	"fmt"
@@ -23,7 +23,7 @@ import (
 	"github.com/czcorpus/cnc-gokit/maths"
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/cql"
-	"github.com/czcorpus/cqlizer/feats"
+	"github.com/czcorpus/cqlizer/models"
 	"github.com/czcorpus/cqlizer/stats"
 	randomforest "github.com/malaschitz/randomForest"
 	"github.com/rs/zerolog/log"
@@ -61,13 +61,13 @@ func (eng *Engine) Train(threshold, ratioOfTrues float64, synCompat bool) error 
 	return err
 }
 
-func (eng *Engine) getFeats(q string) (feats.Record, error) {
+func (eng *Engine) getFeats(q string) (Feats, error) {
 	p, err := cql.ParseCQL("#", q)
 	if err != nil {
-		return feats.Record{}, fmt.Errorf("failed to get feats of the query \u25B6 %w", err)
+		return Feats{}, fmt.Errorf("failed to get feats of the query \u25B6 %w", err)
 
 	}
-	fts := feats.NewRecord()
+	fts := NewFeats()
 	fts.ImportFrom(p)
 	return fts, nil
 }
@@ -171,8 +171,8 @@ func (eng *Engine) Evaluate(
 	eval []stats.DBRecord,
 	threshold float64,
 	onEvalItem func(itemID string, prediction bool) error,
-) (EvalResult, error) {
-	var ans EvalResult
+) (models.EvalResult, error) {
+	var ans models.EvalResult
 
 	for _, row := range eval {
 		fts, err := eng.getFeats(row.Query)
