@@ -26,6 +26,10 @@ func (op Constant) Multiply(other Constant) Constant {
 	return Constant(float64(op) * float64(other))
 }
 
+func (op Constant) AsFloat64() float64 {
+	return float64(op)
+}
+
 // -----------------------------
 
 type Avg struct{}

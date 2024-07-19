@@ -1,5 +1,9 @@
 package ndw
 
+const (
+	paramsVectorSize = 38
+)
+
 type UnlimiteFloats []float64
 
 func (f UnlimiteFloats) Get(i int) float64 {
@@ -92,4 +96,45 @@ func (p Params) ToVec() []float64 {
 		p.RgQM,
 		p.RgRepeat,
 	}
+}
+
+func (p *Params) FromVec(v []float64) {
+	p.Sequence = v[0]
+	p.Seq = v[1]
+	p.GlobPart = v[2]
+	p.WithinOrContaining = v[3]
+	p.WithinContainingPart = v[4]
+	p.GlobCond = v[5]
+	p.Structure = v[6]
+	p.AttValList = v[7]
+	p.NumberedPosition = v[8]
+	p.OnePosition = v[9]
+	p.Position = v[10]
+	p.RegExp = v[11]
+	p.MuPart = v[12]
+	p.Repetition = v[13]
+	p.AtomQuery = v[14]
+	p.RepOpt = v[15]
+	p.OpenStructTag = v[16]
+	p.CloseStructTag = v[17]
+	p.AlignedPart = v[18]
+	p.AttValAnd = v[19]
+	p.AttVal = v[20]
+	p.WithinNumber = v[21]
+	p.RegExpRaw = v[22]
+	p.RawString = v[23]
+	p.SimpleString = v[24]
+	p.RgGrouped = v[25]
+	p.RgSimple = v[26]
+	p.RgPosixClass = v[27]
+	p.RgLook = v[28]
+	p.RgAlt = v[29]
+	p.RgRange = v[30]
+	p.RgRangeSpec = v[31]
+	p.AnyLetter = v[32]
+	p.RgOp = v[33]
+	p.RgAltVal = v[34]
+	p.RgAny = v[35]
+	p.RgQM = v[36]
+	p.RgRepeat = v[37]
 }

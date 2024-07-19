@@ -44,8 +44,8 @@ func (a action) String() string {
 
 func (a action) validate() error {
 	if a != actionServer && a != actionImport && a != actionCorpsizes && a != actionBenchmark &&
-		a != actionReplay && a != actionEvaluate && a != actionLearn && a != actionVersion &&
-		a != actionNormalize {
+		a != actionReplay && a != actionEvaluate && a != actionLearn && a != actionLearnNDW &&
+		a != actionVersion && a != actionNormalize {
 		return fmt.Errorf("unknown action: %s", a)
 	}
 	return nil
@@ -59,6 +59,7 @@ const (
 	actionReplay    action = "replay"
 	actionEvaluate  action = "evaluate"
 	actionLearn     action = "learn"
+	actionLearnNDW  action = "learn-ndw"
 	actionVersion   action = "version"
 	actionNormalize action = "normalize"
 )
@@ -154,7 +155,8 @@ func topLevelUsage() {
 	fmt.Fprintf(os.Stderr, "\t%s\trun benchmarks on stored queries\n", actionBenchmark.String())
 	fmt.Fprintf(os.Stderr, "\t%s\t\treplay stored training\n", actionReplay.String())
 	fmt.Fprintf(os.Stderr, "\t%s\tevaluate queries with `trainingExclude` flag\n", actionEvaluate.String())
-	fmt.Fprintf(os.Stderr, "\t%s\t\tlearn using benchmarked queries (ones without `trainingExclude` flag)\n", actionLearn.String())
+	fmt.Fprintf(os.Stderr, "\t%s\t\tlearn rf model using benchmarked queries (ones without `trainingExclude` flag)\n", actionLearn.String())
+	fmt.Fprintf(os.Stderr, "\t%s\tlearn ndw model using benchmarked queries (ones without `trainingExclude` flag)\n", actionLearnNDW.String())
 	fmt.Fprintf(os.Stderr, "\nUse `cqlizer command -h` for information about a specific action\n\n")
 }
 
@@ -243,6 +245,22 @@ func main() {
 		fmt.Fprintf(os.Stderr, "\tthreshold\tA threshold value (in seconds) for what is considered a problematic query in a benchmark environment\n")
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmdLearn.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "\nLearn a new model based on queries stored in database (the ones without the `trainingExclude` flag)\n")
+	}
+
+	cmdLearnNDW := flag.NewFlagSet(actionLearn.String(), flag.ExitOnError)
+	anyCorpusSearchNDW := cmdLearnNDW.Bool("any-corpus", false, "Do not restrict to queries to syn* corpora")
+	ratioOfTruesNDW := cmdLearnNDW.Float64("ratio-of-trues", 0.1, "Ratio of values above the threshold")
+	cmdLearnNDW.Usage = func() {
+		fmt.Fprintf(
+			os.Stderr,
+			"Usage:\t%s %s [options] config.json threshold\n\t",
+			filepath.Base(os.Args[0]), actionLearn.String())
+		fmt.Fprintf(os.Stderr, "\nArguments:\n")
+		fmt.Fprintf(os.Stderr, "\tconfig.json\ta path to a config file\n")
+		fmt.Fprintf(os.Stderr, "\tthreshold\tA threshold value (in seconds) for what is considered a problematic query in a benchmark environment\n")
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmdLearnNDW.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nLearn a new model based on queries stored in database (the ones without the `trainingExclude` flag)\n")
 	}
 
@@ -341,6 +359,16 @@ func main() {
 			os.Exit(1)
 		}
 		runLearning(conf, thr, *ratioOfTrues, !*anyCorpusSearch)
+
+	case actionLearnNDW:
+		cmdLearnNDW.Parse(os.Args[2:])
+		conf := setupConfAndLogging(cmdLearnNDW, 0)
+		thr, err := strconv.ParseFloat(cmdLearnNDW.Arg(1), 64)
+		if err != nil {
+			color.New(errColor).Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		runLearningNDW(conf, thr, *ratioOfTruesNDW, !*anyCorpusSearchNDW)
 
 	case actionNormalize:
 		cmdNormalize.Parse(os.Args[2:])

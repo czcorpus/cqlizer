@@ -9,6 +9,7 @@ import (
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/cql"
 	"github.com/czcorpus/cqlizer/logproc"
+	"github.com/czcorpus/cqlizer/models/ndw"
 	"github.com/czcorpus/cqlizer/models/qsm"
 	"github.com/czcorpus/cqlizer/models/rf"
 	"github.com/czcorpus/cqlizer/stats"
@@ -82,6 +83,20 @@ func runLearning(conf *cnf.Conf, threshold, ratioOfTrues float64, synCompat bool
 		color.New(errColor).Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func runLearningNDW(conf *cnf.Conf, threshold, ratioOfTrues float64, synCompat bool) {
+	db, err := stats.NewDatabase(conf.WorkingDBPath)
+	if err != nil {
+		color.New(errColor).Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	err = db.Init()
+	if err != nil {
+		color.New(errColor).Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	ndw.Test(db, threshold, ratioOfTrues, synCompat)
 }
 
 func runTrainingReplay(conf *cnf.Conf, trainingID int) {

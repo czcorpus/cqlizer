@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	maxParamValue = 1.0
+	maxParamValue = 20.0
 )
 
 type Chromosome []float64
@@ -73,39 +73,48 @@ func mutate(ch Chromosome, probMut float64) Chromosome {
 }
 
 type PopulItem struct {
-	Ch    Chromosome
-	Score Result
+	Ch     Chromosome
+	Result Result
 }
 
-type Result struct {
-	Score         float64
-	PredictionErr float64
-	Precision     float64
-	Recall        float64
+func (p PopulItem) IsUndefined() bool {
+	return p.Result == nil || p.Result.TotalError() == 0
 }
 
-func Optimize(populationSize int, vectorDim int, maxNumIter int, tuneAfter int, probMutation float64, fn func(inp Chromosome) Result) PopulItem {
+type Result interface {
+	TotalError() float64
+	PrintOverview()
+}
+
+func Optimize(
+	populationSize int,
+	vectorDim int,
+	maxNumIter int,
+	tuneAfter int,
+	probMutation float64,
+	fn func(inp Chromosome) Result) PopulItem {
 	population := make([]PopulItem, populationSize)
-	var bestSoFar PopulItem
+	bestSoFar := PopulItem{}
 	for i := 0; i < populationSize; i++ {
 		population[i] = PopulItem{Ch: randomVector(vectorDim)}
 	}
 	for i := 0; i < maxNumIter; i++ {
 		fmt.Println("GENERATION: ", i)
 		for j := 0; j < populationSize; j++ {
-			population[j].Score = fn(population[j].Ch)
+			population[j].Result = fn(population[j].Ch)
 			//fmt.Println("item ", j, " score: ", population[j].score)
 		}
 		sort.Slice(population, func(i, j int) bool {
-			return population[i].Score.Score < population[j].Score.Score
+			return population[i].Result.TotalError() < population[j].Result.TotalError()
 		})
 
-		fmt.Println("best: ", population[0].Score, ", ", population[0].Ch)
-		fmt.Println("worst: ", population[len(population)-1].Score, ", ", population[len(population)-1].Ch)
-		if bestSoFar.Score.Score == 0 || population[0].Score.Score < bestSoFar.Score.Score {
+		fmt.Println("best: ", population[0].Result.TotalError(), ", ", population[0].Ch)
+		fmt.Println("worst: ", population[len(population)-1].Result.TotalError(), ", ", population[len(population)-1].Ch)
+		if bestSoFar.IsUndefined() || population[0].Result.TotalError() < bestSoFar.Result.TotalError() {
 			bestSoFar = population[0]
 		}
-		fmt.Printf(">>> BEST SO FAR: %#v\n%s\n", bestSoFar.Score, bestSoFar.Ch)
+		fmt.Printf(">>> BEST SO FAR: %#v\n%s\n", bestSoFar.Result.TotalError(), bestSoFar.Ch)
+		bestSoFar.Result.PrintOverview()
 
 		newPopulation := make([]PopulItem, populationSize)
 		for j := 0; j < populationSize; j++ {

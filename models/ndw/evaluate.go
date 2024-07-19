@@ -69,11 +69,29 @@ func Evaluate(query *cql.Query, params Params) *stackm.StackMachine {
 		case *cql.RawString:
 		case *cql.SimpleString:
 		case *cql.RgGrouped:
+			for range tNode.Values[1:] {
+				sm.Push(stackm.Add{})
+			}
+			sm.Push(stackm.Constant(params.RgSimple))
+			sm.Push(stackm.Multiply{})
 		case *cql.RgSimple:
+			for range tNode.Values[1:] {
+				sm.Push(stackm.Multiply{})
+			}
+			sm.Push(stackm.Constant(params.RgSimple))
+			sm.Push(stackm.Multiply{})
 		case *cql.RgPosixClass:
 		case *cql.RgLook:
+		case *cql.RgChar:
+			sm.Push(stackm.Constant(1)) // TODO
 		case *cql.RgAlt:
+			for range tNode.Values[1:] {
+				sm.Push(stackm.Add{})
+			}
+			sm.Push(stackm.Constant(params.RgAlt))
+			sm.Push(stackm.Multiply{})
 		case *cql.RgRange:
+			sm.Push(stackm.Constant(params.RgRange)) // TODO
 		case *cql.RgRangeSpec:
 		case *cql.AnyLetter:
 			sm.Push(stackm.Constant(params.AnyLetter))
