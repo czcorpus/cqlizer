@@ -9,7 +9,8 @@ import (
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/cql"
 	"github.com/czcorpus/cqlizer/logproc"
-	"github.com/czcorpus/cqlizer/prediction"
+	"github.com/czcorpus/cqlizer/models/qsm"
+	"github.com/czcorpus/cqlizer/models/rf"
 	"github.com/czcorpus/cqlizer/stats"
 	"github.com/fatih/color"
 	"github.com/rs/zerolog/log"
@@ -75,7 +76,7 @@ func runLearning(conf *cnf.Conf, threshold, ratioOfTrues float64, synCompat bool
 		color.New(errColor).Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	eng := prediction.NewEngine(conf, db)
+	eng := rf.NewEngine(conf, db)
 	err = eng.Train(threshold, ratioOfTrues, synCompat)
 	if err != nil {
 		color.New(errColor).Fprintln(os.Stderr, err)
@@ -122,7 +123,7 @@ func runTrainingReplay(conf *cnf.Conf, trainingID int) {
 		os.Exit(1)
 	}
 
-	eng := prediction.NewEngine(conf, statsDB)
+	eng := rf.NewEngine(conf, statsDB)
 	_, err = eng.TrainReplay(threshold, tdata, vdata)
 	if err != nil {
 		color.New(errColor).Fprintln(os.Stderr, err)
@@ -167,7 +168,7 @@ func runEvaluation2(
 		smpl := collections.SliceSample(recs, sampleSize)
 		log.Debug().Int("sampleNum", i).Msg("going to evaluate next sample")
 
-		result, err := prediction.EvaluateBySimilarity(
+		result, err := qsm.EvaluateBySimilarity(
 			smpl,
 			threshold,
 			statsDB,
@@ -253,7 +254,7 @@ func runEvaluation(conf *cnf.Conf, trainingID, numSamples, sampleSize int, allow
 	for i := 0; i < numSamples; i++ {
 		smpl := collections.SliceSample(recs, sampleSize)
 		log.Debug().Int("sampleNum", i).Msg("going to evaluate next sample")
-		eng := prediction.NewEngine(conf, statsDB)
+		eng := rf.NewEngine(conf, statsDB)
 		result, err := eng.Evaluate(model, smpl, threshold, func(itemID string, prediction bool) error {
 			return nil
 		})

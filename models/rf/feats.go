@@ -14,14 +14,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package feats
+package rf
 
 import (
 	"fmt"
 	"reflect"
 
 	"github.com/czcorpus/cqlizer/cql"
-	"github.com/czcorpus/cqlizer/feats/heatmap"
+	"github.com/czcorpus/cqlizer/models/rf/heatmap"
 	"github.com/sjwhitworth/golearn/pca"
 	"gonum.org/v1/gonum/mat"
 )
@@ -30,27 +30,27 @@ const (
 	numReducedDimensions = 5
 )
 
-type Record struct {
+type Feats struct {
 	matrix         *mat.Dense
 	fullWHSize     int
 	numReducedCols int
 }
 
-func NewRecord() Record {
-	ans := Record{}
+func NewFeats() Feats {
+	ans := Feats{}
 	ans.fullWHSize = 36
 	ans.numReducedCols = numReducedDimensions
 
 	return ans
 }
 
-func (rec Record) ReduceDim(from *mat.Dense) *mat.Dense {
+func (rec Feats) ReduceDim(from *mat.Dense) *mat.Dense {
 	p := pca.NewPCA(rec.numReducedCols)
 	p.Fit(from)
 	return p.Transform(from)
 }
 
-func (rec Record) AsVector() []float64 {
+func (rec Feats) AsVector() []float64 {
 	ans := make([]float64, rec.fullWHSize*rec.numReducedCols)
 	for i := 0; i < rec.fullWHSize; i++ {
 		for j := 0; j < rec.numReducedCols; j++ {
@@ -63,7 +63,7 @@ func (rec Record) AsVector() []float64 {
 // GetNodeTypeIdx
 // For each AST node type, we want to create a [node]->[parent] record
 // in our "transition heatmap matrix"
-func (rec *Record) GetNodeTypeIdx(v any) int {
+func (rec *Feats) GetNodeTypeIdx(v any) int {
 	switch v.(type) {
 	case *cql.Sequence:
 		return 0
@@ -142,7 +142,7 @@ func (rec *Record) GetNodeTypeIdx(v any) int {
 	}
 }
 
-func (rec *Record) ExportHeatmap(path string) {
+func (rec *Feats) ExportHeatmap(path string) {
 	rows, cols := rec.matrix.Dims()
 	rawData := rec.matrix.RawMatrix().Data
 	result := make([][]float64, rows)
@@ -152,7 +152,7 @@ func (rec *Record) ExportHeatmap(path string) {
 	heatmap.GenerateHeatmap(result, path, 20, heatmap.Percentile)
 }
 
-func (rec *Record) ImportFrom(query *cql.Query) {
+func (rec *Feats) ImportFrom(query *cql.Query) {
 	largeMatrix := mat.NewDense(rec.fullWHSize, rec.fullWHSize, nil)
 	query.ForEachElement(func(parent, v cql.ASTNode) {
 		switch parent.(type) {
