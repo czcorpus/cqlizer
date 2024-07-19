@@ -209,23 +209,6 @@ func (r *RgGrouped) ExhaustionScore() float64 {
 	return ans
 }
 
-// ---------------------------------------------------------
-
-type RgSimpleProps struct {
-	Ops        []string
-	Constansts []string
-	Alts       []int
-}
-
-func (p RgSimpleProps) ContainsWildcards() bool {
-	for _, v := range p.Ops {
-		if v == ".+" || v == ".*" {
-			return true
-		}
-	}
-	return false
-}
-
 // ----------------------------------------------------
 
 type RgPosixClass struct {
