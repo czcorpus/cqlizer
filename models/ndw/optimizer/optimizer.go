@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
+	"sync"
 )
 
 const (
@@ -92,18 +93,30 @@ func Optimize(
 	maxNumIter int,
 	tuneAfter int,
 	probMutation float64,
-	fn func(inp Chromosome) Result) PopulItem {
-	population := make([]PopulItem, populationSize)
-	bestSoFar := PopulItem{}
+	fn func(inp Chromosome) Result) *PopulItem {
+	population := make([]*PopulItem, populationSize)
+	bestSoFar := &PopulItem{}
 	for i := 0; i < populationSize; i++ {
-		population[i] = PopulItem{Ch: randomVector(vectorDim)}
+		population[i] = &PopulItem{Ch: randomVector(vectorDim)}
 	}
+	numWorkers := 8
+	workers := make([]*PopulationChunk, numWorkers)
+	workerChans := make([]chan int, numWorkers)
+	for i := 0; i < numWorkers; i++ {
+		workerChans[i] = make(chan int)
+		workers[i] = newPopulationChunk(workerChans[i], fn)
+	}
+
 	for i := 0; i < maxNumIter; i++ {
 		fmt.Println("GENERATION: ", i)
-		for j := 0; j < populationSize; j++ {
-			population[j].Result = fn(population[j].Ch)
-			//fmt.Println("item ", j, " score: ", population[j].score)
+		chunks := splitPopulation(population, numWorkers)
+		var wg sync.WaitGroup
+		for i := 0; i < numWorkers; i++ {
+			wg.Add(1)
+			workers[i].PrepareForNextRun(chunks[i], &wg)
+			workerChans[i] <- i
 		}
+		wg.Wait()
 		sort.Slice(population, func(i, j int) bool {
 			return population[i].Result.TotalError() < population[j].Result.TotalError()
 		})
@@ -116,15 +129,15 @@ func Optimize(
 		fmt.Printf(">>> BEST SO FAR: %#v\n%s\n", bestSoFar.Result.TotalError(), bestSoFar.Ch)
 		bestSoFar.Result.PrintOverview()
 
-		newPopulation := make([]PopulItem, populationSize)
+		newPopulation := make([]*PopulItem, populationSize)
 		for j := 0; j < populationSize; j++ {
 			ch1 := population[rand.Intn(populationSize/5)]
 			ch2 := population[rand.Intn(populationSize/5)]
 			if tuneAfter > 0 && tuneAfter < i {
-				newPopulation[j] = PopulItem{Ch: mutate(ch1.Ch.Crossover(ch2.Ch), probMutation/2)}
+				newPopulation[j] = &PopulItem{Ch: mutate(ch1.Ch.Crossover(ch2.Ch), probMutation/2)}
 
 			} else {
-				newPopulation[j] = PopulItem{Ch: mutate(ch1.Ch.Crossover(ch2.Ch), probMutation)}
+				newPopulation[j] = &PopulItem{Ch: mutate(ch1.Ch.Crossover(ch2.Ch), probMutation)}
 			}
 			//fmt.Println("new item from: ", ch1.ch, " and ", ch2.ch)
 			//fmt.Println(">>> ", newPopulation[i].ch)

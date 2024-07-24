@@ -23,19 +23,7 @@ func Evaluate(query *cql.Query, params Params) *stackm.StackMachine {
 		case *cql.Structure:
 			sm.Push(stackm.Constant(params.Structure))
 			sm.Push(stackm.Multiply{})
-		case *cql.AttValList:
-			for i := 1; i < len(tNode.AttValAnd); i++ {
-				sm.Push(stackm.Add{})
-			}
-			sm.Push(stackm.Constant(params.AttValList))
-			sm.Push(stackm.Multiply{})
 		case *cql.NumberedPosition:
-		case *cql.OnePosition:
-			sm.Push(stackm.Constant(params.OnePosition))
-			sm.Push(stackm.Multiply{})
-		case *cql.Position:
-			sm.Push(stackm.Constant(params.Position))
-			sm.Push(stackm.Multiply{})
 		case *cql.RegExp:
 			// NOP
 		case *cql.MuPart:
@@ -50,6 +38,12 @@ func Evaluate(query *cql.Query, params Params) *stackm.StackMachine {
 		case *cql.CloseStructTag:
 		case *cql.AlignedPart:
 			sm.Push(stackm.Constant(params.AlignedPart))
+			sm.Push(stackm.Multiply{})
+		case *cql.AttValList:
+			for i := 1; i < len(tNode.AttValAnd); i++ {
+				sm.Push(stackm.Add{})
+			}
+			sm.Push(stackm.Constant(params.AttValList))
 			sm.Push(stackm.Multiply{})
 		case *cql.AttValAnd:
 			for i := 1; i < len(tNode.AttVal); i++ {
