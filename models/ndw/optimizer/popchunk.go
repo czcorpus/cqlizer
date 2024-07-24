@@ -51,7 +51,7 @@ func splitPopulation(
 	for i := 0; i < missing; i++ {
 		sizes[i]++
 	}
-	fmt.Println("we have chunks: %#v\n", sizes)
+	fmt.Printf("we have chunks: %#v\n", sizes)
 	ans := make([][]*PopulItem, numPieces)
 	var cut int
 	for i, size := range sizes {

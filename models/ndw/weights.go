@@ -1,7 +1,7 @@
 package ndw
 
 const (
-	paramsVectorSize = 32
+	paramsVectorSize = 34
 )
 
 type UnlimiteFloats []float64
@@ -20,7 +20,7 @@ type Params struct {
 	AttValList           float64
 	NumberedPosition     float64
 	RegExp               float64
-	MuPart               float64
+	MeetOp               float64
 	Repetition           float64
 	AtomQuery            float64
 	RepOpt               float64
@@ -47,6 +47,45 @@ type Params struct {
 	RgAny                float64
 	RgQM                 float64
 	RgRepeat             float64
+	RgChar               float64
+	AnyPosition          float64
+}
+
+func (p *Params) SetAll(v float64) {
+	p.WithinContainingPart = v
+	p.GlobCond = v
+	p.Structure = v
+	p.AttValList = v
+	p.NumberedPosition = v
+	p.RegExp = v
+	p.MeetOp = v
+	p.Repetition = v
+	p.AtomQuery = v
+	p.RepOpt = v
+	p.OpenStructTag = v
+	p.CloseStructTag = v
+	p.AlignedPart = v
+	p.AttValAnd = v
+	p.AttVal = v
+	p.WithinNumber = v
+	p.RegExpRaw = v
+	p.RawString = v
+	p.SimpleString = v
+	p.RgGrouped = v
+	p.RgSimple = v
+	p.RgPosixClass = v
+	p.RgLook = v
+	p.RgAlt = v
+	p.RgRange = v
+	p.RgRangeSpec = v
+	p.AnyLetter = v
+	p.RgOp = v
+	p.RgAltVal = v
+	p.RgAny = v
+	p.RgQM = v
+	p.RgRepeat = v
+	p.RgChar = v
+	p.AnyPosition = v
 }
 
 func (p Params) ToVec() []float64 {
@@ -57,7 +96,7 @@ func (p Params) ToVec() []float64 {
 		p.AttValList,
 		p.NumberedPosition,
 		p.RegExp,
-		p.MuPart,
+		p.MeetOp,
 		p.Repetition,
 		p.AtomQuery,
 		p.RepOpt,
@@ -83,6 +122,8 @@ func (p Params) ToVec() []float64 {
 		p.RgAny,
 		p.RgQM,
 		p.RgRepeat,
+		p.RgChar,
+		p.AnyPosition,
 	}
 }
 
@@ -93,7 +134,7 @@ func (p *Params) FromVec(v []float64) {
 	p.AttValList = v[3]
 	p.NumberedPosition = v[4]
 	p.RegExp = v[5]
-	p.MuPart = v[6]
+	p.MeetOp = v[6]
 	p.Repetition = v[7]
 	p.AtomQuery = v[8]
 	p.RepOpt = v[9]
@@ -119,4 +160,6 @@ func (p *Params) FromVec(v []float64) {
 	p.RgAny = v[29]
 	p.RgQM = v[30]
 	p.RgRepeat = v[31]
+	p.RgChar = v[32]
+	p.AnyPosition = v[33]
 }

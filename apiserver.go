@@ -136,9 +136,11 @@ func runApiServer(
 
 	engine.GET("/analyze", cqlActions.AnalyzeQuery)
 
-	engine.GET("/analyze-verbose/", cqlActions.AnalyzeQuery2)
+	engine.GET("/analyze-verbose", cqlActions.AnalyzeQuery2)
 
 	engine.GET("/parse", cqlActions.ParseQuery)
+
+	engine.GET("/parse-ndw", cqlActions.ParseQueryNDW)
 
 	engine.PUT("/query", cqlActions.StoreQuery)
 

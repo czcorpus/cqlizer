@@ -43,14 +43,19 @@ func (op Avg) String() string {
 type Add struct{}
 
 func (op Add) String() string {
-	return "P(X | Y)"
+	return "v[-1] + v[-2]"
 }
 
 // ------------------------------
 
-type Multiply struct{}
+type Multiply struct {
+	Tag string
+}
 
 func (op Multiply) String() string {
+	if op.Tag != "" {
+		return fmt.Sprintf("[-1] * [-2] (%s)", op.Tag)
+	}
 	return "[-1] * [-2]"
 }
 
@@ -167,4 +172,8 @@ func (sm *StackMachine) Peek() (Constant, error) {
 		return Constant(0), ErrEmptyStack
 	}
 	return sm.stack[len(sm.stack)-1], nil
+}
+
+func (sm *StackMachine) Len() int {
+	return len(sm.stack)
 }

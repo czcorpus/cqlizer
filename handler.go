@@ -25,6 +25,7 @@ import (
 	"github.com/czcorpus/cnc-gokit/uniresp"
 	"github.com/czcorpus/cqlizer/cql"
 	"github.com/czcorpus/cqlizer/models/combo"
+	"github.com/czcorpus/cqlizer/models/ndw"
 	"github.com/czcorpus/cqlizer/models/rf"
 	"github.com/czcorpus/cqlizer/stats"
 	"github.com/gin-gonic/gin"
@@ -49,6 +50,33 @@ func (a *Actions) ParseQuery(ctx *gin.Context) {
 		return
 	}
 	uniresp.WriteJSONResponse(ctx.Writer, parsed)
+}
+
+func (a *Actions) ParseQueryNDW(ctx *gin.Context) {
+	q := ctx.Query("q")
+	parsed, err := cql.ParseCQL("#", q)
+	if err != nil {
+		uniresp.RespondWithErrorJSON(
+			ctx,
+			fmt.Errorf("failed to parse query \u25B6 %w", err),
+			http.StatusUnprocessableEntity,
+		)
+		return
+	}
+	var params ndw.Params
+	params.SetAll(0.5)
+	sm := ndw.Evaluate(parsed, params)
+	err = sm.Run()
+	if err != nil {
+		sm.PrintProgram()
+	}
+	ans := make(map[string]any)
+	x, err := sm.Peek()
+	ans["result"] = x
+	ans["smError"] = err
+	ans["smSize"] = sm.Len()
+	ans["tree"] = parsed
+	uniresp.WriteJSONResponse(ctx.Writer, ans)
 }
 
 func (a *Actions) Normalize(ctx *gin.Context) {

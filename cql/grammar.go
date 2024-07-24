@@ -5260,7 +5260,7 @@ func (c *current) onRgAltVal12() (any, error) {
 	ans := &RgAltVal{
 		variant1: &rgAltValVariant1{
 			RgChar: &RgChar{
-				variant1: &rgCharVariant1{
+				Variant1: &rgCharVariant1{
 					Value: ASTString("|"),
 				},
 			},
@@ -5296,7 +5296,7 @@ func (p *parser) callonRgAltVal14() (any, error) {
 
 func (c *current) onRgChar2() (any, error) {
 	ans := &RgChar{
-		variant1: &rgCharVariant1{
+		Variant1: &rgCharVariant1{
 			Value: ASTString(string(c.text)),
 		},
 	}
@@ -5313,7 +5313,7 @@ func (p *parser) callonRgChar2() (any, error) {
 
 func (c *current) onRgChar4() (any, error) {
 	ans := &RgChar{
-		variant3: &rgCharVariant3{
+		Variant3: &rgCharVariant3{
 			RgRepeat: &RgRepeat{
 				Value: ASTString(string(c.text)),
 			},
@@ -5331,7 +5331,7 @@ func (p *parser) callonRgChar4() (any, error) {
 
 func (c *current) onRgChar6() (any, error) {
 	ans := &RgChar{
-		variant5: &rgCharVariant5{
+		Variant5: &rgCharVariant5{
 			RgQM: &RgQM{
 				Value: ASTString("?"),
 			},
@@ -5349,7 +5349,7 @@ func (p *parser) callonRgChar6() (any, error) {
 
 func (c *current) onRgChar8() (any, error) {
 	ans := &RgChar{
-		variant4: &rgCharVariant4{
+		Variant4: &rgCharVariant4{
 			RgAny: &RgAny{
 				Value: ASTString("."),
 			},
@@ -5367,7 +5367,7 @@ func (p *parser) callonRgChar8() (any, error) {
 
 func (c *current) onRgChar10() (any, error) {
 	ans := &RgChar{
-		variant1: &rgCharVariant1{
+		Variant1: &rgCharVariant1{
 			Value: ASTString(string(c.text)),
 		},
 	}
@@ -5384,7 +5384,7 @@ func (p *parser) callonRgChar10() (any, error) {
 
 func (c *current) onRgChar12() (any, error) {
 	ans := &RgChar{
-		variant2: &rgCharVariant2{
+		Variant2: &rgCharVariant2{
 			RgOp: &RgOp{
 				Value: ASTString(string(c.text)),
 			},
@@ -5403,7 +5403,7 @@ func (p *parser) callonRgChar12() (any, error) {
 
 func (c *current) onRgChar14(rg any) (any, error) {
 	ans := &RgChar{
-		variant1: &rgCharVariant1{
+		Variant1: &rgCharVariant1{
 			Value: ASTString(typedOrPanic[string](rg)),
 		},
 	}
@@ -5420,7 +5420,7 @@ func (p *parser) callonRgChar14() (any, error) {
 
 func (c *current) onRgChar17(rg any) (any, error) {
 	ans := &RgChar{
-		variant1: &rgCharVariant1{
+		Variant1: &rgCharVariant1{
 			Value: ASTString(typedOrPanic[string](rg)),
 		},
 	}
@@ -5437,7 +5437,7 @@ func (p *parser) callonRgChar17() (any, error) {
 
 func (c *current) onRgChar20(rg any) (any, error) {
 	ans := &RgChar{
-		variant1: &rgCharVariant1{
+		Variant1: &rgCharVariant1{
 			Value: ASTString(typedOrPanic[string](rg)),
 		},
 	}
@@ -5454,7 +5454,7 @@ func (p *parser) callonRgChar20() (any, error) {
 
 func (c *current) onRgChar23(rg any) (any, error) {
 	ans := &RgChar{
-		variant1: &rgCharVariant1{
+		Variant1: &rgCharVariant1{
 			Value: ASTString(typedOrPanic[string](rg)),
 		},
 	}

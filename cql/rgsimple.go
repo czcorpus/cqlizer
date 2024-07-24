@@ -159,7 +159,16 @@ type RgGrouped struct {
 }
 
 func (r *RgGrouped) Text() string {
-	return "#RgGrouped"
+	var ans strings.Builder
+	ans.WriteString("(")
+	for i, v := range r.Values {
+		if i > 0 {
+			ans.WriteString(", ")
+		}
+		ans.WriteString(v.Text())
+	}
+	ans.WriteString(")")
+	return ans.String()
 }
 
 func (r *RgGrouped) Normalize() string {
@@ -359,11 +368,11 @@ type rgCharVariant5 struct {
 }
 
 type RgChar struct {
-	variant1 *rgCharVariant1
-	variant2 *rgCharVariant2
-	variant3 *rgCharVariant3
-	variant4 *rgCharVariant4
-	variant5 *rgCharVariant5
+	Variant1 *rgCharVariant1
+	Variant2 *rgCharVariant2
+	Variant3 *rgCharVariant3
+	Variant4 *rgCharVariant4
+	Variant5 *rgCharVariant5
 }
 
 func (rc *RgChar) Text() string {
@@ -371,48 +380,48 @@ func (rc *RgChar) Text() string {
 }
 
 func (rc *RgChar) Normalize() string {
-	if rc.variant1 != nil {
-		return rc.variant1.Value.Normalize()
+	if rc.Variant1 != nil {
+		return rc.Variant1.Value.Normalize()
 	}
-	if rc.variant2 != nil {
-		return rc.variant2.RgOp.Normalize()
+	if rc.Variant2 != nil {
+		return rc.Variant2.RgOp.Normalize()
 	}
-	if rc.variant3 != nil {
-		return rc.variant3.RgRepeat.Normalize()
+	if rc.Variant3 != nil {
+		return rc.Variant3.RgRepeat.Normalize()
 
-	} else if rc.variant4 != nil {
-		return rc.variant4.RgAny.Normalize()
+	} else if rc.Variant4 != nil {
+		return rc.Variant4.RgAny.Normalize()
 
-	} else if rc.variant5 != nil {
-		return rc.variant5.RgQM.Normalize()
+	} else if rc.Variant5 != nil {
+		return rc.Variant5.RgQM.Normalize()
 	}
 	return ""
 }
 
 func (rc *RgChar) IsRgOperator(v string) bool {
-	return rc.variant2 != nil && rc.variant2.RgOp.Value.String() == v
+	return rc.Variant2 != nil && rc.Variant2.RgOp.Value.String() == v
 }
 
 func (rc *RgChar) IsConstant() bool {
-	return rc.variant1 != nil
+	return rc.Variant1 != nil
 }
 
 func (rc *RgChar) MarshalJSON() ([]byte, error) {
 	var variant any
-	if rc.variant1 != nil {
-		variant = rc.variant1
+	if rc.Variant1 != nil {
+		variant = rc.Variant1
 
-	} else if rc.variant2 != nil {
-		variant = rc.variant2
+	} else if rc.Variant2 != nil {
+		variant = rc.Variant2
 
-	} else if rc.variant3 != nil {
-		variant = rc.variant3
+	} else if rc.Variant3 != nil {
+		variant = rc.Variant3
 
-	} else if rc.variant4 != nil {
-		variant = rc.variant4
+	} else if rc.Variant4 != nil {
+		variant = rc.Variant4
 
-	} else if rc.variant5 != nil {
-		variant = rc.variant5
+	} else if rc.Variant5 != nil {
+		variant = rc.Variant5
 
 	} else {
 		variant = struct{}{}
@@ -428,37 +437,37 @@ func (rc *RgChar) MarshalJSON() ([]byte, error) {
 
 func (r *RgChar) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, r)
-	if r.variant1 != nil {
-		fn(r, r.variant1.Value)
+	if r.Variant1 != nil {
+		fn(r, r.Variant1.Value)
 
-	} else if r.variant2 != nil {
-		r.variant2.RgOp.ForEachElement(r, fn)
+	} else if r.Variant2 != nil {
+		r.Variant2.RgOp.ForEachElement(r, fn)
 
-	} else if r.variant3 != nil {
-		r.variant3.RgRepeat.ForEachElement(r, fn)
+	} else if r.Variant3 != nil {
+		r.Variant3.RgRepeat.ForEachElement(r, fn)
 
-	} else if r.variant4 != nil {
-		r.variant4.RgAny.ForEachElement(r, fn)
+	} else if r.Variant4 != nil {
+		r.Variant4.RgAny.ForEachElement(r, fn)
 
-	} else if r.variant5 != nil {
-		r.variant5.RgQM.ForEachElement(r, fn)
+	} else if r.Variant5 != nil {
+		r.Variant5.RgQM.ForEachElement(r, fn)
 	}
 }
 
 func (r *RgChar) DFS(fn func(v ASTNode)) {
-	if r.variant1 != nil {
-		fn(r.variant1.Value)
+	if r.Variant1 != nil {
+		fn(r.Variant1.Value)
 
-	} else if r.variant2 != nil {
-		r.variant2.RgOp.DFS(fn)
-	} else if r.variant3 != nil {
-		r.variant3.RgRepeat.DFS(fn)
+	} else if r.Variant2 != nil {
+		r.Variant2.RgOp.DFS(fn)
+	} else if r.Variant3 != nil {
+		r.Variant3.RgRepeat.DFS(fn)
 
-	} else if r.variant4 != nil {
-		r.variant4.RgAny.DFS(fn)
+	} else if r.Variant4 != nil {
+		r.Variant4.RgAny.DFS(fn)
 
-	} else if r.variant5 != nil {
-		r.variant5.RgQM.DFS(fn)
+	} else if r.Variant5 != nil {
+		r.Variant5.RgQM.DFS(fn)
 	}
 	fn(r)
 }

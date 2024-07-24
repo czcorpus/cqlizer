@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	maxParamValue = 20.0
+	maxParamValue = 5.0
 )
 
 type Chromosome []float64
@@ -126,13 +126,14 @@ func Optimize(
 		if bestSoFar.IsUndefined() || population[0].Result.TotalError() < bestSoFar.Result.TotalError() {
 			bestSoFar = population[0]
 		}
-		fmt.Printf(">>> BEST SO FAR: %#v\n%s\n", bestSoFar.Result.TotalError(), bestSoFar.Ch)
+		fmt.Println(">>> BEST SO FAR:")
 		bestSoFar.Result.PrintOverview()
+		fmt.Println("chromosome: ", bestSoFar.Ch)
 
 		newPopulation := make([]*PopulItem, populationSize)
 		for j := 0; j < populationSize; j++ {
-			ch1 := population[rand.Intn(populationSize/5)]
-			ch2 := population[rand.Intn(populationSize/5)]
+			ch1 := population[rand.Intn(populationSize/10)]
+			ch2 := population[rand.Intn(populationSize/10)]
 			if tuneAfter > 0 && tuneAfter < i {
 				newPopulation[j] = &PopulItem{Ch: mutate(ch1.Ch.Crossover(ch2.Ch), probMutation/2)}
 
