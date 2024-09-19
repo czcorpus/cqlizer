@@ -91,3 +91,54 @@ func (q *Query) DFS(fn func(v ASTNode)) {
 	}
 	fn(q)
 }
+
+type attval struct {
+	Structure string
+	Name      string
+	Value     string
+}
+
+func (q *Query) GetAllAttvals() []attval {
+	ans := make([]attval, 0, 10)
+	parents := make(parentMap)
+	q.ForEachElement(func(parent, v ASTNode) {
+		parents[v] = parent
+		kvn, ok := v.(*AttVal)
+		if !ok {
+			return
+		}
+		if kvn.Variant1 != nil {
+			newItem := attval{
+				Name:  kvn.Variant1.AttName.String(),
+				Value: strings.Trim(kvn.Variant1.RawString.SimpleString.Text(), "\""),
+			}
+			stSrch := parents.findParentByType(kvn, &Structure{})
+			if stSrch != nil {
+				t, ok := stSrch.(*Structure)
+				if !ok {
+					// this can happen only if findParentByType is broken
+					panic("found structure is not a *Structure")
+				}
+				newItem.Structure = t.AttName.String()
+			}
+			ans = append(ans, newItem)
+
+		} else if kvn.Variant2 != nil {
+			newItem := attval{
+				Name:  kvn.Variant2.AttName.String(),
+				Value: strings.Trim(kvn.Variant2.RegExp.Text(), "\""),
+			}
+			stSrch := parents.findParentByType(kvn, &Structure{})
+			if stSrch != nil {
+				t, ok := stSrch.(*Structure)
+				if !ok {
+					// this can happen only if findParentByType() is broken
+					panic("found structure is not a *Structure")
+				}
+				newItem.Structure = t.AttName.String()
+			}
+			ans = append(ans, newItem)
+		}
+	})
+	return ans
+}
