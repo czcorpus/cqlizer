@@ -23,7 +23,7 @@ import (
 )
 
 func TestQueryGetAttrs(t *testing.T) {
-	q, err := ParseCQL("test", `[word="hi|hello"] [lemma="people" & tag="N.*"] within <text foo="bar" & zoo="baz">`)
+	q, err := ParseCQL("test", `[word="hi|hello"] [lemma="people" & tag="N.*"] within <text foo="b: ar" & zoo="b,az">`)
 	assert.NoError(t, err)
 	attrs := q.GetAllAttvals()
 	assert.Equal(
@@ -32,8 +32,8 @@ func TestQueryGetAttrs(t *testing.T) {
 			{Name: "word", Value: "hi|hello"},
 			{Name: "lemma", Value: "people"},
 			{Name: "tag", Value: "N.*"},
-			{Structure: "text", Name: "foo", Value: "bar"},
-			{Structure: "text", Name: "zoo", Value: "baz"},
+			{Structure: "text", Name: "foo", Value: "b: ar"},
+			{Structure: "text", Name: "zoo", Value: "b,az"},
 		},
 		attrs,
 	)

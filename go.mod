@@ -1,6 +1,6 @@
 module github.com/czcorpus/cqlizer
 
-go 1.21.5
+go 1.23.0
 
 require (
 	github.com/czcorpus/cnc-gokit v0.9.5
@@ -10,9 +10,6 @@ require (
 	github.com/mna/pigeon v1.2.1
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0
-)
-
-require (
 	github.com/agnivade/levenshtein v1.1.1
 	github.com/fatih/color v1.17.0
 	github.com/sjwhitworth/golearn v0.0.0-20221228163002-74ae077eafb2
