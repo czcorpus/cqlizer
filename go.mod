@@ -12,11 +12,10 @@ require (
 	github.com/stretchr/testify v1.9.0
 )
 
-require github.com/sjwhitworth/golearn v0.0.0-20221228163002-74ae077eafb2
-
 require (
-	github.com/agnivade/levenshtein v1.1.1 // indirect
-	github.com/fatih/color v1.17.0 // indirect
+	github.com/agnivade/levenshtein v1.1.1
+	github.com/fatih/color v1.17.0
+	github.com/sjwhitworth/golearn v0.0.0-20221228163002-74ae077eafb2
 )
 
 require (
