@@ -25,15 +25,30 @@ import (
 func TestQueryGetAttrs(t *testing.T) {
 	q, err := ParseCQL("test", `[word="hi|hello"] [lemma="people" & tag="N.*"] within <text foo="b: ar" & zoo="b,az">`)
 	assert.NoError(t, err)
-	attrs := q.GetAllAttvals()
+	attrs := q.ExtractProps()
 	assert.Equal(
 		t,
-		[]attval{
+		[]QueryProp{
 			{Name: "word", Value: "hi|hello"},
 			{Name: "lemma", Value: "people"},
 			{Name: "tag", Value: "N.*"},
 			{Structure: "text", Name: "foo", Value: "b: ar"},
 			{Structure: "text", Name: "zoo", Value: "b,az"},
+			{Structure: "text"},
+		},
+		attrs,
+	)
+}
+
+func TestQueryGetAttrsSimpleStruct(t *testing.T) {
+	q, err := ParseCQL("test", `[word="x"] within <s>`)
+	assert.NoError(t, err)
+	attrs := q.ExtractProps()
+	assert.Equal(
+		t,
+		[]QueryProp{
+			{Name: "word", Value: "x"},
+			{Structure: "s", Name: "", Value: ""},
 		},
 		attrs,
 	)

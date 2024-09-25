@@ -18,15 +18,34 @@ package cql
 
 import (
 	"encoding/json"
-	"regexp"
 	"strings"
+
+	"github.com/czcorpus/cnc-gokit/collections"
 )
 
-var (
-	rgLong = regexp.MustCompile(`xx+`)
-)
+// QueryProp is a generalized query property:
+// a) positional attribute with a value
+// b) structural attribute with a value
+// c) structure
+type QueryProp struct {
+	Structure string
+	Name      string
+	Value     string
+}
 
-// Query
+func (qp QueryProp) IsStructure() bool {
+	return qp.Structure != "" && qp.Name == "" && qp.Value == ""
+}
+
+func (qp QueryProp) IsStructAttr() bool {
+	return qp.Structure != "" && qp.Name != "" && qp.Value != ""
+}
+
+func (qp QueryProp) IsPosattr() bool {
+	return qp.Structure == "" && qp.Name != "" && qp.Value != ""
+}
+
+// Query represents root node of a CQL syntax tree.
 //
 //	Sequence (_ BINAND _ GlobPart)? (_ WithinOrContaining)* EOF {
 type Query struct {
@@ -92,53 +111,52 @@ func (q *Query) DFS(fn func(v ASTNode)) {
 	fn(q)
 }
 
-type attval struct {
-	Structure string
-	Name      string
-	Value     string
-}
-
-func (q *Query) GetAllAttvals() []attval {
-	ans := make([]attval, 0, 10)
+func (q *Query) ExtractProps() []QueryProp {
+	ans := make([]QueryProp, 0, 10)
 	parents := make(parentMap)
+	structs := collections.NewSet[string]()
 	q.ForEachElement(func(parent, v ASTNode) {
 		parents[v] = parent
-		kvn, ok := v.(*AttVal)
-		if !ok {
-			return
-		}
-		if kvn.Variant1 != nil {
-			newItem := attval{
-				Name:  kvn.Variant1.AttName.String(),
-				Value: strings.Trim(kvn.Variant1.RawString.SimpleString.Text(), "\""),
-			}
-			stSrch := parents.findParentByType(kvn, &Structure{})
-			if stSrch != nil {
-				t, ok := stSrch.(*Structure)
-				if !ok {
-					// this can happen only if findParentByType is broken
-					panic("found structure is not a *Structure")
+		switch typedV := v.(type) {
+		case *AttVal:
+			if typedV.Variant1 != nil {
+				newItem := QueryProp{
+					Name:  typedV.Variant1.AttName.String(),
+					Value: strings.Trim(typedV.Variant1.RawString.SimpleString.Text(), "\""),
 				}
-				newItem.Structure = t.AttName.String()
-			}
-			ans = append(ans, newItem)
+				stSrch := parents.findParentByType(typedV, &Structure{})
+				if stSrch != nil {
+					t, ok := stSrch.(*Structure)
+					if !ok {
+						// this can happen only if findParentByType is broken
+						panic("found structure is not a *Structure")
+					}
+					newItem.Structure = t.AttName.String()
+				}
+				ans = append(ans, newItem)
 
-		} else if kvn.Variant2 != nil {
-			newItem := attval{
-				Name:  kvn.Variant2.AttName.String(),
-				Value: strings.Trim(kvn.Variant2.RegExp.Text(), "\""),
-			}
-			stSrch := parents.findParentByType(kvn, &Structure{})
-			if stSrch != nil {
-				t, ok := stSrch.(*Structure)
-				if !ok {
-					// this can happen only if findParentByType() is broken
-					panic("found structure is not a *Structure")
+			} else if typedV.Variant2 != nil {
+				newItem := QueryProp{
+					Name:  typedV.Variant2.AttName.String(),
+					Value: strings.Trim(typedV.Variant2.RegExp.Text(), "\""),
 				}
-				newItem.Structure = t.AttName.String()
+				stSrch := parents.findParentByType(typedV, &Structure{})
+				if stSrch != nil {
+					t, ok := stSrch.(*Structure)
+					if !ok {
+						// this can happen only if findParentByType() is broken
+						panic("found structure is not a *Structure")
+					}
+					newItem.Structure = t.AttName.String()
+				}
+				ans = append(ans, newItem)
 			}
-			ans = append(ans, newItem)
+		case *Structure:
+			structs.Add(typedV.AttName.String())
 		}
 	})
+	for _, v := range structs.ToSlice() {
+		ans = append(ans, QueryProp{Structure: v})
+	}
 	return ans
 }
