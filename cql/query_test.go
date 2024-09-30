@@ -40,6 +40,19 @@ func TestQueryGetAttrs(t *testing.T) {
 	)
 }
 
+func TestRegressionAtSign(t *testing.T) {
+	q, err := ParseCQL("test", `[tag="X@.*"]`)
+	assert.NoError(t, err)
+	attrs := q.ExtractProps()
+	assert.Equal(
+		t,
+		[]QueryProp{
+			{Name: "tag", Value: "X@.*"},
+		},
+		attrs,
+	)
+}
+
 func TestQueryGetAttrsSimpleStruct(t *testing.T) {
 	q, err := ParseCQL("test", `[word="x"] within <s>`)
 	assert.NoError(t, err)
