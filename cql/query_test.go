@@ -66,3 +66,16 @@ func TestQueryGetAttrsSimpleStruct(t *testing.T) {
 		attrs,
 	)
 }
+
+func TestRegexpOnlyQuery(t *testing.T) {
+	q, err := ParseCQL("test", `"attr.*"`)
+	assert.NoError(t, err)
+	attrs := q.ExtractProps()
+	assert.Equal(
+		t,
+		[]QueryProp{
+			{Value: "attr.*"},
+		},
+		attrs,
+	)
+}

@@ -42,7 +42,9 @@ func (qp QueryProp) IsStructAttr() bool {
 }
 
 func (qp QueryProp) IsPosattr() bool {
-	return qp.Structure == "" && qp.Name != "" && qp.Value != ""
+	// we do not test qp.Name here as the query can
+	// be also just a regexp expecting a default attribute
+	return qp.Structure == "" && qp.Value != ""
 }
 
 // Query represents root node of a CQL syntax tree.
@@ -150,9 +152,19 @@ func (q *Query) ExtractProps() []QueryProp {
 					newItem.Structure = t.AttName.String()
 				}
 				ans = append(ans, newItem)
+
 			}
 		case *Structure:
 			structs.Add(typedV.AttName.String())
+		case *RegExp:
+			srch := parents.findParentByType(typedV, &OnePosition{})
+			if srch != nil {
+				val := make([]string, len(typedV.RegExpRaw))
+				for i, v := range typedV.RegExpRaw {
+					val[i] = v.Text()
+				}
+				ans = append(ans, QueryProp{Value: strings.Join(val, " ")})
+			}
 		}
 	})
 	for _, v := range structs.ToSlice() {
