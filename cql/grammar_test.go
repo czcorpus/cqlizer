@@ -32,14 +32,18 @@ func TestRegexQuery(t *testing.T) {
 
 func TestRgOrQuery(t *testing.T) {
 	q1 := "\"ſb(é|ě)r(ka|ku|ki|ze)\""
-	p, err := ParseCQL("#", q1)
+	_, err := ParseCQL("#", q1)
 	assert.NoError(t, err)
-	fmt.Println("p: ", p)
 }
 
 func TestRgOrQuery2(t *testing.T) {
 	q1 := "[lemma=\"de|-|\"]"
-	p, err := ParseCQL("#", q1)
+	_, err := ParseCQL("#", q1)
 	assert.NoError(t, err)
-	fmt.Println("p: ", p)
+}
+
+func TestJustRgQuery(t *testing.T) {
+	q1 := "\"more|less\""
+	_, err := ParseCQL("#", q1)
+	assert.NoError(t, err)
 }

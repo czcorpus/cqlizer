@@ -24,7 +24,7 @@ const (
 
 type parentMap map[ASTNode]ASTNode
 
-func (pm parentMap) findParentByType(node, prototype ASTNode) ASTNode {
+func (pm parentMap) findParentByType(node, prototype ASTNode, maxDist int) ASTNode {
 	pType := reflect.TypeOf(prototype)
 	var i int
 
@@ -33,6 +33,9 @@ func (pm parentMap) findParentByType(node, prototype ASTNode) ASTNode {
 		p2Type := reflect.TypeOf(curr)
 		if pType == p2Type {
 			return curr
+		}
+		if i == maxDist && maxDist > 0 {
+			return nil
 		}
 		curr = pm[curr]
 		i++

@@ -126,7 +126,7 @@ func (q *Query) ExtractProps() []QueryProp {
 					Name:  typedV.Variant1.AttName.String(),
 					Value: strings.Trim(typedV.Variant1.RawString.SimpleString.Text(), "\""),
 				}
-				stSrch := parents.findParentByType(typedV, &Structure{})
+				stSrch := parents.findParentByType(typedV, &Structure{}, 0)
 				if stSrch != nil {
 					t, ok := stSrch.(*Structure)
 					if !ok {
@@ -142,7 +142,7 @@ func (q *Query) ExtractProps() []QueryProp {
 					Name:  typedV.Variant2.AttName.String(),
 					Value: strings.Trim(typedV.Variant2.RegExp.Text(), "\""),
 				}
-				stSrch := parents.findParentByType(typedV, &Structure{})
+				stSrch := parents.findParentByType(typedV, &Structure{}, 0)
 				if stSrch != nil {
 					t, ok := stSrch.(*Structure)
 					if !ok {
@@ -157,7 +157,7 @@ func (q *Query) ExtractProps() []QueryProp {
 		case *Structure:
 			structs.Add(typedV.AttName.String())
 		case *RegExp:
-			srch := parents.findParentByType(typedV, &OnePosition{})
+			srch := parents.findParentByType(typedV, &OnePosition{}, 1)
 			if srch != nil {
 				val := make([]string, len(typedV.RegExpRaw))
 				for i, v := range typedV.RegExpRaw {
