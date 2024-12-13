@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	maxParamValue = 20.0
+	maxParamValue = 100.0
 )
 
 type Chromosome []float64
