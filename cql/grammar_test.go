@@ -47,3 +47,10 @@ func TestJustRgQuery(t *testing.T) {
 	_, err := ParseCQL("#", q1)
 	assert.NoError(t, err)
 }
+
+func TestParallelQuery(t *testing.T) {
+	q := "[word=\"Skifahren\"] within <text group=\"Syndicate|Subtitles\" /> within " +
+		"intercorp_v15_cs:[word=\"lyžování\"]"
+	_, err := ParseCQL("#", q)
+	assert.NoError(t, err)
+}

@@ -414,7 +414,13 @@ AtomQuery <-
     }
 
 AlignedPart <-
-    AttName COLON _ Sequence  // parallel alignment
+    attName:AttName COLON _ seq:Sequence  { // parallel alignment
+        ans := &AlignedPart{
+            AttName:  ASTString(typedOrPanic[string](attName)),
+            Sequence: typedOrPanic[*Sequence](seq),
+        }
+        return ans, nil
+    }
 
 AttValList <-
     av1:AttValAnd av2:(_ BINOR _ AttValAnd)* {

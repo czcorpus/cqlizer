@@ -1418,6 +1418,8 @@ func (ost *CloseStructTag) DFS(fn func(v ASTNode)) {
 // ---------------------------------------------------------
 
 type AlignedPart struct {
+	AttName  ASTString
+	Sequence *Sequence
 }
 
 func (a *AlignedPart) Text() string {
