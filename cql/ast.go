@@ -46,7 +46,7 @@ func (q *Sequence) Normalize() string {
 	var ans strings.Builder
 	for i, v := range q.Seq {
 		if i > 0 {
-			ans.WriteString("<OR>" + v.Normalize())
+			ans.WriteString(" <OR> " + v.Normalize())
 
 		} else {
 			ans.WriteString(v.Normalize())
@@ -119,7 +119,10 @@ func (s *Seq) Text() string {
 
 func (q *Seq) Normalize() string {
 	var ans strings.Builder
-	for _, v := range q.Repetition {
+	for i, v := range q.Repetition {
+		if i > 0 {
+			ans.WriteString(" ")
+		}
 		ans.WriteString(v.Normalize())
 	}
 	return ans.String()
@@ -163,7 +166,10 @@ func (q *GlobPart) Text() string {
 
 func (q *GlobPart) Normalize() string {
 	var ans strings.Builder
-	for _, v := range q.GlobCond {
+	for i, v := range q.GlobCond {
+		if i > 0 {
+			ans.WriteString(" ")
+		}
 		ans.WriteString(v.Normalize())
 	}
 	return ans.String()
@@ -237,13 +243,13 @@ func (w *WithinOrContaining) Normalize() string {
 	//	NOT? (KW_WITHIN / KW_CONTAINING) _ WithinContainingPart {
 	var ans strings.Builder
 	if w.not {
-		ans.WriteString("<NEGATION>")
+		ans.WriteString(" <NEGATION>")
 	}
 	if w.numNegWithinParts > 0 {
-		ans.WriteString("within")
+		ans.WriteString(" within")
 	}
 	if w.numContainingParts > 0 {
-		ans.WriteString("containing")
+		ans.WriteString(" containing")
 	}
 	return ans.String()
 }
@@ -287,7 +293,7 @@ func (wcp *WithinContainingPart) Normalize() string {
 	if wcp.variant3 != nil {
 		wcp.variant3.AlignedPart.Normalize() // TODO missing NOT
 	}
-	return "#WithinContainingPart"
+	return " #WithinContainingPart"
 }
 
 func (wcp *WithinContainingPart) MarshalJSON() ([]byte, error) {
@@ -381,19 +387,19 @@ func (gc *GlobCond) Normalize() string {
 	// KW_FREQ LPAREN _ NUMBER DOT AttName _ RPAREN NOT? _ ( EQ / LEQ / GEQ / LSTRUCT / RSTRUCT ) _ NUMBER {
 	if gc.variant1 != nil {
 		var ans strings.Builder
-		ans.WriteString("att ")
+		ans.WriteString(" att ")
 		ans.WriteString(gc.variant1.Not4.Normalize())
-		ans.WriteString("att ")
+		ans.WriteString(" att ")
 		return ans.String()
 	}
 	if gc.variant2 != nil {
 		var ans strings.Builder
-		ans.WriteString(gc.variant2.Number2.Normalize())
-		ans.WriteString("att ")
+		ans.WriteString(" " + gc.variant2.Number2.Normalize())
+		ans.WriteString(" att ")
 		ans.WriteString(gc.variant2.Number6.Normalize())
 		return ans.String()
 	}
-	return "#GlobCond"
+	return " #GlobCond"
 }
 
 func (gc *GlobCond) MarshalJSON() ([]byte, error) {
@@ -477,9 +483,9 @@ func (s *Structure) Text() string {
 func (s *Structure) Normalize() string {
 	// // AttName _ AttValList?
 	if s.AttValList != nil {
-		return fmt.Sprintf("(struct %s)", s.AttValList.Normalize())
+		return fmt.Sprintf(" (struct %s)", s.AttValList.Normalize())
 	}
-	return "(struct)"
+	return " (struct)"
 }
 
 func (s *Structure) IsBigStructure() bool {
@@ -532,10 +538,10 @@ func (a *AttValList) Normalize() string {
 	var ans strings.Builder
 	for i, v := range a.AttValAnd {
 		if i > 0 {
-			ans.WriteString("<OR>" + v.Normalize())
+			ans.WriteString(" <OR> " + v.Normalize())
 
 		} else {
-			ans.WriteString(v.Normalize())
+			ans.WriteString(" " + v.Normalize())
 		}
 	}
 	return ans.String()
@@ -585,7 +591,7 @@ func (n *NumberedPosition) Text() string {
 }
 
 func (n *NumberedPosition) Normalize() string {
-	return fmt.Sprintf("(%s %s %s)", n.Number.Normalize(), n.Colon.Normalize(), n.OnePosition.Normalize())
+	return fmt.Sprintf(" (%s %s %s)", n.Number.Normalize(), n.Colon.Normalize(), n.OnePosition.Normalize())
 }
 
 func (n *NumberedPosition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -657,23 +663,23 @@ func (op *OnePosition) Normalize() string {
 	var ans strings.Builder
 	if op.Variant1 != nil {
 		if op.Variant1.AttValList != nil {
-			ans.WriteString("(pos " + op.Variant1.AttValList.Normalize() + ")")
+			ans.WriteString(" ( pos " + op.Variant1.AttValList.Normalize() + ")")
 
 		} else {
-			ans.WriteString("(pos ())")
+			ans.WriteString(" ( pos () )")
 		}
 
 	} else if op.Variant2 != nil {
-		ans.WriteString("(pos " + op.Variant2.RegExp.Normalize() + ")")
+		ans.WriteString(" ( pos " + op.Variant2.RegExp.Normalize() + ")")
 
 	} else if op.Variant3 != nil {
-		ans.WriteString("(pos " + op.Variant3.RegExp.origValue + ")")
+		ans.WriteString(" ( pos " + op.Variant3.RegExp.origValue + ")")
 
 	} else if op.Variant4 != nil {
-		ans.WriteString("(pos " + op.Variant4.Value.Normalize() + ")")
+		ans.WriteString(" ( pos " + op.Variant4.Value.Normalize() + ")")
 
 	} else if op.Variant5 != nil {
-		ans.WriteString("(pos " + op.Variant5.MuPart.Normalize() + ")")
+		ans.WriteString(" ( pos " + op.Variant5.MuPart.Normalize() + ")")
 	}
 	return ans.String()
 }
@@ -805,10 +811,10 @@ func (p *Position) Text() string {
 func (p *Position) Normalize() string {
 	var ans strings.Builder
 	if p.variant1 != nil {
-		ans.WriteString(p.variant1.OnePosition.Normalize())
+		ans.WriteString(" " + p.variant1.OnePosition.Normalize())
 
 	} else if p.variant2 != nil {
-		ans.WriteString(p.variant2.NumberedPosition.Normalize())
+		ans.WriteString(" " + p.variant2.NumberedPosition.Normalize())
 	}
 	return ans.String()
 }
@@ -872,10 +878,10 @@ func (r *RegExp) Normalize() string {
 	var ans strings.Builder
 	for i, v := range r.RegExpRaw {
 		if i > 0 {
-			ans.WriteString("<OR>" + v.Normalize())
+			ans.WriteString(" <OR> " + v.Normalize())
 
 		} else {
-			ans.WriteString(v.Normalize())
+			ans.WriteString(" " + v.Normalize())
 		}
 	}
 	return ans.String()
@@ -918,10 +924,10 @@ func (m *MuPart) Text() string {
 func (m *MuPart) Normalize() string {
 	var ans strings.Builder
 	if m.Variant1 != nil {
-		ans.WriteString(m.Variant1.UnionOp.Normalize())
+		ans.WriteString(" " + m.Variant1.UnionOp.Normalize())
 
 	} else if m.Variant2 != nil {
-		ans.WriteString(m.Variant2.MeetOp.Normalize())
+		ans.WriteString(" " + m.Variant2.MeetOp.Normalize())
 	}
 	return ans.String()
 }
@@ -969,7 +975,7 @@ func (m *UnionOp) Text() string {
 }
 
 func (m *UnionOp) Normalize() string {
-	return fmt.Sprintf("%s %s", m.Position1.Normalize(), m.Position2.Normalize())
+	return fmt.Sprintf(" %s %s", m.Position1.Normalize(), m.Position2.Normalize())
 }
 
 func (m *UnionOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -997,7 +1003,7 @@ func (m *MeetOp) Text() string {
 }
 
 func (m *MeetOp) Normalize() string {
-	return fmt.Sprintf("%s %s", m.Position1.Normalize(), m.Position2.Normalize())
+	return fmt.Sprintf(" %s %s", m.Position1.Normalize(), m.Position2.Normalize())
 }
 
 func (m *MeetOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1057,13 +1063,13 @@ func (r *Repetition) Text() string {
 func (r *Repetition) Normalize() string {
 	var ans strings.Builder
 	if r.Variant1 != nil {
-		ans.WriteString(r.Variant1.AtomQuery.Normalize() + " " + r.Variant1.RepOpt.Normalize())
+		ans.WriteString(" " + r.Variant1.AtomQuery.Normalize() + " " + r.Variant1.RepOpt.Normalize())
 
 	} else if r.Variant2 != nil {
-		ans.WriteString(r.Variant2.OpenStructTag.Normalize())
+		ans.WriteString(" " + r.Variant2.OpenStructTag.Normalize())
 
 	} else if r.Variant3 != nil {
-		ans.WriteString(r.Variant3.CloseStructTag.Normalize())
+		ans.WriteString(" " + r.Variant3.CloseStructTag.Normalize())
 	}
 	return ans.String()
 }
@@ -1185,10 +1191,10 @@ func (aq *AtomQuery) Text() string {
 func (aq *AtomQuery) Normalize() string {
 	var ans strings.Builder
 	if aq.variant1 != nil {
-		ans.WriteString(aq.variant1.Position.Normalize())
+		ans.WriteString(" " + aq.variant1.Position.Normalize())
 
 	} else if aq.variant2 != nil {
-		ans.WriteString(aq.variant2.Sequence.Normalize())
+		ans.WriteString(" " + aq.variant2.Sequence.Normalize())
 	}
 	return ans.String()
 }
@@ -1291,11 +1297,11 @@ func (r *RepOpt) Normalize() string {
 	}
 	var ans strings.Builder
 	if r.Variant1 != nil {
-		ans.WriteString(r.Variant1.Value.Normalize())
+		ans.WriteString(" " + r.Variant1.Value.Normalize())
 
 	} else if r.Variant2 != nil {
-		ans.WriteString(r.Variant2.From.Normalize())
-		ans.WriteString(r.Variant2.To.Normalize())
+		ans.WriteString(" " + r.Variant2.From.Normalize())
+		ans.WriteString(" " + r.Variant2.To.Normalize())
 	}
 	return ans.String()
 }
@@ -1427,7 +1433,7 @@ func (a *AlignedPart) Text() string {
 }
 
 func (a *AlignedPart) Normalize() string {
-	return "#AlignedPart"
+	return " #AlignedPart"
 }
 
 func (a *AlignedPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1456,10 +1462,10 @@ func (a *AttValAnd) Normalize() string {
 	var ans strings.Builder
 	for i, v := range a.AttVal {
 		if i > 0 {
-			ans.WriteString("<AND>" + v.Normalize())
+			ans.WriteString(" <AND> " + v.Normalize())
 
 		} else {
-			ans.WriteString(v.Normalize())
+			ans.WriteString(" " + v.Normalize())
 		}
 	}
 	return ans.String()
@@ -1592,41 +1598,41 @@ func (a *AttVal) Normalize() string {
 		// AttName _ (NOT)? EEQ _ RawString
 		var ns string
 		if a.Variant1.Not {
-			ns = "<NEGATION>"
+			ns = " <NEGATION>"
 		}
-		attName := "(att "
+		attName := " ( att "
 		if a.IsProblematicAttrSearch() {
-			attName = "(ATT "
+			attName = " ( ATT "
 		}
 		if a.SearchesInLargeSubset() {
-			ans.WriteString(attName + ns + "<LARGE_SUBSET>)")
+			ans.WriteString(" " + attName + ns + "<LARGE_SUBSET>)")
 
 		} else {
-			ans.WriteString(attName + ns + " " + a.Variant1.RawString.Normalize() + ")")
+			ans.WriteString(" " + attName + ns + " " + a.Variant1.RawString.Normalize() + " )")
 		}
 
 	} else if a.Variant2 != nil {
 		// AttName (_ NOT)? _ (EQ / LEQ / GEQ / TEQ NUMBER?) _ RegExp
 		var ns string
 		if a.Variant2.Not {
-			ns = "<NEGATION>"
+			ns = " <NEGATION>"
 		}
-		attName := "(att "
+		attName := " ( att "
 		if a.IsProblematicAttrSearch() {
-			attName = "(ATT "
+			attName = " ( ATT "
 		}
 		if a.SearchesInLargeSubset() {
-			ans.WriteString(attName + ns + "<LARGE_SUBSET>)")
+			ans.WriteString(attName + ns + " <LARGE_SUBSET> )")
 
 		} else {
-			ans.WriteString(attName + ns + " " + a.Variant2.RegExp.Normalize() + ")")
+			ans.WriteString(" " + attName + ns + " " + a.Variant2.RegExp.Normalize() + " )")
 		}
 
 	} else if a.Variant5 != nil {
-		ans.WriteString("<NEGATION>" + a.Variant5.AttVal.Normalize())
+		ans.WriteString(" " + "<NEGATION> " + a.Variant5.AttVal.Normalize())
 
 	} else if a.Variant6 != nil {
-		ans.WriteString("(" + a.Variant6.AttValList.Normalize() + ") ")
+		ans.WriteString(" ( " + a.Variant6.AttValList.Normalize() + " ) ")
 	}
 
 	return ans.String()
@@ -1863,7 +1869,7 @@ func (r *RawString) Text() string {
 }
 
 func (r *RawString) Normalize() string {
-	return "#RawString"
+	return " #RawString"
 }
 
 func (r *RawString) MarshalJSON() ([]byte, error) {

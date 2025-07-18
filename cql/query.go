@@ -77,12 +77,12 @@ func (q *Query) Text() string {
 
 func (q *Query) Normalize() string {
 	var ans strings.Builder
-	ans.WriteString(q.Sequence.Normalize())
+	ans.WriteString(" " + q.Sequence.Normalize())
 	if q.GlobPart != nil {
 		ans.WriteString(" & " + q.GlobPart.Normalize())
 	}
 	for _, v := range q.WithinOrContaining {
-		ans.WriteString(v.Normalize())
+		ans.WriteString(" " + v.Normalize())
 	}
 	return ans.String()
 }

@@ -19,6 +19,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"os"
@@ -27,13 +28,21 @@ import (
 
 	"github.com/czcorpus/cnc-gokit/logging"
 	"github.com/czcorpus/cqlizer/cnf"
+	"github.com/czcorpus/cqlizer/dataimport"
+	"github.com/czcorpus/cqlizer/index"
 )
 
 const (
-	actionMCPServer = "mcp-server"
-	actionREPL      = "repl"
-	actionVersion   = "version"
-	actionHelp      = "help"
+	actionMCPServer  = "mcp-server"
+	actionREPL       = "repl"
+	actionVersion    = "version"
+	actionHelp       = "help"
+	actionKlogImport = "klog-import"
+
+	exitErrorGeneralFailure = iota
+	exitErrorImportFailed
+	exiterrrorREPLReading
+	exitErrorFailedToOpenIdex
 )
 
 var (
@@ -56,10 +65,11 @@ func topLevelUsage() {
 	fmt.Fprintf(os.Stderr, "\t%s\t\t\tshow version info\n", actionVersion)
 	fmt.Fprintf(os.Stderr, "\t%s\t\tmcp-server MCP \n", actionMCPServer)
 	fmt.Fprintf(os.Stderr, "\t%s\t\t\trepl \n", actionREPL)
+	fmt.Fprintf(os.Stderr, "\t%s\t\t\tklog-import \n", actionKlogImport)
 	fmt.Fprintf(os.Stderr, "\nUse `cqlizer help ACTION` for information about a specific action\n\n")
 }
 
-func setup(confPath, action string) *cnf.Conf {
+func setup(confPath string) *cnf.Conf {
 	conf := cnf.LoadConfig(confPath)
 	if conf.Logging.Level == "" {
 		conf.Logging.Level = "info"
@@ -86,8 +96,34 @@ func runActionMCPServer() {
 
 }
 
-func runActionREPL() {
+func runActionREPL(db *index.DB) {
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		fmt.Print("> ")
+		if !scanner.Scan() {
+			break
+		}
+		input := strings.TrimSpace(scanner.Text())
 
+		if input == "exit" {
+			fmt.Println("Goodbye!")
+			break
+		}
+
+		response, err := db.SearchByPrefix(input, 10)
+		if err != nil {
+			os.Exit(exiterrrorREPLReading)
+			return
+		}
+		fmt.Println(response)
+	}
+}
+
+func runActionKlogImport(path string, db *index.DB) {
+	if err := dataimport.ImportKontextLog(path, db); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to import KonText log: %s", err)
+		os.Exit(exitErrorImportFailed)
+	}
 }
 
 func runActionVersion(ver VersionInfo) {
@@ -128,6 +164,11 @@ func main() {
 		cmdREPL.PrintDefaults()
 	}
 
+	cmdKlogImport := flag.NewFlagSet(actionKlogImport, flag.ExitOnError)
+	cmdKlogImport.Usage = func() {
+		cmdKlogImport.PrintDefaults()
+	}
+
 	action := actionHelp
 	if len(os.Args) > 1 {
 		action = os.Args[1]
@@ -149,7 +190,22 @@ func main() {
 		runActionMCPServer()
 	case actionREPL:
 		cmdREPL.Parse(os.Args[2:])
-		runActionREPL()
+		conf := setup(cmdREPL.Arg(0))
+		db, err := index.OpenDB(conf.IndexDataPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to open index: %s", err)
+			os.Exit(exitErrorFailedToOpenIdex)
+		}
+		runActionREPL(db)
+	case actionKlogImport:
+		cmdKlogImport.Parse(os.Args[2:])
+		conf := setup(cmdKlogImport.Arg(0))
+		db, err := index.OpenDB(conf.IndexDataPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to open index: %s", err)
+			os.Exit(exitErrorFailedToOpenIdex)
+		}
+		runActionKlogImport(cmdKlogImport.Arg(1), db)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown action, please use 'help' to get more information")
 	}

@@ -40,7 +40,7 @@ func (r *RgSimple) Text() string {
 func (r *RgSimple) Normalize() string {
 	var ans strings.Builder
 	for _, v := range r.Values {
-		ans.WriteString(v.Normalize())
+		ans.WriteString(" " + v.Normalize())
 	}
 	return ans.String()
 }
@@ -166,10 +166,10 @@ func (r *RgGrouped) Normalize() string {
 	var ans strings.Builder
 	for i, v := range r.Values {
 		if i > 0 {
-			ans.WriteString("<OR>" + v.Normalize())
+			ans.WriteString(" <OR> " + v.Normalize())
 
 		} else {
-			ans.WriteString(v.Normalize())
+			ans.WriteString(" " + v.Normalize())
 		}
 	}
 	return ans.String()
@@ -220,7 +220,7 @@ func (r *RgPosixClass) Text() string {
 }
 
 func (r *RgPosixClass) Normalize() string {
-	return "#RgPosixClass"
+	return " #RgPosixClass"
 }
 
 func (r *RgPosixClass) MarshalJSON() ([]byte, error) {
@@ -290,15 +290,15 @@ func (r *RgAlt) Text() string {
 func (r *RgAlt) Normalize() string {
 	var ans strings.Builder
 	if r.Not {
-		ans.WriteString("(rgalt <NEGATION> ")
+		ans.WriteString(" ( rgalt <NEGATION> ")
 
 	} else {
-		ans.WriteString("(rgalt ")
+		ans.WriteString(" ( rgalt ")
 	}
 	for _, v := range r.Values {
-		ans.WriteString(v.Normalize())
+		ans.WriteString(" " + v.Normalize())
 	}
-	ans.WriteString(")")
+	ans.WriteString(" )")
 	return ans.String()
 }
 
@@ -475,7 +475,7 @@ func (rr *RgRepeat) Text() string {
 }
 
 func (rr *RgRepeat) Normalize() string {
-	return "<REPEAT>"
+	return " <REPEAT>"
 }
 
 func (rr *RgRepeat) MarshalJSON() ([]byte, error) {
@@ -549,7 +549,7 @@ func (rr *RgAny) Text() string {
 }
 
 func (rr *RgAny) Normalize() string {
-	return "<ANY>"
+	return " <ANY>"
 }
 
 func (rr *RgAny) MarshalJSON() ([]byte, error) {
@@ -588,7 +588,7 @@ func (r *RgRange) Text() string {
 }
 
 func (r *RgRange) Normalize() string {
-	return fmt.Sprintf("rgrange(%s)", r.RgRangeSpec.Normalize())
+	return fmt.Sprintf(" rgrange ( %s )", r.RgRangeSpec.Normalize())
 }
 
 func (r *RgRange) MarshalJSON() ([]byte, error) {
@@ -645,7 +645,7 @@ func (r *RgRangeSpec) Text() string {
 }
 
 func (r *RgRangeSpec) Normalize() string {
-	return fmt.Sprintf("%s, %s", r.Number1.Normalize(), r.Number2.Normalize())
+	return fmt.Sprintf(" %s , %s", r.Number1.Normalize(), r.Number2.Normalize())
 }
 
 func (r *RgRangeSpec) MarshalJSON() ([]byte, error) {
@@ -772,7 +772,7 @@ func (rc *RgAltVal) Normalize() string {
 		return rc.variant2.Value.Normalize()
 	}
 	if rc.variant3 != nil {
-		return fmt.Sprintf("(chrng %s-%s)", rc.variant3.From.Normalize(), rc.variant3.To.Normalize())
+		return fmt.Sprintf(" ( chrng %s - %s )", rc.variant3.From.Normalize(), rc.variant3.To.Normalize())
 	}
 	return ans.String()
 }

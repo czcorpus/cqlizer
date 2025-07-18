@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/czcorpus/cnc-gokit/logging"
+	"github.com/czcorpus/cqlizer/dataimport"
 	"github.com/rs/zerolog/log"
 )
 
@@ -44,6 +45,8 @@ type Conf struct {
 	ServerWriteTimeoutSecs int                 `json:"serverWriteTimeoutSecs"`
 	CorsAllowedOrigins     []string            `json:"corsAllowedOrigins"`
 	TimeZone               string              `json:"timeZone"`
+	IndexDataPath          string              `json:"indexDataPath"`
+	DataImportDB           dataimport.DBConf   `json:"dataImportDb"`
 }
 
 func LoadConfig(path string) *Conf {
