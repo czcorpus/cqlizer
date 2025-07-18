@@ -36,19 +36,14 @@ const (
 
 type Conf struct {
 	srcPath                string
-	ListenAddress          string           `json:"listenAddress"`
-	PublicURL              string           `json:"publicUrl"`
-	ListenPort             int              `json:"listenPort"`
-	ServerReadTimeoutSecs  int              `json:"serverReadTimeoutSecs"`
-	ServerWriteTimeoutSecs int              `json:"serverWriteTimeoutSecs"`
-	CorsAllowedOrigins     []string         `json:"corsAllowedOrigins"`
-	TimeZone               string           `json:"timeZone"`
-	AuthHeaderName         string           `json:"authHeaderName"`
-	AuthTokens             []string         `json:"authTokens"`
-	LogFile                string           `json:"logFile"`
-	LogLevel               logging.LogLevel `json:"logLevel"`
-	WorkingDBPath          string           `json:"workingDbPath"`
-	BenchmarkMQueryURL     string           `json:"benchmarkMQueryUrl"`
+	Logging                logging.LoggingConf `json:"logging"`
+	ListenAddress          string              `json:"listenAddress"`
+	PublicURL              string              `json:"publicUrl"`
+	ListenPort             int                 `json:"listenPort"`
+	ServerReadTimeoutSecs  int                 `json:"serverReadTimeoutSecs"`
+	ServerWriteTimeoutSecs int                 `json:"serverWriteTimeoutSecs"`
+	CorsAllowedOrigins     []string            `json:"corsAllowedOrigins"`
+	TimeZone               string              `json:"timeZone"`
 }
 
 func LoadConfig(path string) *Conf {

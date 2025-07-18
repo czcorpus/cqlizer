@@ -23,45 +23,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/czcorpus/cnc-gokit/logging"
 	"github.com/czcorpus/cqlizer/cnf"
-	"github.com/czcorpus/cqlizer/models/rf"
-	"github.com/czcorpus/cqlizer/stats"
-	"github.com/fatih/color"
-	"github.com/gin-gonic/gin"
-	randomforest "github.com/malaschitz/randomForest"
-	"github.com/rs/zerolog/log"
 )
 
-type action string
-
-func (a action) String() string {
-	return string(a)
-}
-
-func (a action) validate() error {
-	if a != actionServer && a != actionImport && a != actionCorpsizes && a != actionBenchmark &&
-		a != actionReplay && a != actionEvaluate && a != actionLearn && a != actionLearnNDW &&
-		a != actionVersion && a != actionNormalize {
-		return fmt.Errorf("unknown action: %s", a)
-	}
-	return nil
-}
-
 const (
-	actionServer    action = "server"
-	actionImport    action = "import"
-	actionCorpsizes action = "corpsizes"
-	actionBenchmark action = "benchmark"
-	actionReplay    action = "replay"
-	actionEvaluate  action = "evaluate"
-	actionLearn     action = "learn"
-	actionLearnNDW  action = "learn-ndw"
-	actionVersion   action = "version"
-	actionNormalize action = "normalize"
+	actionMCPServer = "mcp-server"
+	actionREPL      = "repl"
+	actionVersion   = "version"
+	actionHelp      = "help"
 )
 
 var (
@@ -77,94 +49,49 @@ type VersionInfo struct {
 	GitCommit string `json:"gitCommit"`
 }
 
-func getRequestOrigin(ctx *gin.Context) string {
-	currOrigin, ok := ctx.Request.Header["Origin"]
-	if ok {
-		return currOrigin[0]
-	}
-	return ""
+func topLevelUsage() {
+	fmt.Fprintf(os.Stderr, "CQLIZER - a data-driven CQL writing helper tool\n")
+	fmt.Fprintf(os.Stderr, "-----------------------------\n\n")
+	fmt.Fprintf(os.Stderr, "Commands:\n")
+	fmt.Fprintf(os.Stderr, "\t%s\t\t\tshow version info\n", actionVersion)
+	fmt.Fprintf(os.Stderr, "\t%s\t\tmcp-server MCP \n", actionMCPServer)
+	fmt.Fprintf(os.Stderr, "\t%s\t\t\trepl \n", actionREPL)
+	fmt.Fprintf(os.Stderr, "\nUse `cqlizer help ACTION` for information about a specific action\n\n")
 }
 
-func additionalLogEvents() gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		logging.AddLogEvent(ctx, "userAgent", ctx.Request.UserAgent())
-		logging.AddLogEvent(ctx, "corpusId", ctx.Param("corpusId"))
-		ctx.Next()
+func setup(confPath, action string) *cnf.Conf {
+	conf := cnf.LoadConfig(confPath)
+	if conf.Logging.Level == "" {
+		conf.Logging.Level = "info"
 	}
-}
-
-func loadModel(conf *cnf.Conf, statsDB *stats.Database, trainingID int) (randomforest.Forest, float64, error) {
-
-	threshold, err := statsDB.GetTrainingThreshold(trainingID)
-	if err != nil {
-		return randomforest.Forest{},
-			0.0,
-			fmt.Errorf("failed to load model for training %d \u25B6 %w", trainingID, err)
-	}
-
-	log.Info().Int("trainingId", trainingID).Msg("found required training")
-
-	tdata, err := statsDB.GetTrainingData(trainingID)
-	if err != nil {
-		return randomforest.Forest{},
-			threshold,
-			fmt.Errorf("failed to load model for training %d \u25B6 %w", trainingID, err)
-	}
-
-	vdata, err := statsDB.GetTrainingValidationData(trainingID)
-	if err != nil {
-		return randomforest.Forest{},
-			threshold,
-			fmt.Errorf("failed to load model for training %d \u25B6 %w", trainingID, err)
-	}
-
-	eng := rf.NewEngine(conf, statsDB)
-	model, err := eng.TrainReplay(threshold, tdata, vdata)
-	if err != nil {
-		return randomforest.Forest{},
-			threshold,
-			fmt.Errorf("failed to load model for training %d \u25B6 %w", trainingID, err)
-	}
-	return model, threshold, err
+	logging.SetupLogging(conf.Logging)
+	cnf.ValidateAndDefaults(conf)
+	return conf
 }
 
 func cleanVersionInfo(v string) string {
 	return strings.TrimLeft(strings.Trim(v, "'"), "v")
 }
 
-func parseTrainingIdOrExit(v string) int {
-	if v == "" {
-		return 0
+func runActionHelp(subject string) {
+	if subject == "" {
+		topLevelUsage()
+		return
 	}
-	trainingID, err := strconv.ParseInt(v, 10, 64)
-	if err != nil {
-		color.New(errColor).Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	return int(trainingID)
+	fmt.Fprintf(os.Stderr, "%s: \n", subject)
+	fmt.Fprintln(os.Stderr, "... nothing yet")
 }
 
-func topLevelUsage() {
-	fmt.Fprintf(os.Stderr, "CQLIZER - a CQL analysis tool\n")
-	fmt.Fprintf(os.Stderr, "-----------------------------\n\n")
-	fmt.Fprintf(os.Stderr, "Commands:\n")
-	fmt.Fprintf(os.Stderr, "\t%s\t\tshow version info\n", actionVersion.String())
-	fmt.Fprintf(os.Stderr, "\t%s\t\tstart HTTP API server\n", actionServer.String())
-	fmt.Fprintf(os.Stderr, "\t%s\t\timport queries from KonText logs\n", actionImport.String())
-	fmt.Fprintf(os.Stderr, "\t%s\timport corpora sizes (currently unused)\n", actionCorpsizes.String())
-	fmt.Fprintf(os.Stderr, "\t%s\trun benchmarks on stored queries\n", actionBenchmark.String())
-	fmt.Fprintf(os.Stderr, "\t%s\t\treplay stored training\n", actionReplay.String())
-	fmt.Fprintf(os.Stderr, "\t%s\tevaluate queries with `trainingExclude` flag\n", actionEvaluate.String())
-	fmt.Fprintf(os.Stderr, "\t%s\t\tlearn rf model using benchmarked queries (ones without `trainingExclude` flag)\n", actionLearn.String())
-	fmt.Fprintf(os.Stderr, "\t%s\tlearn ndw model using benchmarked queries (ones without `trainingExclude` flag)\n", actionLearnNDW.String())
-	fmt.Fprintf(os.Stderr, "\nUse `cqlizer command -h` for information about a specific action\n\n")
+func runActionMCPServer() {
+
 }
 
-func setupConfAndLogging(cmd *flag.FlagSet, idx int) *cnf.Conf {
-	conf := cnf.LoadConfig(cmd.Arg(idx))
-	logging.SetupLogging(conf.LogFile, conf.LogLevel)
-	cnf.ValidateAndDefaults(conf)
-	return conf
+func runActionREPL() {
+
+}
+
+func runActionVersion(ver VersionInfo) {
+	fmt.Fprintln(os.Stderr, "CQLizer version: ", ver)
 }
 
 func main() {
@@ -174,209 +101,57 @@ func main() {
 		GitCommit: cleanVersionInfo(gitCommit),
 	}
 
-	cmdServer := flag.NewFlagSet(actionServer.String(), flag.ExitOnError)
-	cmdServer.Usage = func() {
-		fmt.Fprintf(
-			os.Stderr,
-			"Usage:\t%s %s [options] config.json [trainingID]\n\t",
-			filepath.Base(os.Args[0]), actionServer.String())
-		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		cmdServer.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nStart HTTP API Server for CQL analysis\n")
-	}
-
-	cmdBenchmark := flag.NewFlagSet(actionBenchmark.String(), flag.ExitOnError)
-	overwriteAll := cmdBenchmark.Bool("overwrite-all", false, "If set, then all the queries will be benchmarked even if they already have a result attached")
-	cmdBenchmark.Usage = func() {
+	cmdMCP := flag.NewFlagSet(actionMCPServer, flag.ExitOnError)
+	cmdMCP.Usage = func() {
 		fmt.Fprintf(
 			os.Stderr,
 			"Usage:\t%s %s [options] config.json\n\t",
-			filepath.Base(os.Args[0]), actionBenchmark.String())
+			filepath.Base(os.Args[0]), actionMCPServer)
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		cmdBenchmark.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nBenchmark available queries.\n")
+		cmdMCP.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "\nSrun CQLizer as a MCP server\n")
 	}
 
-	cmdCorpsizes := flag.NewFlagSet(actionCorpsizes.String(), flag.ExitOnError)
-	addToTrainingSet := cmdCorpsizes.Bool("add-to-training", false, "If set, than all the imported records will become part of the training&validation set")
-
-	cmdEvaluate := flag.NewFlagSet(actionEvaluate.String(), flag.ExitOnError)
-	numSamples := cmdEvaluate.Int("num-samples", 5, "Number of samples for the validation action")
-	sampleSize := cmdEvaluate.Int("sample-size", 300, "Sample size for the validation action")
-	allowTrainingRecs := cmdEvaluate.Bool("allow-training-records", false, "If set, then even records used for training the model may occur in validation sets")
-	anyCorpusSearch2 := cmdEvaluate.Bool("any-corpus", false, "Do not restrict to queries to syn* corpora")
-	cmdEvaluate.Usage = func() {
-		fmt.Fprintf(
-			os.Stderr,
-			"Usage:\t%s %s [options] config.json [trainingID]\n\t",
-			filepath.Base(os.Args[0]), actionEvaluate.String())
-		fmt.Fprintf(os.Stderr, "\nArguments:\n")
-		fmt.Fprintf(os.Stderr, "\tconfig.json\ta path to a config file\n")
-		fmt.Fprintf(os.Stderr, "\ttrainingID\tAn ID of a training used as a base for running service. If omitted, the latest training ID will be used\n")
-		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		cmdEvaluate.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nEvaluate stored queries (the ones with the `trainingExclude` flag set). This is intended for the \"real word\" model testing.\n")
+	cmdVersion := flag.NewFlagSet(actionVersion, flag.ExitOnError)
+	cmdVersion.Usage = func() {
+		cmdVersion.PrintDefaults()
+		// TOOD
 	}
 
-	cmdImport := flag.NewFlagSet(actionImport.String(), flag.ExitOnError)
-	cmdImport.Usage = func() {
-		fmt.Fprintf(
-			os.Stderr,
-			"Usage:\t%s %s [options] config.json tsource_file\n\t",
-			filepath.Base(os.Args[0]), actionImport.String())
-		fmt.Fprintf(os.Stderr, "\nArguments:\n")
-		fmt.Fprintf(os.Stderr, "\tconfig.json\ta path to a config file\n")
-		fmt.Fprintf(os.Stderr, "\tsource_file\tA KonText log file to import training/validation user queries from")
-		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		cmdImport.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nImport queries from a KonText application log file\n")
+	cmdHelp := flag.NewFlagSet(actionHelp, flag.ExitOnError)
+	cmdHelp.Usage = func() {
+		cmdVersion.PrintDefaults()
 	}
 
-	cmdLearn := flag.NewFlagSet(actionLearn.String(), flag.ExitOnError)
-	anyCorpusSearch := cmdLearn.Bool("any-corpus", false, "Do not restrict to queries to syn* corpora")
-	ratioOfTrues := cmdLearn.Float64("ratio-of-trues", 0.1, "Ratio of values above the threshold")
-	cmdLearn.Usage = func() {
-		fmt.Fprintf(
-			os.Stderr,
-			"Usage:\t%s %s [options] config.json threshold\n\t",
-			filepath.Base(os.Args[0]), actionLearn.String())
-		fmt.Fprintf(os.Stderr, "\nArguments:\n")
-		fmt.Fprintf(os.Stderr, "\tconfig.json\ta path to a config file\n")
-		fmt.Fprintf(os.Stderr, "\tthreshold\tA threshold value (in seconds) for what is considered a problematic query in a benchmark environment\n")
-		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		cmdLearn.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nLearn a new model based on queries stored in database (the ones without the `trainingExclude` flag)\n")
+	cmdREPL := flag.NewFlagSet(actionREPL, flag.ExitOnError)
+	cmdREPL.Usage = func() {
+		cmdREPL.PrintDefaults()
 	}
 
-	cmdLearnNDW := flag.NewFlagSet(actionLearn.String(), flag.ExitOnError)
-	anyCorpusSearchNDW := cmdLearnNDW.Bool("any-corpus", false, "Do not restrict to queries to syn* corpora")
-	ratioOfTruesNDW := cmdLearnNDW.Float64("ratio-of-trues", 0.1, "Ratio of values above the threshold")
-	cmdLearnNDW.Usage = func() {
-		fmt.Fprintf(
-			os.Stderr,
-			"Usage:\t%s %s [options] config.json threshold\n\t",
-			filepath.Base(os.Args[0]), actionLearn.String())
-		fmt.Fprintf(os.Stderr, "\nArguments:\n")
-		fmt.Fprintf(os.Stderr, "\tconfig.json\ta path to a config file\n")
-		fmt.Fprintf(os.Stderr, "\tthreshold\tA threshold value (in seconds) for what is considered a problematic query in a benchmark environment\n")
-		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		cmdLearnNDW.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nLearn a new model based on queries stored in database (the ones without the `trainingExclude` flag)\n")
-	}
-
-	cmdReplay := flag.NewFlagSet(actionReplay.String(), flag.ExitOnError)
-	cmdReplay.Usage = func() {
-		fmt.Fprintf(
-			os.Stderr,
-			"Usage:\t%s %s [options] config.json [training_ID]\n\t",
-			filepath.Base(os.Args[0]), actionReplay.String())
-		fmt.Fprintf(os.Stderr, "\nArguments:\n")
-		fmt.Fprintf(os.Stderr, "\tconfig.json\ta path to a config file\n")
-		fmt.Fprintf(os.Stderr, "\ttraining_ID\tAn ID of a training used as a base for running service. If omitted, the latest training ID will be used\n")
-		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		cmdLearn.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nReplay learn and validation for the specified training set.\n")
-	}
-
-	cmdNormalize := flag.NewFlagSet(actionNormalize.String(), flag.ExitOnError)
-	cmdNormalize.Usage = func() {
-		fmt.Fprintf(
-			os.Stderr,
-			"Usage:\t%s %s [options] config.json\n\t",
-			filepath.Base(os.Args[0]), actionNormalize.String())
-		fmt.Fprintf(os.Stderr, "\nGenerate normalized versions for queries.\n")
-	}
-
-	if len(os.Args) < 2 {
-		topLevelUsage()
-		os.Exit(10)
-	}
-
-	action := action(os.Args[1])
-	if err := action.validate(); err != nil {
-		fmt.Println(err)
-		os.Exit(11)
+	action := actionHelp
+	if len(os.Args) > 1 {
+		action = os.Args[1]
 	}
 
 	switch action {
-
+	case actionHelp:
+		var subj string
+		if len(os.Args) > 2 {
+			cmdHelp.Parse(os.Args[2:])
+			subj = cmdHelp.Arg(0)
+		}
+		runActionHelp(subj)
 	case actionVersion:
-		fmt.Printf("CQLizer %s\nbuild date: %s\nlast commit: %s\n", version.Version, version.BuildDate, version.GitCommit)
-		return
-
-	case actionServer:
-		var trainingID int64
-		var err error
-		cmdServer.Parse(os.Args[2:])
-		if cmdServer.Arg(1) != "" {
-			trainingID, err = strconv.ParseInt(cmdServer.Arg(1), 10, 64)
-			if err != nil {
-				color.New(errColor).Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-		}
-		conf := setupConfAndLogging(cmdServer, 0)
-		runApiServer(conf, int(trainingID))
-
-	case actionImport:
-		cmdImport.Parse(os.Args[2:])
-		conf := setupConfAndLogging(cmdImport, 0)
-		runKontextImport(conf, cmdImport.Arg(1), *addToTrainingSet)
-
-	case actionCorpsizes:
-		cmdCorpsizes.Parse(os.Args[2:])
-		conf := setupConfAndLogging(cmdCorpsizes, 0)
-		runSizesImport(conf, cmdCorpsizes.Arg(1))
-
-	case actionBenchmark:
-		cmdBenchmark.Parse(os.Args[2:])
-		conf := setupConfAndLogging(cmdBenchmark, 0)
-		runBenchmark(conf, *overwriteAll)
-
-	case actionReplay:
-		cmdReplay.Parse(os.Args[2:])
-		conf := setupConfAndLogging(cmdReplay, 0)
-		trainingID := parseTrainingIdOrExit(cmdReplay.Arg(1))
-		runTrainingReplay(conf, trainingID)
-
-	case actionEvaluate:
-		cmdEvaluate.Parse(os.Args[2:])
-		conf := setupConfAndLogging(cmdEvaluate, 0)
-		//trainingID := parseTrainingIdOrExit(cmdEvaluate.Arg(1))
-		thr, err := strconv.ParseFloat(cmdEvaluate.Arg(1), 64)
-		if err != nil {
-			color.New(errColor).Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		runEvaluation2(conf, thr, *numSamples, *sampleSize, *allowTrainingRecs, *anyCorpusSearch2)
-
-	case actionLearn:
-		cmdLearn.Parse(os.Args[2:])
-		conf := setupConfAndLogging(cmdLearn, 0)
-		thr, err := strconv.ParseFloat(cmdLearn.Arg(1), 64)
-		if err != nil {
-			color.New(errColor).Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		runLearning(conf, thr, *ratioOfTrues, !*anyCorpusSearch)
-
-	case actionLearnNDW:
-		cmdLearnNDW.Parse(os.Args[2:])
-		conf := setupConfAndLogging(cmdLearnNDW, 0)
-		thr, err := strconv.ParseFloat(cmdLearnNDW.Arg(1), 64)
-		if err != nil {
-			color.New(errColor).Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		runLearningNDW(conf, thr, *ratioOfTruesNDW, !*anyCorpusSearchNDW)
-
-	case actionNormalize:
-		cmdNormalize.Parse(os.Args[2:])
-		conf := setupConfAndLogging(cmdNormalize, 0)
-		runQueryNormalization(conf)
-
+		cmdVersion.Parse(os.Args[2:])
+		runActionVersion(version)
+	case actionMCPServer:
+		cmdMCP.Parse(os.Args[2:])
+		runActionMCPServer()
+	case actionREPL:
+		cmdREPL.Parse(os.Args[2:])
+		runActionREPL()
 	default:
-		log.Fatal().Msgf("Unknown action %s", action)
+		fmt.Fprintf(os.Stderr, "Unknown action, please use 'help' to get more information")
 	}
 
 }
