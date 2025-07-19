@@ -79,6 +79,115 @@ func (db *DB) ReadTimestamp(key string) (time.Time, error) {
 	return result, err
 }
 
+// EmbeddingResult represents a similarity search result
+type EmbeddingResult struct {
+	AbstractQuery string  `json:"abstractQuery"`
+	Score         float32 `json:"score"` // Can be used for ranking if needed
+}
+
+// StoreEmbedding stores a vector->query mapping using LSH for similarity search
+func (db *DB) StoreEmbedding(abstractQuery string, vector []float32) error {
+	return db.bdb.Update(func(txn *badger.Txn) error {
+		return db.StoreEmbeddingTx(txn, abstractQuery, vector)
+	})
+}
+
+func (db *DB) StoreEmbeddingTx(txn *badger.Txn, abstractQuery string, vector []float32) error {
+
+	// Generate all LSH keys for this vector
+	lshKeys := generateLSHKeys(vector)
+	value := encodeAbstractQuery(abstractQuery)
+
+	// Store the query in all LSH buckets
+	for _, key := range lshKeys {
+		if err := txn.Set(key, value); err != nil {
+			return fmt.Errorf("failed to store LSH key: %w", err)
+		}
+	}
+	return nil
+}
+
+// FindSimilarQueries finds abstract queries similar to the given vector
+func (db *DB) FindSimilarQueries(queryVector []float32, maxResults int) ([]EmbeddingResult, error) {
+	// Generate LSH keys for the query vector
+	lshKeys := generateLSHKeys(queryVector)
+	
+	// Use map to deduplicate results (same query might appear in multiple LSH buckets)
+	resultMap := make(map[string]*EmbeddingResult)
+
+	err := db.bdb.View(func(txn *badger.Txn) error {
+		// Check each LSH bucket
+		for _, key := range lshKeys {
+			item, err := txn.Get(key)
+			if err != nil {
+				if err == badger.ErrKeyNotFound {
+					continue // This LSH bucket is empty, which is normal
+				}
+				return fmt.Errorf("failed to read LSH key: %w", err)
+			}
+			err = item.Value(func(val []byte) error {
+				abstractQuery := decodeAbstractQuery(val)
+
+				// Add to results if not already present
+				if _, exists := resultMap[abstractQuery]; !exists {
+					resultMap[abstractQuery] = &EmbeddingResult{
+						AbstractQuery: abstractQuery,
+						Score:         1.0, // Simple scoring - can be improved
+					}
+				} else {
+					// Query found in multiple buckets - increase score
+					resultMap[abstractQuery].Score += 0.1
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert map to slice and limit results
+	results := make([]EmbeddingResult, 0, len(resultMap))
+	for _, result := range resultMap {
+		results = append(results, *result)
+	}
+
+	// Sort by score (descending) and limit results
+	// Simple sorting - can be optimized for large result sets
+	for i := 0; i < len(results)-1; i++ {
+		for j := i + 1; j < len(results); j++ {
+			if results[j].Score > results[i].Score {
+				results[i], results[j] = results[j], results[i]
+			}
+		}
+	}
+
+	if len(results) > maxResults {
+		results = results[:maxResults]
+	}
+
+	return results, nil
+}
+
+// DeleteEmbedding removes all LSH entries for a given vector
+func (db *DB) DeleteEmbedding(vector []float32) error {
+	lshKeys := generateLSHKeys(vector)
+
+	return db.bdb.Update(func(txn *badger.Txn) error {
+		for _, key := range lshKeys {
+			if err := txn.Delete(key); err != nil && err != badger.ErrKeyNotFound {
+				return fmt.Errorf("failed to delete LSH key: %w", err)
+			}
+		}
+		return nil
+	})
+}
+
 func (db *DB) StoreQueryTx(txn *badger.Txn, query string, freq uint32) error {
 	key := encodeOriginalQuery(query)
 	var currFreq uint32
@@ -140,7 +249,7 @@ func (db *DB) SearchByPrefix(cqlPrefix string, limit int) ([]SearchResult, error
 	sort.Slice(ans, func(i, j int) bool {
 		return ans[i].Freq > ans[j].Freq
 	})
-	ans = ans[:limit]
+	ans = ans[:min(limit, len(ans))]
 	return ans, err
 }
 

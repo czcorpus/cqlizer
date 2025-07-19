@@ -13,8 +13,16 @@
 {
     package cql
 
+    import (
+        "fmt"
+        "strings"
+    )
+
 
     func ParseCQL(file string, data string) (*Query, error) {
+        if strings.TrimSpace(data) == "" {
+            return nil, fmt.Errorf("empty query")
+        }
         return ParseCQLBytes(file, []byte(data))
     }
 

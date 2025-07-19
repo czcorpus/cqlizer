@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/czcorpus/cqlizer/cql"
+	"github.com/czcorpus/cqlizer/embedding"
 	"github.com/czcorpus/cqlizer/index"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/go-sql-driver/mysql"
@@ -101,14 +102,73 @@ func (cp *ConcPersistence) importDataChunk(ctx context.Context, fromDate, toDate
 const (
 	importLastPositionKey = "importLastPosition"
 	defaultStartDate      = "2014-01-01"
-	importChunkDuration   = 7 * 24 * time.Hour // one week
+	importChunkDuration   = 30 * 24 * time.Hour // one week
 )
+
+func importChunk(db *index.DB, chunk []CPResult, w2vSrcPath string, model *embedding.CQLEmbedder) error {
+	err := db.Update(func(txn *badger.Txn) error {
+		for _, result := range chunk {
+			if result.Error != nil {
+				return fmt.Errorf("error reading data chunk: %w", result.Error)
+			}
+			if len(result.SearchResult.Value) > 700 {
+				log.Warn().Str("query", result.SearchResult.Value).Msg("ignoring too long query")
+				continue
+			}
+			parsed, parseErr := cql.ParseCQL("persistence_import", result.SearchResult.Value)
+			if parseErr != nil {
+				log.Error().
+					Str("query", result.SearchResult.Value).
+					Err(parseErr).
+					Msg("failed to parse query")
+				continue
+			}
+			abstractQuery := parsed.Normalize()
+			if err := AppendToFile(
+				w2vSrcPath,
+				abstractQuery,
+			); err != nil {
+				log.Error().
+					Err(err).
+					Msg("failed to store query to the auxiliary file, ignoring")
+			}
+			if err := db.StoreQueryTx(
+				txn,
+				result.SearchResult.Value,
+				result.SearchResult.Freq,
+			); err != nil {
+				return fmt.Errorf("failed to store query: %w", err)
+			}
+			if model != nil {
+				vec, err := model.CreateEmbedding(abstractQuery)
+				if err != nil {
+					log.Error().Err(err).Msg("failed to evaluate query via w2v model")
+					continue
+				}
+				if err := db.StoreEmbeddingTx(
+					txn,
+					abstractQuery, // Use abstract query as key, not original
+					vec.Vector,
+				); err != nil {
+					log.Error().Err(err).Msg("failed to store embedding")
+					continue
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update index with imported data: %w", err)
+	}
+	return nil
+}
 
 func ImportFromConcPersistence(
 	ctx context.Context,
 	concPers *ConcPersistence,
 	db *index.DB,
 	w2vSourceFilePath string,
+	w2vModel *embedding.CQLEmbedder,
 	fromDateUser string,
 ) error {
 	var fromDate time.Time
@@ -141,40 +201,24 @@ func ImportFromConcPersistence(
 	if err != nil {
 		return fmt.Errorf("failed to import data chunk: %w", err)
 	}
+	buff := make([]CPResult, 100)
+	i := 0
+	for item := range resultChan {
+		if i < len(buff) {
+			buff[i] = item
+			i++
 
-	err = db.Update(func(txn *badger.Txn) error {
-		for result := range resultChan {
-			if result.Error != nil {
-				return fmt.Errorf("error reading data chunk: %w", result.Error)
+		} else {
+			if err := importChunk(db, buff, w2vSourceFilePath, w2vModel); err != nil {
+				log.Error().Err(err).Msg("failed to import chunk of data")
 			}
-			parsed, parseErr := cql.ParseCQL("persistence_import", result.SearchResult.Value)
-			if parseErr != nil {
-				log.Error().
-					Str("query", result.SearchResult.Value).
-					Err(parseErr).
-					Msg("failed to parse query")
-				continue
-			}
-			if err := AppendToFile(
-				w2vSourceFilePath,
-				parsed.Normalize(),
-			); err != nil {
-				log.Error().
-					Err(err).
-					Msg("failed to store query to the auxiliary file, ignoring")
-			}
-			if err := db.StoreQueryTx(
-				txn,
-				result.SearchResult.Value,
-				result.SearchResult.Freq,
-			); err != nil {
-				return fmt.Errorf("failed to store query: %w", err)
-			}
+			i = 0
 		}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update index with imported data: %w", err)
+	}
+	if i > 0 {
+		if err := importChunk(db, buff[:i], w2vSourceFilePath, w2vModel); err != nil {
+			log.Error().Err(err).Msg("failed to import chunk of data")
+		}
 	}
 
 	if err := db.StoreTimestamp(importLastPositionKey, toDate); err != nil {

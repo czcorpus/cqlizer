@@ -5,8 +5,10 @@ go 1.23.0
 require (
 	github.com/czcorpus/cnc-gokit v0.14.0
 	github.com/dgraph-io/badger/v4 v4.8.0
+	github.com/go-sql-driver/mysql v1.9.3
 	github.com/mna/pigeon v1.2.1
 	github.com/rs/zerolog v1.33.0
+	github.com/sajari/word2vec v1.0.1
 	github.com/stretchr/testify v1.10.0
 )
 
@@ -35,7 +37,6 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.20.0 // indirect
-	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -50,6 +51,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
+	github.com/ziutek/blas v0.0.0-20190227122918-da4ca23e90bb // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel v1.37.0 // indirect
 	go.opentelemetry.io/otel/metric v1.37.0 // indirect

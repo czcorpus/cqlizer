@@ -48,6 +48,7 @@ type Conf struct {
 	IndexDataPath          string              `json:"indexDataPath"`
 	DataImportDB           dataimport.DBConf   `json:"dataImportDb"`
 	W2VSourceFilePath      string              `json:"w2vSourceFilePath"`
+	W2VModelPath           string              `json:"w2vModelPath"`
 }
 
 func LoadConfig(path string) *Conf {

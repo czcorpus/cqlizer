@@ -31,7 +31,9 @@ import (
 
 	"github.com/czcorpus/cnc-gokit/logging"
 	"github.com/czcorpus/cqlizer/cnf"
+	"github.com/czcorpus/cqlizer/cql"
 	"github.com/czcorpus/cqlizer/dataimport"
+	"github.com/czcorpus/cqlizer/embedding"
 	"github.com/czcorpus/cqlizer/index"
 )
 
@@ -47,6 +49,7 @@ const (
 	exiterrrorREPLReading
 	exitErrorFailedToOpenIdex
 	exitErrorFailedToOpenQueryPersistence
+	exitErrorFailedToOpenW2VModel
 )
 
 var (
@@ -91,7 +94,7 @@ func runActionMCPServer() {
 
 }
 
-func runActionREPL(db *index.DB) {
+func runActionREPL(db *index.DB, model *embedding.CQLEmbedder) {
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Print("> ")
@@ -111,6 +114,28 @@ func runActionREPL(db *index.DB) {
 			return
 		}
 		fmt.Println(response)
+		parsed, err := cql.ParseCQL("input", input)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to parse")
+			return
+		}
+		v, err := model.CreateEmbeddingNormalized(parsed.Normalize())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "ERR: ", err)
+			os.Exit(exiterrrorREPLReading)
+			return
+		}
+
+		abstract, err := db.FindSimilarQueries(v.Vector, 10)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to find: %s\n", err)
+			os.Exit(exiterrrorREPLReading)
+			return
+		}
+		for _, v := range abstract {
+			fmt.Fprintf(os.Stderr, "%s: %01.2f\n", v.AbstractQuery, v.Score)
+		}
+
 	}
 }
 
@@ -128,8 +153,20 @@ func runActionKlogImport(conf *cnf.Conf, srcPath string, fromDB bool, fromDate s
 			fmt.Fprintf(os.Stderr, "failed to open conc. persistence database: %s", err)
 			os.Exit(exitErrorFailedToOpenQueryPersistence)
 		}
+		w2vModel, err := embedding.NewCQLEmbedder(conf.W2VModelPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to open w2v model: %s", err)
+			os.Exit(exitErrorFailedToOpenW2VModel)
+		}
+
 		if err := dataimport.ImportFromConcPersistence(
-			ctx, cp, targetDB, conf.W2VSourceFilePath, fromDate); err != nil {
+			ctx,
+			cp,
+			targetDB,
+			conf.W2VSourceFilePath,
+			w2vModel,
+			fromDate,
+		); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to import KonText log: %s", err)
 			os.Exit(exitErrorImportFailed)
 		}
@@ -225,7 +262,12 @@ func main() {
 			fmt.Fprintf(os.Stderr, "failed to open index: %s", err)
 			os.Exit(exitErrorFailedToOpenIdex)
 		}
-		runActionREPL(db)
+		model, err := embedding.NewCQLEmbedder(conf.W2VModelPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to open model: %s", err)
+			os.Exit(exitErrorFailedToOpenIdex)
+		}
+		runActionREPL(db, model)
 	case actionKlogImport:
 		cmdKlogImport.Parse(os.Args[2:])
 		conf := setup(cmdKlogImport.Arg(0))
