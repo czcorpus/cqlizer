@@ -35,6 +35,14 @@ type ConcPersistence struct {
 	conn *sql.DB
 }
 
+func (cp *ConcPersistence) importJSONRecord(v string) (queryPersistenceRecord, error) {
+	var rec queryPersistenceRecord
+	if err := json.Unmarshal([]byte(v), &rec); err != nil {
+		return queryPersistenceRecord{}, nil
+	}
+	return rec, nil
+}
+
 func (cp *ConcPersistence) importDataChunk(ctx context.Context, fromDate, toDate time.Time) (chan CPResult, error) {
 	rows, err := cp.conn.QueryContext(
 		ctx,
@@ -44,6 +52,9 @@ func (cp *ConcPersistence) importDataChunk(ctx context.Context, fromDate, toDate
 	)
 	ans := make(chan CPResult, 100)
 	if err != nil {
+		go func() {
+			close(ans)
+		}()
 		return ans, fmt.Errorf("failed to fetch stored queries: %w", err)
 	}
 	go func() {
@@ -58,11 +69,11 @@ func (cp *ConcPersistence) importDataChunk(ctx context.Context, fromDate, toDate
 				}
 				return
 			}
-
-			var rec queryPersistenceRecord
-			if err := json.Unmarshal([]byte(data), &rec); err != nil {
+			rec, err := cp.importJSONRecord(data)
+			if err != nil {
 				// this likely means we're dealing with a different type of query
 				// (the one we're not interested in)
+				// TODO but it can also hide different kind of errors
 				continue
 			}
 			for _, q := range rec.AdvancedQueries() {

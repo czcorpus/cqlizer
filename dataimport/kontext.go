@@ -117,7 +117,7 @@ type queryPersistenceRecord struct {
 func (qpr *queryPersistenceRecord) AdvancedQueries() []string {
 	ans := make([]string, 0, len(qpr.LastOpForm.CurrQueries))
 	for k, v := range qpr.LastOpForm.CurrQueryTypes {
-		if v == "advanced" {
+		if v == "advanced" || v == "cql" {
 			ans = append(ans, qpr.LastOpForm.CurrQueries[k])
 		}
 	}
