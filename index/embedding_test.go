@@ -19,6 +19,10 @@ func TestStoreAndFindSimilarEmbeddings(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
+	// Initialize hyperplanes for the test
+	err = db.InitializeHyperplanes(10) // dimension of test vectors
+	require.NoError(t, err)
+
 	// Test data
 	abstractQuery1 := " ( pos \"word\" ) <AND> ( lemma \"test\" )"
 	vector1 := []float32{1.5, -2.3, 0.8, 4.1, -1.2, 2.0, 3.0, -0.5, 1.8, 0.2}
@@ -62,6 +66,10 @@ func TestFindSimilarQueries_Empty(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
+	// Initialize hyperplanes for the test
+	err = db.InitializeHyperplanes(5) // dimension of test vectors
+	require.NoError(t, err)
+
 	// Search in empty database
 	queryVector := []float32{1.0, 2.0, 3.0, 4.0, 5.0}
 	results, err := db.FindSimilarQueries(queryVector, 5)
@@ -81,6 +89,10 @@ func TestDeleteEmbedding(t *testing.T) {
 	db, err := OpenDB(tmpDir)
 	require.NoError(t, err)
 	defer db.Close()
+
+	// Initialize hyperplanes for the test
+	err = db.InitializeHyperplanes(10) // dimension of test vectors
+	require.NoError(t, err)
 
 	// Test data
 	abstractQuery := " ( pos \"word\" )"

@@ -158,6 +158,12 @@ func runActionKlogImport(conf *cnf.Conf, srcPath string, fromDB bool, fromDate s
 			fmt.Fprintf(os.Stderr, "failed to open w2v model: %s", err)
 			os.Exit(exitErrorFailedToOpenW2VModel)
 		}
+		
+		// Initialize hyperplanes using the model's vector dimension
+		if err := targetDB.InitializeHyperplanes(w2vModel.GetVectorDimensions()); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to initialize hyperplanes: %s", err)
+			os.Exit(exitErrorFailedToOpenIdex)
+		}
 
 		if err := dataimport.ImportFromConcPersistence(
 			ctx,
@@ -267,6 +273,13 @@ func main() {
 			fmt.Fprintf(os.Stderr, "failed to open model: %s", err)
 			os.Exit(exitErrorFailedToOpenIdex)
 		}
+		
+		// Initialize hyperplanes using the model's vector dimension
+		if err := db.InitializeHyperplanes(model.GetVectorDimensions()); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to initialize hyperplanes: %s", err)
+			os.Exit(exitErrorFailedToOpenIdex)
+		}
+		
 		runActionREPL(db, model)
 	case actionKlogImport:
 		cmdKlogImport.Parse(os.Args[2:])

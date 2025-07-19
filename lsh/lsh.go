@@ -88,6 +88,16 @@ func (v Vector) normalize() Vector {
 	return normalized
 }
 
+// Normalize returns a normalized copy of the vector (public method)
+func (v Vector) Normalize() Vector {
+	return v.normalize()
+}
+
+// Dot computes the dot product with another vector (public method)
+func (v Vector) Dot(other Vector) float64 {
+	return v.dot(other)
+}
+
 // ComputeHash computes binary hash for a vector
 func (lsh *RandomHyperplaneLSH) ComputeHash(vector Vector) []byte {
 	// We'll pack bits into bytes

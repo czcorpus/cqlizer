@@ -3,6 +3,7 @@ package index
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/czcorpus/cqlizer/lsh"
@@ -13,6 +14,7 @@ const (
 	AbstractQueryPrefix byte = 0x01 // query in its generalized form
 	AuxDataPrefix       byte = 0x02 // auxiliary data
 	CQLEmbeddingPrefix  byte = 0x03 // CQL embedding vectors
+	HyperplanePrefix    byte = 0x04 // LSH hyperplanes
 )
 
 func encodeOriginalQuery(lemma string) []byte {
@@ -70,33 +72,67 @@ const (
 )
 
 var (
-	// Global LSH instance - initialized once per application
-	globalLSH *lsh.RandomHyperplaneLSH
+	// Global hyperplanes - loaded once per application
+	globalHyperplanes []lsh.Vector
 )
 
-// initializeLSH creates a global LSH instance
-func initializeLSH(dimension int) {
-	if globalLSH == nil {
-		// Use the actual vector dimension
-		globalLSH = lsh.NewRandomHyperplaneLSH(dimension, LSHNumHyperplanes, LSHSeed)
-	}
+// hyperplaneKey creates a key for storing hyperplane data
+func hyperplaneKey(index int) []byte {
+	key := make([]byte, 5) // prefix + 4 bytes for index
+	key[0] = HyperplanePrefix
+	binary.LittleEndian.PutUint32(key[1:], uint32(index))
+	return key
 }
 
-// generateLSHKeys creates LSH hash keys from a vector using the local RandomHyperplaneLSH
+// encodeHyperplane serializes a hyperplane vector using IEEE 754 binary representation
+func encodeHyperplane(hyperplane lsh.Vector) []byte {
+	data := make([]byte, 8*len(hyperplane))
+	for i, v := range hyperplane {
+		binary.LittleEndian.PutUint64(data[i*8:], math.Float64bits(v))
+	}
+	return data
+}
+
+// decodeHyperplane deserializes a hyperplane vector using IEEE 754 binary representation
+func decodeHyperplane(data []byte) lsh.Vector {
+	dim := len(data) / 8
+	hyperplane := make(lsh.Vector, dim)
+	for i := 0; i < dim; i++ {
+		bits := binary.LittleEndian.Uint64(data[i*8:])
+		hyperplane[i] = math.Float64frombits(bits)
+	}
+	return hyperplane
+}
+
+// generateLSHKeys creates LSH hash keys from a vector using stored hyperplanes
 func generateLSHKeys(vector []float32) [][]byte {
-	// Convert float32 to float64 as required by the local lsh implementation
+	if len(globalHyperplanes) == 0 {
+		panic("hyperplanes not initialized - call DB.InitializeHyperplanes() first")
+	}
+
+	// Convert float32 to float64
 	point := make(lsh.Vector, len(vector))
 	for i, v := range vector {
 		point[i] = float64(v)
 	}
 
-	// Initialize LSH with the actual vector dimension
-	initializeLSH(len(vector))
+	// Normalize the vector for cosine similarity
+	point = point.Normalize()
 
-	// Compute hash directly using the local implementation
-	hash := globalLSH.ComputeHash(point)
+	// Compute binary hash using stored hyperplanes
+	numBytes := (len(globalHyperplanes) + 7) / 8
+	hash := make([]byte, numBytes)
 
-	// Create a single key with the computed hash
+	for i, hyperplane := range globalHyperplanes {
+		if point.Dot(hyperplane) > 0 {
+			// Set bit i to 1
+			byteIndex := i / 8
+			bitIndex := uint(i % 8)
+			hash[byteIndex] |= 1 << bitIndex
+		}
+	}
+
+	// Create a single key with the binary hash
 	key := make([]byte, 1+len(hash)) // prefix + hash
 	key[0] = CQLEmbeddingPrefix
 	copy(key[1:], hash)
