@@ -20,11 +20,14 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/czcorpus/cnc-gokit/logging"
 	"github.com/czcorpus/cqlizer/cnf"
@@ -43,6 +46,7 @@ const (
 	exitErrorImportFailed
 	exiterrrorREPLReading
 	exitErrorFailedToOpenIdex
+	exitErrorFailedToOpenQueryPersistence
 )
 
 var (
@@ -83,15 +87,6 @@ func cleanVersionInfo(v string) string {
 	return strings.TrimLeft(strings.Trim(v, "'"), "v")
 }
 
-func runActionHelp(subject string) {
-	if subject == "" {
-		topLevelUsage()
-		return
-	}
-	fmt.Fprintf(os.Stderr, "%s: \n", subject)
-	fmt.Fprintln(os.Stderr, "... nothing yet")
-}
-
 func runActionMCPServer() {
 
 }
@@ -119,10 +114,31 @@ func runActionREPL(db *index.DB) {
 	}
 }
 
-func runActionKlogImport(path string, db *index.DB) {
-	if err := dataimport.ImportKontextLog(path, db); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to import KonText log: %s", err)
-		os.Exit(exitErrorImportFailed)
+func runActionKlogImport(conf *cnf.Conf, srcPath string, fromDB bool, fromDate string) {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	targetDB, err := index.OpenDB(conf.IndexDataPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to open index: %s", err)
+		os.Exit(exitErrorFailedToOpenIdex)
+	}
+	if fromDB {
+		cp, err := dataimport.NewConcPersistence(conf.DataImportDB)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to open conc. persistence database: %s", err)
+			os.Exit(exitErrorFailedToOpenQueryPersistence)
+		}
+		if err := dataimport.ImportFromConcPersistence(
+			ctx, cp, targetDB, conf.W2VSourceFilePath, fromDate); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to import KonText log: %s", err)
+			os.Exit(exitErrorImportFailed)
+		}
+
+	} else {
+		if err := dataimport.ImportKontextLog(srcPath, targetDB); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to import KonText log: %s", err)
+			os.Exit(exitErrorImportFailed)
+		}
 	}
 }
 
@@ -165,6 +181,8 @@ func main() {
 	}
 
 	cmdKlogImport := flag.NewFlagSet(actionKlogImport, flag.ExitOnError)
+	importFromDB := cmdKlogImport.Bool("from-db", true, "if set, then the import will be performed from a configured SQL database (table kontext_conc_persistence)")
+	importFromDate := cmdKlogImport.String("from-date", "", "if set, then cqlizer will read queries from a specified date (even if the index contains a previous import info)")
 	cmdKlogImport.Usage = func() {
 		cmdKlogImport.PrintDefaults()
 	}
@@ -181,7 +199,18 @@ func main() {
 			cmdHelp.Parse(os.Args[2:])
 			subj = cmdHelp.Arg(0)
 		}
-		runActionHelp(subj)
+		if subj == "" {
+			topLevelUsage()
+			return
+		}
+		switch subj {
+		case actionKlogImport:
+			cmdKlogImport.PrintDefaults()
+		case actionMCPServer:
+			cmdMCP.PrintDefaults()
+		case actionREPL:
+			cmdREPL.PrintDefaults()
+		}
 	case actionVersion:
 		cmdVersion.Parse(os.Args[2:])
 		runActionVersion(version)
@@ -200,12 +229,8 @@ func main() {
 	case actionKlogImport:
 		cmdKlogImport.Parse(os.Args[2:])
 		conf := setup(cmdKlogImport.Arg(0))
-		db, err := index.OpenDB(conf.IndexDataPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to open index: %s", err)
-			os.Exit(exitErrorFailedToOpenIdex)
-		}
-		runActionKlogImport(cmdKlogImport.Arg(1), db)
+
+		runActionKlogImport(conf, cmdKlogImport.Arg(1), *importFromDB, *importFromDate)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown action, please use 'help' to get more information")
 	}

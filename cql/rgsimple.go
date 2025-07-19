@@ -39,8 +39,9 @@ func (r *RgSimple) Text() string {
 
 func (r *RgSimple) Normalize() string {
 	var ans strings.Builder
+	ans.WriteString(" ")
 	for _, v := range r.Values {
-		ans.WriteString(" " + v.Normalize())
+		ans.WriteString(v.Normalize())
 	}
 	return ans.String()
 }

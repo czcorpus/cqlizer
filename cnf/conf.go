@@ -47,6 +47,7 @@ type Conf struct {
 	TimeZone               string              `json:"timeZone"`
 	IndexDataPath          string              `json:"indexDataPath"`
 	DataImportDB           dataimport.DBConf   `json:"dataImportDb"`
+	W2VSourceFilePath      string              `json:"w2vSourceFilePath"`
 }
 
 func LoadConfig(path string) *Conf {

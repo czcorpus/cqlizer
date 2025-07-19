@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/dgraph-io/badger/v4"
 )
@@ -39,6 +40,43 @@ func (db *DB) Flush() error {
 
 func (db *DB) Size() (int64, int64) {
 	return db.bdb.Size()
+}
+
+func (db *DB) StoreTimestamp(key string, value time.Time) error {
+	keyBytes := make([]byte, 1+len(key))
+	keyBytes[0] = AuxDataPrefix
+	copy(keyBytes[1:], []byte(key))
+
+	valueBytes := encodeTime(value)
+
+	return db.bdb.Update(func(txn *badger.Txn) error {
+		return txn.Set(keyBytes, valueBytes)
+	})
+}
+
+func (db *DB) ReadTimestamp(key string) (time.Time, error) {
+	keyBytes := make([]byte, 1+len(key))
+	keyBytes[0] = AuxDataPrefix
+	copy(keyBytes[1:], []byte(key))
+
+	var result time.Time
+	err := db.bdb.View(func(txn *badger.Txn) error {
+		item, err := txn.Get(keyBytes)
+		if err != nil {
+			return err
+		}
+
+		return item.Value(func(val []byte) error {
+			t, decodeErr := decodeTime(val)
+			if decodeErr != nil {
+				return decodeErr
+			}
+			result = t
+			return nil
+		})
+	})
+
+	return result, err
 }
 
 func (db *DB) StoreQueryTx(txn *badger.Txn, query string, freq uint32) error {

@@ -663,23 +663,23 @@ func (op *OnePosition) Normalize() string {
 	var ans strings.Builder
 	if op.Variant1 != nil {
 		if op.Variant1.AttValList != nil {
-			ans.WriteString(" ( pos " + op.Variant1.AttValList.Normalize() + ")")
+			ans.WriteString(" ( pos " + op.Variant1.AttValList.Normalize() + " )")
 
 		} else {
 			ans.WriteString(" ( pos () )")
 		}
 
 	} else if op.Variant2 != nil {
-		ans.WriteString(" ( pos " + op.Variant2.RegExp.Normalize() + ")")
+		ans.WriteString(" ( pos " + op.Variant2.RegExp.Normalize() + " )")
 
 	} else if op.Variant3 != nil {
-		ans.WriteString(" ( pos " + op.Variant3.RegExp.origValue + ")")
+		ans.WriteString(" ( pos " + op.Variant3.RegExp.origValue + " )")
 
 	} else if op.Variant4 != nil {
-		ans.WriteString(" ( pos " + op.Variant4.Value.Normalize() + ")")
+		ans.WriteString(" ( pos " + op.Variant4.Value.Normalize() + " )")
 
 	} else if op.Variant5 != nil {
-		ans.WriteString(" ( pos " + op.Variant5.MuPart.Normalize() + ")")
+		ans.WriteString(" ( pos " + op.Variant5.MuPart.Normalize() + " )")
 	}
 	return ans.String()
 }
@@ -1605,7 +1605,7 @@ func (a *AttVal) Normalize() string {
 			attName = " ( ATT "
 		}
 		if a.SearchesInLargeSubset() {
-			ans.WriteString(" " + attName + ns + "<LARGE_SUBSET>)")
+			ans.WriteString(" " + attName + ns + " <LARGE_SUBSET> )")
 
 		} else {
 			ans.WriteString(" " + attName + ns + " " + a.Variant1.RawString.Normalize() + " )")

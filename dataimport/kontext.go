@@ -87,7 +87,7 @@ func (iargs inputArgs) getFirstQuery() string {
 	return ""
 }
 
-type inputRecord struct {
+type logQueryRecord struct {
 	Action   string    `json:"action"`
 	Date     string    `json:"date"`
 	Args     inputArgs `json:"args"`
@@ -95,7 +95,7 @@ type inputRecord struct {
 	Logger   string    `json:"logger"`
 }
 
-func (rec inputRecord) GetTime() time.Time {
+func (rec logQueryRecord) GetTime() time.Time {
 	if rec.Date[len(rec.Date)-1] == 'Z' {
 		return convertDatetimeStringWithMillisNoTZ(rec.Date[:len(rec.Date)-1] + "000")
 	}
@@ -103,6 +103,28 @@ func (rec inputRecord) GetTime() time.Time {
 }
 
 // --------
+
+type lastOpForm struct {
+	FormType       string            `json:"form_type"`
+	CurrQueryTypes map[string]string `json:"curr_query_types"`
+	CurrQueries    map[string]string `json:"curr_queries"`
+}
+
+type queryPersistenceRecord struct {
+	LastOpForm lastOpForm `json:"lastop_form"`
+}
+
+func (qpr *queryPersistenceRecord) AdvancedQueries() []string {
+	ans := make([]string, 0, len(qpr.LastOpForm.CurrQueries))
+	for k, v := range qpr.LastOpForm.CurrQueryTypes {
+		if v == "advanced" {
+			ans = append(ans, qpr.LastOpForm.CurrQueries[k])
+		}
+	}
+	return ans
+}
+
+// -----
 
 type ConcurrentErr struct {
 	lock  sync.Mutex
@@ -140,7 +162,7 @@ func ImportKontextLog(path string, db *index.DB) error {
 	err = db.Update(
 		func(txn *badger.Txn) error {
 			for scn.Scan() {
-				var rec inputRecord
+				var rec logQueryRecord
 				if err := json.Unmarshal(scn.Bytes(), &rec); err != nil {
 					fmt.Fprintf(os.Stderr, "failed to parse JSON log with error: %s\n", err)
 					fmt.Fprintf(os.Stderr, "   ... skipping\n")
@@ -150,13 +172,13 @@ func ImportKontextLog(path string, db *index.DB) error {
 
 				if rec.Args.hasAvancedQuery() {
 					fmt.Fprintf(os.Stderr, "Q: %s\n", rec.Args.getFirstQuery())
-					parsed, err := cql.ParseCQL("query@"+rec.Date, rec.Args.getFirstQuery())
+					_, err := cql.ParseCQL("query@"+rec.Date, rec.Args.getFirstQuery())
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "failed to parse %s with error: %s\n", rec.Args.getFirstQuery(), err)
 						fmt.Fprintf(os.Stderr, "   ... skipping\n")
 						continue
 					}
-					fmt.Println("N: ", parsed.Normalize())
+					// TODO - use parsed query as w2v source
 					db.StoreQueryTx(txn, rec.Args.getFirstQuery(), 1)
 				}
 			}
