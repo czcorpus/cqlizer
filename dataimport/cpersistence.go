@@ -60,6 +60,7 @@ func (cp *ConcPersistence) importDataChunk(ctx context.Context, fromDate, toDate
 	go func() {
 		defer close(ans)
 		i := 0
+		ignored := 0
 		for rows.Next() {
 			var data string
 			var freq int
@@ -74,6 +75,7 @@ func (cp *ConcPersistence) importDataChunk(ctx context.Context, fromDate, toDate
 				// this likely means we're dealing with a different type of query
 				// (the one we're not interested in)
 				// TODO but it can also hide different kind of errors
+				ignored++
 				continue
 			}
 			for _, q := range rec.AdvancedQueries() {
@@ -89,7 +91,8 @@ func (cp *ConcPersistence) importDataChunk(ctx context.Context, fromDate, toDate
 		log.Info().
 			Time("fromDate", fromDate).
 			Time("toDate", toDate).
-			Int("numberOfItems", i).
+			Int("numProcessed", i).
+			Int("numIgnored", ignored).
 			Msg("imported queries chunk from kontext_conc_persistence")
 	}()
 	return ans, nil
