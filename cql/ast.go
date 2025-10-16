@@ -123,7 +123,7 @@ func (q *Seq) Normalize() string {
 		if i > 0 {
 			ans.WriteString(" ")
 		}
-		ans.WriteString(v.Normalize())
+		ans.WriteString(fmt.Sprintf("%d# %s ", i, v.Normalize()))
 	}
 	return ans.String()
 }
@@ -483,9 +483,9 @@ func (s *Structure) Text() string {
 func (s *Structure) Normalize() string {
 	// // AttName _ AttValList?
 	if s.AttValList != nil {
-		return fmt.Sprintf(" (struct %s)", s.AttValList.Normalize())
+		return fmt.Sprintf(" struct %s", s.AttValList.Normalize())
 	}
-	return " (struct)"
+	return " struct"
 }
 
 func (s *Structure) IsBigStructure() bool {
@@ -591,7 +591,7 @@ func (n *NumberedPosition) Text() string {
 }
 
 func (n *NumberedPosition) Normalize() string {
-	return fmt.Sprintf(" (%s %s %s)", n.Number.Normalize(), n.Colon.Normalize(), n.OnePosition.Normalize())
+	return fmt.Sprintf(" %s %s %s", n.Number.Normalize(), n.Colon.Normalize(), n.OnePosition.Normalize())
 }
 
 func (n *NumberedPosition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -663,23 +663,23 @@ func (op *OnePosition) Normalize() string {
 	var ans strings.Builder
 	if op.Variant1 != nil {
 		if op.Variant1.AttValList != nil {
-			ans.WriteString(" ( pos " + op.Variant1.AttValList.Normalize() + " )")
+			ans.WriteString(" pos " + op.Variant1.AttValList.Normalize())
 
 		} else {
-			ans.WriteString(" ( pos () )")
+			ans.WriteString(" pos () ")
 		}
 
 	} else if op.Variant2 != nil {
-		ans.WriteString(" ( pos " + op.Variant2.RegExp.Normalize() + " )")
+		ans.WriteString(" pos " + op.Variant2.RegExp.Normalize())
 
 	} else if op.Variant3 != nil {
-		ans.WriteString(" ( pos " + op.Variant3.RegExp.origValue + " )")
+		ans.WriteString(" pos " + op.Variant3.RegExp.origValue)
 
 	} else if op.Variant4 != nil {
-		ans.WriteString(" ( pos " + op.Variant4.Value.Normalize() + " )")
+		ans.WriteString(" pos " + op.Variant4.Value.Normalize())
 
 	} else if op.Variant5 != nil {
-		ans.WriteString(" ( pos " + op.Variant5.MuPart.Normalize() + " )")
+		ans.WriteString(" pos " + op.Variant5.MuPart.Normalize())
 	}
 	return ans.String()
 }
@@ -811,10 +811,10 @@ func (p *Position) Text() string {
 func (p *Position) Normalize() string {
 	var ans strings.Builder
 	if p.variant1 != nil {
-		ans.WriteString(" " + p.variant1.OnePosition.Normalize())
+		ans.WriteString(p.variant1.OnePosition.Normalize())
 
 	} else if p.variant2 != nil {
-		ans.WriteString(" " + p.variant2.NumberedPosition.Normalize())
+		ans.WriteString(p.variant2.NumberedPosition.Normalize())
 	}
 	return ans.String()
 }
@@ -1600,15 +1600,15 @@ func (a *AttVal) Normalize() string {
 		if a.Variant1.Not {
 			ns = " <NEGATION>"
 		}
-		attName := " ( att "
+		attName := " att"
 		if a.IsProblematicAttrSearch() {
-			attName = " ( ATT "
+			attName = " ATT"
 		}
 		if a.SearchesInLargeSubset() {
-			ans.WriteString(" " + attName + ns + " <LARGE_SUBSET> )")
+			ans.WriteString(" " + attName + ns + " <LARGE_SUBSET>")
 
 		} else {
-			ans.WriteString(" " + attName + ns + " " + a.Variant1.RawString.Normalize() + " )")
+			ans.WriteString(" " + attName + ns + " " + a.Variant1.RawString.Normalize())
 		}
 
 	} else if a.Variant2 != nil {
