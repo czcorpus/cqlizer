@@ -31,10 +31,8 @@ import (
 
 	"github.com/czcorpus/cnc-gokit/logging"
 	"github.com/czcorpus/cqlizer/cnf"
-	"github.com/czcorpus/cqlizer/cql"
 	"github.com/czcorpus/cqlizer/dataimport"
-	"github.com/czcorpus/cqlizer/embedding"
-	"github.com/czcorpus/cqlizer/index"
+	"github.com/czcorpus/cqlizer/eval"
 )
 
 const (
@@ -94,7 +92,26 @@ func runActionMCPServer() {
 
 }
 
-func runActionREPL(db *index.DB, model *embedding.CQLEmbedder) {
+func runActionREPL(modelPath string) {
+	// Load the model
+	fmt.Printf("Loading model from %s...\n", modelPath)
+	model, err := eval.LoadModelFromFile(modelPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading model: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("✓ Model loaded successfully\n")
+
+	// Default corpus size (can be overridden with 'set corpussize <value>')
+	corpusSize := 100000000.0 // 100M tokens default
+
+	fmt.Println("CQL Query Cost Estimator")
+	fmt.Println("Commands:")
+	fmt.Println("  <CQL query>            - Estimate query execution time")
+	fmt.Println("  set corpussize <size>  - Set corpus size (e.g., 'set corpussize 121826797')")
+	fmt.Println("  exit                   - Exit REPL")
+	fmt.Printf("\nCurrent corpus size: %.0f tokens\n\n", corpusSize)
+
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Print("> ")
@@ -103,85 +120,80 @@ func runActionREPL(db *index.DB, model *embedding.CQLEmbedder) {
 		}
 		input := strings.TrimSpace(scanner.Text())
 
+		if input == "" {
+			continue
+		}
+
 		if input == "exit" {
 			fmt.Println("Goodbye!")
 			break
 		}
 
-		response, err := db.SearchByPrefix(input, 10)
-		if err != nil {
-			os.Exit(exiterrrorREPLReading)
-			return
-		}
-		fmt.Println(response)
-		parsed, err := cql.ParseCQL("input", input)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to parse")
-			return
-		}
-		v, err := model.CreateEmbeddingNormalized(parsed.Normalize())
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "ERR: ", err)
-			os.Exit(exiterrrorREPLReading)
-			return
-		}
-
-		abstract, err := db.FindSimilarQueries(v.Vector, 10)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to find: %s\n", err)
-			os.Exit(exiterrrorREPLReading)
-			return
-		}
-		for _, v := range abstract {
-			fmt.Fprintf(os.Stderr, "%s: %01.2f\n", v.AbstractQuery, v.Score)
+		// Handle 'set corpussize' command
+		if strings.HasPrefix(input, "set corpussize ") {
+			parts := strings.Fields(input)
+			if len(parts) == 3 {
+				var newSize float64
+				if _, err := fmt.Sscanf(parts[2], "%f", &newSize); err == nil {
+					corpusSize = newSize
+					fmt.Printf("✓ Corpus size set to %.0f tokens\n", corpusSize)
+				} else {
+					fmt.Fprintf(os.Stderr, "Error: Invalid corpus size\n")
+				}
+			} else {
+				fmt.Fprintf(os.Stderr, "Usage: set corpussize <size>\n")
+			}
+			continue
 		}
 
+		// Treat as CQL query
+		queryEval, err := eval.NewQueryEvaluation(input, corpusSize, 0)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing CQL: %v\n", err)
+			continue
+		}
+
+		// Calculate estimated cost
+		estimatedTime := queryEval.Cost(model)
+
+		// Display results
+		fmt.Printf("\n--- Query Analysis ---\n")
+		fmt.Printf("Query:           %s\n", input)
+		fmt.Printf("Corpus size:     %.0f tokens\n", corpusSize)
+		fmt.Printf("Positions:       %d\n", len(queryEval.Positions))
+		for i, pos := range queryEval.Positions {
+			fmt.Printf("  Position %d:    wildcards=%d, range=%d, smallCard=%d, numConcreteChars=%d\n",
+				i, pos.Regexp.NumWildcards, pos.Regexp.HasRange, pos.HasSmallCardAttr, pos.Regexp.NumConcreteChars)
+		}
+		fmt.Printf("Global features: glob=%d, meet=%d, union=%d, within=%d, containing=%d\n",
+			queryEval.NumGlobConditions, queryEval.ContainsMeet,
+			queryEval.ContainsUnion, queryEval.ContainsWithin, queryEval.ContainsContaining)
+		fmt.Printf("\n⏱️  Estimated time: %.4f seconds\n\n", estimatedTime)
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
 	}
 }
 
-func runActionKlogImport(conf *cnf.Conf, srcPath string, fromDB bool, fromDate string) {
+func runActionKlogImport(conf *cnf.Conf, srcPath string, useRF bool, numTrees int, voteThreshold float64) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	targetDB, err := index.OpenDB(conf.IndexDataPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open index: %s", err)
-		os.Exit(exitErrorFailedToOpenIdex)
-	}
-	if fromDB {
-		cp, err := dataimport.NewConcPersistence(conf.DataImportDB)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to open conc. persistence database: %s", err)
-			os.Exit(exitErrorFailedToOpenQueryPersistence)
-		}
-		w2vModel, err := embedding.NewCQLEmbedder(conf.W2VModelPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to open w2v model: %s", err)
-			os.Exit(exitErrorFailedToOpenW2VModel)
-		}
-		
-		// Initialize hyperplanes using the model's vector dimension
-		if err := targetDB.InitializeHyperplanes(w2vModel.GetVectorDimensions()); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to initialize hyperplanes: %s", err)
-			os.Exit(exitErrorFailedToOpenIdex)
-		}
+	fmt.Println("ctx: ", ctx)
 
-		if err := dataimport.ImportFromConcPersistence(
-			ctx,
-			cp,
-			targetDB,
-			conf.W2VSourceFilePath,
-			w2vModel,
-			fromDate,
-		); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to import KonText log: %s", err)
-			os.Exit(exitErrorImportFailed)
-		}
+	model := &eval.BasicModel{}
+	dataimport.ReadStatsFile(srcPath, model)
+	allEvals := model.BalanceSample()
 
+	if useRF {
+		// Train Random Forest model
+		if err := model.EvaluateWithRF(numTrees, voteThreshold, allEvals, ""); err != nil {
+			fmt.Fprintf(os.Stderr, "RF training failed: %v\n", err)
+			os.Exit(1)
+		}
 	} else {
-		if err := dataimport.ImportKontextLog(srcPath, targetDB); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to import KonText log: %s", err)
-			os.Exit(exitErrorImportFailed)
-		}
+		// Train Huber regression model (default)
+		model.Evaluate()
 	}
 }
 
@@ -224,9 +236,12 @@ func main() {
 	}
 
 	cmdKlogImport := flag.NewFlagSet(actionKlogImport, flag.ExitOnError)
-	importFromDB := cmdKlogImport.Bool("from-db", true, "if set, then the import will be performed from a configured SQL database (table kontext_conc_persistence)")
-	importFromDate := cmdKlogImport.String("from-date", "", "if set, then cqlizer will read queries from a specified date (even if the index contains a previous import info)")
+	useRF := cmdKlogImport.Bool("rf", false, "Use Random Forest instead of Huber regression")
+	numTrees := cmdKlogImport.Int("trees", 100, "Number of trees for Random Forest (default: 100)")
+	voteThreshold := cmdKlogImport.Float64("vote-threshold", 0.3, "RF Vote threshold for marking CQL as problematic")
 	cmdKlogImport.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s klog-import [options] config.json logfile.txt\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmdKlogImport.PrintDefaults()
 	}
 
@@ -262,30 +277,18 @@ func main() {
 		runActionMCPServer()
 	case actionREPL:
 		cmdREPL.Parse(os.Args[2:])
-		conf := setup(cmdREPL.Arg(0))
-		db, err := index.OpenDB(conf.IndexDataPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to open index: %s", err)
-			os.Exit(exitErrorFailedToOpenIdex)
+		if cmdREPL.NArg() < 1 {
+			fmt.Fprintf(os.Stderr, "Error: model file path required\n")
+			fmt.Fprintf(os.Stderr, "Usage: %s repl <model_file.json>\n", os.Args[0])
+			os.Exit(1)
 		}
-		model, err := embedding.NewCQLEmbedder(conf.W2VModelPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to open model: %s", err)
-			os.Exit(exitErrorFailedToOpenIdex)
-		}
-		
-		// Initialize hyperplanes using the model's vector dimension
-		if err := db.InitializeHyperplanes(model.GetVectorDimensions()); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to initialize hyperplanes: %s", err)
-			os.Exit(exitErrorFailedToOpenIdex)
-		}
-		
-		runActionREPL(db, model)
+		modelPath := cmdREPL.Arg(0)
+		runActionREPL(modelPath)
 	case actionKlogImport:
 		cmdKlogImport.Parse(os.Args[2:])
 		conf := setup(cmdKlogImport.Arg(0))
 
-		runActionKlogImport(conf, cmdKlogImport.Arg(1), *importFromDB, *importFromDate)
+		runActionKlogImport(conf, cmdKlogImport.Arg(1), *useRF, *numTrees, *voteThreshold)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown action, please use 'help' to get more information")
 	}

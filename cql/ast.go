@@ -22,8 +22,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
-
-	"github.com/czcorpus/cnc-gokit/collections"
 )
 
 var (
@@ -40,19 +38,6 @@ type Sequence struct {
 
 func (q *Sequence) Text() string {
 	return q.origValue
-}
-
-func (q *Sequence) Normalize() string {
-	var ans strings.Builder
-	for i, v := range q.Seq {
-		if i > 0 {
-			ans.WriteString(" <OR> " + v.Normalize())
-
-		} else {
-			ans.WriteString(v.Normalize())
-		}
-	}
-	return ans.String()
 }
 
 func (q *Sequence) MarshalJSON() ([]byte, error) {
@@ -117,17 +102,6 @@ func (s *Seq) Text() string {
 	return string(s.origValue)
 }
 
-func (q *Seq) Normalize() string {
-	var ans strings.Builder
-	for i, v := range q.Repetition {
-		if i > 0 {
-			ans.WriteString(" ")
-		}
-		ans.WriteString(fmt.Sprintf("%d# %s ", i, v.Normalize()))
-	}
-	return ans.String()
-}
-
 // -----------------------------------------------------
 
 // GlobPart
@@ -162,17 +136,6 @@ func (q *GlobPart) DFS(fn func(v ASTNode)) {
 
 func (q *GlobPart) Text() string {
 	return "#GlobPart" // TODO
-}
-
-func (q *GlobPart) Normalize() string {
-	var ans strings.Builder
-	for i, v := range q.GlobCond {
-		if i > 0 {
-			ans.WriteString(" ")
-		}
-		ans.WriteString(v.Normalize())
-	}
-	return ans.String()
 }
 
 // ---------------------------------------
@@ -239,21 +202,6 @@ func (w *WithinOrContaining) Text() string {
 	return "#WithinOrContaining"
 }
 
-func (w *WithinOrContaining) Normalize() string {
-	//	NOT? (KW_WITHIN / KW_CONTAINING) _ WithinContainingPart {
-	var ans strings.Builder
-	if w.not {
-		ans.WriteString(" <NEGATION>")
-	}
-	if w.numNegWithinParts > 0 {
-		ans.WriteString(" within")
-	}
-	if w.numContainingParts > 0 {
-		ans.WriteString(" containing")
-	}
-	return ans.String()
-}
-
 // -----------------------------------------------------
 
 type withinContainingPartVariant1 struct {
@@ -281,19 +229,6 @@ type WithinContainingPart struct {
 
 func (wcp *WithinContainingPart) Text() string {
 	return "#WithinContainingPart"
-}
-
-func (wcp *WithinContainingPart) Normalize() string {
-	if wcp.variant1 != nil {
-		return wcp.variant1.Sequence.Normalize()
-	}
-	if wcp.variant2 != nil {
-		return wcp.variant2.WithinNumber.Normalize()
-	}
-	if wcp.variant3 != nil {
-		wcp.variant3.AlignedPart.Normalize() // TODO missing NOT
-	}
-	return " #WithinContainingPart"
 }
 
 func (wcp *WithinContainingPart) MarshalJSON() ([]byte, error) {
@@ -382,26 +317,6 @@ func (gc *GlobCond) Text() string {
 	return "#GlobCond"
 }
 
-func (gc *GlobCond) Normalize() string {
-	// NUMBER DOT AttName _ NOT? EQ _ NUMBER DOT AttName
-	// KW_FREQ LPAREN _ NUMBER DOT AttName _ RPAREN NOT? _ ( EQ / LEQ / GEQ / LSTRUCT / RSTRUCT ) _ NUMBER {
-	if gc.variant1 != nil {
-		var ans strings.Builder
-		ans.WriteString(" att ")
-		ans.WriteString(gc.variant1.Not4.Normalize())
-		ans.WriteString(" att ")
-		return ans.String()
-	}
-	if gc.variant2 != nil {
-		var ans strings.Builder
-		ans.WriteString(" " + gc.variant2.Number2.Normalize())
-		ans.WriteString(" att ")
-		ans.WriteString(gc.variant2.Number6.Normalize())
-		return ans.String()
-	}
-	return " #GlobCond"
-}
-
 func (gc *GlobCond) MarshalJSON() ([]byte, error) {
 	if gc.variant1 != nil {
 		return json.Marshal(struct {
@@ -480,14 +395,6 @@ func (s *Structure) Text() string {
 	return s.AttName.Text()
 }
 
-func (s *Structure) Normalize() string {
-	// // AttName _ AttValList?
-	if s.AttValList != nil {
-		return fmt.Sprintf(" struct %s", s.AttValList.Normalize())
-	}
-	return " struct"
-}
-
 func (s *Structure) IsBigStructure() bool {
 	v := s.AttName.Text()
 	return v == "s" || v == "g" || v == "p"
@@ -530,21 +437,11 @@ type AttValList struct {
 }
 
 func (a *AttValList) Text() string {
-	return a.origValue
-}
-
-func (a *AttValList) Normalize() string {
-	// //	av1:AttValAnd av2:(_ BINOR _ AttValAnd)*
-	var ans strings.Builder
-	for i, v := range a.AttValAnd {
-		if i > 0 {
-			ans.WriteString(" <OR> " + v.Normalize())
-
-		} else {
-			ans.WriteString(" " + v.Normalize())
-		}
+	var tmp strings.Builder
+	for _, v := range a.AttValAnd {
+		tmp.WriteString(" " + v.Text())
 	}
-	return ans.String()
+	return fmt.Sprintf("#AttValList[ %s ]", tmp.String())
 }
 
 func (a *AttValList) IsEmpty() bool {
@@ -588,10 +485,6 @@ type NumberedPosition struct {
 
 func (n *NumberedPosition) Text() string {
 	return "#NumberedPosition"
-}
-
-func (n *NumberedPosition) Normalize() string {
-	return fmt.Sprintf(" %s %s %s", n.Number.Normalize(), n.Colon.Normalize(), n.OnePosition.Normalize())
 }
 
 func (n *NumberedPosition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -652,36 +545,6 @@ type OnePosition struct {
 
 func (op *OnePosition) Text() string {
 	return op.origValue
-}
-
-func (op *OnePosition) Normalize() string {
-	// var1: LBRACKET _ AttValList? _ RBRACKET
-	// var2: RegExp
-	// var3: TEQ NUMBER? RegExp
-	// var4: KW_MU
-	// var5: MuPart
-	var ans strings.Builder
-	if op.Variant1 != nil {
-		if op.Variant1.AttValList != nil {
-			ans.WriteString(" pos " + op.Variant1.AttValList.Normalize())
-
-		} else {
-			ans.WriteString(" pos () ")
-		}
-
-	} else if op.Variant2 != nil {
-		ans.WriteString(" pos " + op.Variant2.RegExp.Normalize())
-
-	} else if op.Variant3 != nil {
-		ans.WriteString(" pos " + op.Variant3.RegExp.origValue)
-
-	} else if op.Variant4 != nil {
-		ans.WriteString(" pos " + op.Variant4.Value.Normalize())
-
-	} else if op.Variant5 != nil {
-		ans.WriteString(" pos " + op.Variant5.MuPart.Normalize())
-	}
-	return ans.String()
 }
 
 func (op *OnePosition) MarshalJSON() ([]byte, error) {
@@ -808,17 +671,6 @@ func (p *Position) Text() string {
 	return p.origValue
 }
 
-func (p *Position) Normalize() string {
-	var ans strings.Builder
-	if p.variant1 != nil {
-		ans.WriteString(p.variant1.OnePosition.Normalize())
-
-	} else if p.variant2 != nil {
-		ans.WriteString(p.variant2.NumberedPosition.Normalize())
-	}
-	return ans.String()
-}
-
 func (p *Position) MarshalJSON() ([]byte, error) {
 	if p.variant1 != nil {
 		return json.Marshal(struct {
@@ -874,19 +726,6 @@ func (r *RegExp) Text() string {
 	return r.origValue
 }
 
-func (r *RegExp) Normalize() string {
-	var ans strings.Builder
-	for i, v := range r.RegExpRaw {
-		if i > 0 {
-			ans.WriteString(" <OR> " + v.Normalize())
-
-		} else {
-			ans.WriteString(" " + v.Normalize())
-		}
-	}
-	return ans.String()
-}
-
 func (r *RegExp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, r)
 	for _, v := range r.RegExpRaw {
@@ -919,17 +758,6 @@ type MuPart struct {
 
 func (m *MuPart) Text() string {
 	return m.origValue
-}
-
-func (m *MuPart) Normalize() string {
-	var ans strings.Builder
-	if m.Variant1 != nil {
-		ans.WriteString(" " + m.Variant1.UnionOp.Normalize())
-
-	} else if m.Variant2 != nil {
-		ans.WriteString(" " + m.Variant2.MeetOp.Normalize())
-	}
-	return ans.String()
 }
 
 func (m *MuPart) MarshalJSON() ([]byte, error) {
@@ -974,10 +802,6 @@ func (m *UnionOp) Text() string {
 	return m.origValue
 }
 
-func (m *UnionOp) Normalize() string {
-	return fmt.Sprintf(" %s %s", m.Position1.Normalize(), m.Position2.Normalize())
-}
-
 func (m *UnionOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, m)
 	m.Position1.ForEachElement(m, fn)
@@ -1000,10 +824,6 @@ type MeetOp struct {
 
 func (m *MeetOp) Text() string {
 	return m.origValue
-}
-
-func (m *MeetOp) Normalize() string {
-	return fmt.Sprintf(" %s %s", m.Position1.Normalize(), m.Position2.Normalize())
 }
 
 func (m *MeetOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1058,20 +878,6 @@ func (r *Repetition) IsAnyPosition() bool {
 
 func (r *Repetition) Text() string {
 	return r.origValue
-}
-
-func (r *Repetition) Normalize() string {
-	var ans strings.Builder
-	if r.Variant1 != nil {
-		ans.WriteString(" " + r.Variant1.AtomQuery.Normalize() + " " + r.Variant1.RepOpt.Normalize())
-
-	} else if r.Variant2 != nil {
-		ans.WriteString(" " + r.Variant2.OpenStructTag.Normalize())
-
-	} else if r.Variant3 != nil {
-		ans.WriteString(" " + r.Variant3.CloseStructTag.Normalize())
-	}
-	return ans.String()
 }
 
 func (r *Repetition) GetRepOpt() string {
@@ -1188,17 +994,6 @@ func (aq *AtomQuery) Text() string {
 	return aq.origValue
 }
 
-func (aq *AtomQuery) Normalize() string {
-	var ans strings.Builder
-	if aq.variant1 != nil {
-		ans.WriteString(" " + aq.variant1.Position.Normalize())
-
-	} else if aq.variant2 != nil {
-		ans.WriteString(" " + aq.variant2.Sequence.Normalize())
-	}
-	return ans.String()
-}
-
 func (aq *AtomQuery) MarshalJSON() ([]byte, error) {
 	if aq.variant1 != nil {
 		return json.Marshal(struct {
@@ -1291,21 +1086,6 @@ func (r *RepOpt) Text() string {
 	return ""
 }
 
-func (r *RepOpt) Normalize() string {
-	if r == nil {
-		return ""
-	}
-	var ans strings.Builder
-	if r.Variant1 != nil {
-		ans.WriteString(" " + r.Variant1.Value.Normalize())
-
-	} else if r.Variant2 != nil {
-		ans.WriteString(" " + r.Variant2.From.Normalize())
-		ans.WriteString(" " + r.Variant2.To.Normalize())
-	}
-	return ans.String()
-}
-
 func (r *RepOpt) MarshalJSON() ([]byte, error) {
 	if r.Variant1 != nil {
 		return json.Marshal(struct {
@@ -1363,10 +1143,6 @@ func (ost *OpenStructTag) Text() string {
 	return ost.origValue
 }
 
-func (ost *OpenStructTag) Normalize() string {
-	return ost.Structure.Normalize()
-}
-
 func (ost *OpenStructTag) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
@@ -1395,10 +1171,6 @@ type CloseStructTag struct {
 
 func (ost *CloseStructTag) Text() string {
 	return "#CloseStructTag"
-}
-
-func (ost *CloseStructTag) Normalize() string {
-	return ost.Structure.Normalize()
 }
 
 func (ost *CloseStructTag) MarshalJSON() ([]byte, error) {
@@ -1432,10 +1204,6 @@ func (a *AlignedPart) Text() string {
 	return "#AlignedPart"
 }
 
-func (a *AlignedPart) Normalize() string {
-	return " #AlignedPart"
-}
-
 func (a *AlignedPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, a)
 	// TODO
@@ -1455,20 +1223,11 @@ type AttValAnd struct {
 }
 
 func (a *AttValAnd) Text() string {
-	return "#AttValAnd"
-}
-
-func (a *AttValAnd) Normalize() string {
 	var ans strings.Builder
-	for i, v := range a.AttVal {
-		if i > 0 {
-			ans.WriteString(" <AND> " + v.Normalize())
-
-		} else {
-			ans.WriteString(" " + v.Normalize())
-		}
+	for _, v := range a.AttVal {
+		ans.WriteString(" " + v.Text())
 	}
-	return ans.String()
+	return fmt.Sprintf("#AttValAnd[%s]", ans.String())
 }
 
 func (a *AttValAnd) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1495,6 +1254,10 @@ type attValVariant1 struct {
 	RawString *RawString
 }
 
+func (av attValVariant1) Text() string {
+	return fmt.Sprintf("#attValVariant1[%s]", av.RawString.Text())
+}
+
 // AttName (_ NOT)? _ (EQ / LEQ / GEQ / TEQ NUMBER?) _ RegExp
 type attValVariant2 struct {
 	AttName ASTString
@@ -1503,12 +1266,24 @@ type attValVariant2 struct {
 	RegExp  *RegExp
 }
 
+func (av attValVariant2) Text() string {
+	return fmt.Sprintf("#attValVariant2[%s]", av.RegExp.Text())
+}
+
 // POSNUM NUMBER DASH NUMBER
 type attValVariant3 struct {
 }
 
+func (av attValVariant3) Text() string {
+	return "#attValVariant3[POSNUM NUMBER DASH NUMBER]"
+}
+
 // POSNUM NUMBER
 type attValVariant4 struct {
+}
+
+func (av attValVariant4) Text() string {
+	return "#attValVariant4[POSNUM NUMBER]"
 }
 
 // NOT AttVal
@@ -1516,22 +1291,44 @@ type attValVariant5 struct {
 	AttVal *AttVal
 }
 
+func (av attValVariant5) Text() string {
+	return fmt.Sprintf("#attValVariant5[%s]", av.AttVal.Text())
+}
+
 // LPAREN _ AttValList _ RPAREN
 type attValVariant6 struct {
 	AttValList *AttValList
+}
+
+func (av attValVariant6) Text() string {
+	return fmt.Sprintf("#attValVariant6[%s]", av.AttValList.Text())
 }
 
 // (KW_WS / KW_TERM) LPAREN _ (NUMBER COMMA NUMBER / RegExp COMMA RegExp COMMA RegExp) _ RPAREN
 type attValVariant7 struct {
 }
 
+func (av attValVariant7) Text() string {
+	return "#attValVariant7[(KW_WS / KW_TERM) LPAREN _ (NUMBER COMMA NUMBER / RegExp COMMA RegExp COMMA RegExp) _ RPAREN]"
+}
+
 // KW_SWAP LPAREN _ NUMBER COMMA AttValList _ RPAREN
 type attValVariant8 struct {
+}
+
+func (av attValVariant8) Text() string {
+	return "#attValVariant8[KW_SWAP LPAREN _ NUMBER COMMA AttValList _ RPAREN]"
 }
 
 // KW_CCOLL LPAREN _ NUMBER COMMA NUMBER COMMA AttValList _ RPAREN
 type attValVariant9 struct {
 }
+
+func (av attValVariant9) Text() string {
+	return "#attValVariant9[KW_CCOLL LPAREN _ NUMBER COMMA NUMBER COMMA AttValList _ RPAREN]"
+}
+
+// -----------
 
 type AttVal struct {
 	origValue string
@@ -1549,6 +1346,10 @@ type AttVal struct {
 func (a *AttVal) IsNegation() bool {
 	return a.Variant1 != nil && a.Variant1.Not ||
 		a.Variant2 != nil && a.Variant2.Not
+}
+
+func (a *AttVal) IsRecursive() bool {
+	return a.Variant6 != nil || a.Variant8 != nil || a.Variant9 != nil
 }
 
 func (a *AttVal) getAttName() string {
@@ -1571,114 +1372,35 @@ func (a *AttVal) rawValue() string {
 	return ""
 }
 
-func (a *AttVal) IsProblematicAttrSearch() bool {
-	attName := a.getAttName()
-	return collections.SliceContains(problematicAttributes, attName)
-}
-
-func (a *AttVal) SearchesInLargeSubset() bool {
-	if !a.IsProblematicAttrSearch() {
-		return false
-	}
-	rawValue := a.rawValue()
-	if a.getAttName() == "pos" && rawValue == "\"N\"" {
-		return true
-	}
-	problValues := []string{"\"N.*\"", "\"N.+\"", "\".*\"", "\".+\""}
-	return collections.SliceContains(problValues, rawValue)
-}
-
 func (a *AttVal) Text() string {
-	return a.origValue
-}
-
-func (a *AttVal) Normalize() string {
-	var ans strings.Builder
 	if a.Variant1 != nil {
-		// AttName _ (NOT)? EEQ _ RawString
-		var ns string
-		if a.Variant1.Not {
-			ns = " <NEGATION>"
-		}
-		attName := " att"
-		if a.IsProblematicAttrSearch() {
-			attName = " ATT"
-		}
-		if a.SearchesInLargeSubset() {
-			ans.WriteString(" " + attName + ns + " <LARGE_SUBSET>")
-
-		} else {
-			ans.WriteString(" " + attName + ns + " " + a.Variant1.RawString.Normalize())
-		}
+		return fmt.Sprintf("#AttVal[%s]", a.Variant1.Text())
 
 	} else if a.Variant2 != nil {
-		// AttName (_ NOT)? _ (EQ / LEQ / GEQ / TEQ NUMBER?) _ RegExp
-		var ns string
-		if a.Variant2.Not {
-			ns = " <NEGATION>"
-		}
-		attName := " ( att "
-		if a.IsProblematicAttrSearch() {
-			attName = " ( ATT "
-		}
-		if a.SearchesInLargeSubset() {
-			ans.WriteString(attName + ns + " <LARGE_SUBSET> )")
-
-		} else {
-			ans.WriteString(" " + attName + ns + " " + a.Variant2.RegExp.Normalize() + " )")
-		}
-
-	} else if a.Variant5 != nil {
-		ans.WriteString(" " + "<NEGATION> " + a.Variant5.AttVal.Normalize())
-
-	} else if a.Variant6 != nil {
-		ans.WriteString(" ( " + a.Variant6.AttValList.Normalize() + " ) ")
-	}
-
-	return ans.String()
-}
-
-func (a *AttVal) MarshalJSON() ([]byte, error) {
-	var variant any
-	if a.Variant1 != nil {
-		variant = a.Variant1
-
-	} else if a.Variant2 != nil {
-		variant = a.Variant2
+		return fmt.Sprintf("#AttVal[%s]", a.Variant2.Text())
 
 	} else if a.Variant3 != nil {
-		variant = a.Variant3
+		return fmt.Sprintf("#AttVal[%s]", a.Variant3.Text())
 
 	} else if a.Variant4 != nil {
-		variant = a.Variant4
+		return fmt.Sprintf("#AttVal[%s]", a.Variant4.Text())
 
 	} else if a.Variant5 != nil {
-		variant = a.Variant5
+		return fmt.Sprintf("#AttVal[%s]", a.Variant5.Text())
 
 	} else if a.Variant6 != nil {
-		variant = a.Variant6
+		return fmt.Sprintf("#AttVal[%s]", a.Variant6.Text())
 
 	} else if a.Variant7 != nil {
-		variant = a.Variant7
+		return fmt.Sprintf("#AttVal[%s]", a.Variant7.Text())
 
 	} else if a.Variant8 != nil {
-		variant = a.Variant8
+		return fmt.Sprintf("#AttVal[%s]", a.Variant8.Text())
 
 	} else if a.Variant9 != nil {
-		variant = a.Variant9
-
-	} else {
-		variant = struct{}{}
+		return fmt.Sprintf("#AttVal[%s]", a.Variant9.Text())
 	}
-	return json.Marshal(struct {
-		RuleName                string
-		Expansion               any
-		IsProblematicAttrSearch bool
-	}{
-		RuleName:                "AttVal",
-		Expansion:               variant,
-		IsProblematicAttrSearch: a.IsProblematicAttrSearch(),
-	})
+	return "#AttVal[_unknown_]"
 }
 
 func (a *AttVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1761,10 +1483,6 @@ func (w *WithinNumber) Text() string {
 	return "#WithinNumber"
 }
 
-func (w *WithinNumber) Normalize() string {
-	return w.Value.Normalize()
-}
-
 func (w *WithinNumber) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
@@ -1793,41 +1511,6 @@ type RegExpRaw struct {
 
 func (r *RegExpRaw) Text() string {
 	return r.origValue
-}
-
-func (r *RegExpRaw) Normalize() string {
-	var ans strings.Builder
-	for _, v := range r.Values {
-		ans.WriteString(v.Normalize())
-	}
-	return ans.String()
-}
-
-func (r *RegExpRaw) ExhaustionScore() float64 {
-	var ans float64
-	for _, v := range r.Values {
-		switch tValue := v.(type) {
-		case *RgGrouped:
-			ans += tValue.ExhaustionScore()
-		case *RgSimple:
-			ans += tValue.ExhaustionScore()
-		case *RgLook:
-			// TODO
-		}
-	}
-	return ans
-}
-
-func (r *RegExpRaw) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName        string
-		Expansion       RegExpRaw
-		ExhaustionScore float64
-	}{
-		RuleName:        "RegExpRaw",
-		Expansion:       *r,
-		ExhaustionScore: r.ExhaustionScore(),
-	})
 }
 
 func (r *RegExpRaw) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1865,11 +1548,10 @@ type RawString struct {
 }
 
 func (r *RawString) Text() string {
-	return r.SimpleString.Normalize()
-}
-
-func (r *RawString) Normalize() string {
-	return " #RawString"
+	if r.SimpleString != nil {
+		return fmt.Sprintf("RawString(%s)", r.SimpleString.Text())
+	}
+	return "RawString()"
 }
 
 func (r *RawString) MarshalJSON() ([]byte, error) {
@@ -1914,14 +1596,6 @@ func (r *SimpleString) Text() string {
 	var ans strings.Builder
 	for _, v := range r.Values {
 		ans.WriteString(string(v))
-	}
-	return ans.String()
-}
-
-func (r *SimpleString) Normalize() string {
-	var ans strings.Builder
-	for _, v := range r.Values {
-		ans.WriteString(v.Normalize())
 	}
 	return ans.String()
 }
