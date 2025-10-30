@@ -6,10 +6,45 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/rs/zerolog/log"
 )
+
+func findKneeDistance(items []QueryEvaluation) (threshold float64, kneeIdx int) {
+
+	n := len(items)
+	if n < 2 {
+		return items[n-1].ProcTime, 100.0
+	}
+
+	// Line from first to last point
+	x1, y1 := 0.0, items[0].ProcTime
+	x2, y2 := float64(n-1), items[n-1].ProcTime
+
+	// Line equation coefficients: ax + by + c = 0
+	a := y2 - y1
+	b := x1 - x2
+	c := x2*y1 - x1*y2
+
+	normFactor := math.Sqrt(a*a + b*b)
+
+	maxDist := 0.0
+	kneeIdx = 0
+
+	for i := 0; i < n; i++ {
+		// Perpendicular distance from point to line
+		dist := math.Abs(a*float64(i)+b*items[i].ProcTime+c) / normFactor
+		if dist > maxDist {
+			maxDist = dist
+			kneeIdx = i
+		}
+	}
+
+	threshold = items[kneeIdx].ProcTime
+	return threshold, kneeIdx
+}
 
 type QueryStatsRecord struct {
 	Corpus     string  `json:"corpus"`
@@ -33,16 +68,27 @@ func (rec QueryStatsRecord) GetCQL() string {
 
 type BasicModel struct {
 	Evaluations []QueryEvaluation
-	BinMidpoint float64 // Midpoint of each bin for prediction
+
+	// SlowQueryPercentile specifies which percentile of queries (by time)
+	// is considered as "slow times".
+	// This value is the one user enters.
+	SlowQueryPercentile float64
+
+	// MidpointIdx is derived from SlowQueryPercentile and represents a sorted data index
+	// from which SlowQueryPercentile starts.
 	MidpointIdx int
+
+	// BinMidpoint is the threshold time where SlowQueryPercentile starts. The value
+	// is derived from SlowQueryPercentile
+	BinMidpoint float64
 }
 
 func (model *BasicModel) computeThreshold() (int, float64) {
 	if len(model.Evaluations) == 0 {
 		return 0, 0
 	}
-	perc90Idx := int(math.Ceil(float64(len(model.Evaluations)) * 0.97))
-	return perc90Idx, model.Evaluations[perc90Idx].ProcTime
+	slowPercIdx := int(math.Ceil(float64(len(model.Evaluations)) * model.SlowQueryPercentile))
+	return slowPercIdx, model.Evaluations[slowPercIdx].ProcTime
 }
 
 func (model *BasicModel) BalanceSample() []QueryEvaluation {
@@ -52,16 +98,18 @@ func (model *BasicModel) BalanceSample() []QueryEvaluation {
 		}
 		return 1
 	})
-	model.MidpointIdx, model.BinMidpoint = model.computeThreshold()
+	//model.MidpointIdx, model.BinMidpoint = model.computeThreshold()
 	fmt.Println("-=============== BALANCED MODEL ====")
+	model.BinMidpoint, model.MidpointIdx = findKneeDistance(model.Evaluations)
+	fmt.Println("AUTOMATIC>>> threshold idx ", model.MidpointIdx, ", threshold time: ", model.BinMidpoint)
 	fmt.Printf("SHOULD BALANCE STUFF, num valid: %d, num total: %d\n", len(model.Evaluations)-model.MidpointIdx, len(model.Evaluations))
 	numPositive := len(model.Evaluations) - model.MidpointIdx
-	balEval := make([]QueryEvaluation, numPositive*2)
-	for i := 0; i < numPositive; i++ {
+	balEval := make([]QueryEvaluation, numPositive*3)
+	for i := 0; i < numPositive*2; i++ {
 		balEval[i] = model.Evaluations[rand.IntN(model.MidpointIdx)]
 	}
 	for i := 0; i < numPositive; i++ {
-		balEval[i+numPositive] = model.Evaluations[model.MidpointIdx+i]
+		balEval[i+numPositive*2] = model.Evaluations[model.MidpointIdx+i]
 	}
 	oldEvals := model.Evaluations
 	model.Evaluations = balEval
@@ -101,27 +149,21 @@ func (model *BasicModel) PrecisionAndRecall(rfModel *RFModel, threshold float64)
 	numRelevant := 0
 	numRetrieved := 0
 
-	// In the group below, "actual" is always FALSE
-	for i := 0; i < model.MidpointIdx; i++ {
-		//actual := model.Evaluations[i].ProcTime < rfModel.BinMidpoint
-		predicted := rfModel.Predict(model.Evaluations[i]) >= threshold
-		if predicted {
-			// = false positive
-			numRetrieved++
+	for i := 0; i < len(model.Evaluations); i++ {
+		trulySlow := model.Evaluations[i].ProcTime >= model.BinMidpoint
+		predictedSlow := rfModel.Predict(model.Evaluations[i]) >= threshold
+		if trulySlow {
+			numRelevant++
 		}
-	}
+		if predictedSlow {
+			numRetrieved++
 
-	// In the group below, "actual" is always TRUE
-	for i := model.MidpointIdx; i < len(model.Evaluations); i++ {
-		actual := model.Evaluations[i].ProcTime >= model.BinMidpoint
-		predicted := rfModel.Predict(model.Evaluations[i]) >= threshold
-		numRelevant++
-		if predicted {
-			numRetrieved++
+			if trulySlow {
+				numTruePositives++
+			}
+
 		}
-		if actual == predicted {
-			numTruePositives++
-		}
+
 	}
 
 	precision := float64(numTruePositives) / float64(numRetrieved)
@@ -138,15 +180,21 @@ func (model *BasicModel) PrecisionAndRecall(rfModel *RFModel, threshold float64)
 }
 
 // EvaluateWithRF trains a Random Forest model instead of Huber regression
-func (model *BasicModel) EvaluateWithRF(numTrees int, threshold float64, testData []QueryEvaluation, outputPath string) error {
+func (model *BasicModel) EvaluateWithRF(
+	numTrees int,
+	slowQueriesPerc float64,
+	votingThreshold float64,
+	testData []QueryEvaluation,
+	outputPath string,
+) error {
 	if len(model.Evaluations) == 0 {
 		return fmt.Errorf("no training data available")
 	}
 
-	fmt.Printf("Training Random Forest with %d trees and voting threshold %.2f\n", numTrees, threshold)
+	fmt.Printf("Training Random Forest with %d trees and slow queries percentile %.2f\n", numTrees, slowQueriesPerc)
 	fmt.Printf("Training data: %d samples\n", len(model.Evaluations))
 
-	rfModel := NewRFModel()
+	rfModel := NewRFModel(slowQueriesPerc)
 	if err := rfModel.Train(model, numTrees); err != nil {
 		return fmt.Errorf("RF training failed: %w", err)
 	}
@@ -162,7 +210,7 @@ func (model *BasicModel) EvaluateWithRF(numTrees int, threshold float64, testDat
 	}
 
 	// Test predictions on training data (for diagnostic purposes)
-	fmt.Println("\nSample predictions on training data:")
+	fmt.Printf("\nSample predictions on training data (voting threshold: %.2f):\n", votingThreshold)
 
 	fmt.Println("negative examples test: ")
 	for i := 0; i < maxSamples; i++ {
@@ -171,7 +219,7 @@ func (model *BasicModel) EvaluateWithRF(numTrees int, threshold float64, testDat
 		actual := model.Evaluations[randomIdx].ProcTime < model.BinMidpoint
 		fmt.Printf(
 			"       %d, match: %t, vote NO: %.2f (time: %.2f)\n",
-			randomIdx, actual == (predicted < threshold), 1-predicted, model.Evaluations[randomIdx].ProcTime,
+			randomIdx, actual == (predicted < votingThreshold), 1-predicted, model.Evaluations[randomIdx].ProcTime,
 		)
 	}
 
@@ -182,17 +230,22 @@ func (model *BasicModel) EvaluateWithRF(numTrees int, threshold float64, testDat
 		actual := model.Evaluations[randomIdx].ProcTime >= model.BinMidpoint
 		fmt.Printf(
 			"       %d, match: %t, vote YES: %.2f (time: %.2f)\n",
-			randomIdx, actual == (predicted >= threshold), predicted, model.Evaluations[randomIdx].ProcTime,
+			randomIdx, actual == (predicted >= votingThreshold), predicted, model.Evaluations[randomIdx].ProcTime,
 		)
 	}
 
-	model.PrecisionAndRecall(rfModel, threshold)
+	fmt.Println("calculating precision and recall using data of size ", len(model.Evaluations))
 
-	// Note: Saving is not fully supported by the randomForest package
-	// This is just metadata - the actual model needs to be retrained
-	if outputPath != "" {
-		fmt.Printf("\nNote: github.com/malaschitz/randomForest does not support full model serialization.\n")
-		fmt.Printf("You would need to retrain the model or switch to a different package for production use.\n")
+	model.PrecisionAndRecall(rfModel, votingThreshold)
+
+	timestamp := time.Now().Format("20060102T150405")
+	modelPath := fmt.Sprintf("cqlizer_rfmodel_%s.json", timestamp)
+	fmt.Printf("\n=== Saving RF Model ===\n")
+	if err := rfModel.SaveToFile(modelPath); err != nil {
+		fmt.Printf("Error saving model: %v\n", err)
+
+	} else {
+		fmt.Printf("Model saved to %s\n", modelPath)
 	}
 
 	return nil

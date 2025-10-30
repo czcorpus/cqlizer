@@ -3,25 +3,31 @@ package eval
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"os"
 
 	randomforest "github.com/malaschitz/randomForest"
 )
 
+type jsonizedRFModel struct {
+	Forest                json.RawMessage `json:"forest"`
+	Comment               string          `json:"comment"`
+	SlowQueriesPercentile float64         `json:"slowQueriesPercentile"`
+}
+
 // RFModel wraps a Random Forest classifier for regression via quantile binning
 type RFModel struct {
-	Forest             randomforest.Forest
-	TrainPositiveRatio float64
-	RealPositiveRatio  float64
+	Forest                *randomforest.Forest `json:"forest"`
+	Comment               string               `json:"comment"`
+	SlowQueriesPercentile float64              `json:"slowQueriesPercentile"`
 }
 
 // NewRFModel creates a new Random Forest model with time binning
-func NewRFModel() *RFModel {
+func NewRFModel(slowQueriesPerc float64) *RFModel {
 	return &RFModel{
-		Forest:             randomforest.Forest{},
-		TrainPositiveRatio: 0.5,
-		RealPositiveRatio:  0.03,
+		Forest:                &randomforest.Forest{},
+		SlowQueriesPercentile: slowQueriesPerc,
 	}
 }
 
@@ -53,7 +59,6 @@ func (m *RFModel) Train(dataModel *BasicModel, numTrees int) error {
 		Class: yData,
 	}
 	m.Forest.Train(numTrees)
-
 	return nil
 }
 
@@ -61,7 +66,6 @@ func (m *RFModel) Train(dataModel *BasicModel, numTrees int) error {
 func (m *RFModel) Predict(eval QueryEvaluation) float64 {
 	features := extractFeatures(eval)
 	votes := m.Forest.Vote(features)
-	//fmt.Println("VOTES: ", votes, ", strength: ", votes[1])
 	return votes[1]
 }
 
@@ -93,41 +97,41 @@ func extractFeatures(eval QueryEvaluation) []float64 {
 	features[27] = float64(eval.ContainsWithin)
 	features[28] = float64(eval.ContainsContaining)
 	features[29] = math.Log(eval.CorpusSize)
-	features[30] = 1.0 // Bias term
+	features[30] = float64(eval.AlignedPart)
+	features[31] = 1.0 // Bias term
 
 	return features
 }
 
-// RFModelMetadata stores metadata for saving/loading
-type RFModelMetadata struct {
-	BinMidpoint float64 `json:"bin_midpoint"`
-	NumTrees    int     `json:"num_trees"`
-	NumClasses  int     `json:"num_classes"`
-}
-
 // SaveToFile saves the RF model to a file
-// Note: github.com/malaschitz/randomForest doesn't provide native serialization,
-// so we save metadata only. For production, you'd need to retrain or use a
-// package with proper model serialization.
 func (m *RFModel) SaveToFile(filePath string) error {
-	metadata := RFModelMetadata{
-		NumTrees:   len(m.Forest.Trees),
-		NumClasses: m.Forest.Classes,
-	}
-
 	file, err := os.Create(filePath)
 	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
+		return fmt.Errorf("failed to save RF model to a file: %w", err)
 	}
 	defer file.Close()
 
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(metadata); err != nil {
-		return fmt.Errorf("failed to encode model metadata: %w", err)
+	tmpModel := jsonizedRFModel{
+		Comment:               m.Comment,
+		SlowQueriesPercentile: m.SlowQueriesPercentile,
 	}
 
-	return fmt.Errorf("WARNING: Full model serialization not supported by randomForest package. Only metadata saved. Model must be retrained on startup.")
+	bytes, err := json.Marshal(&m.Forest)
+	if err != nil {
+		return fmt.Errorf("failed to save RF model to a file: %w", err)
+	}
+
+	tmpModel.Forest = bytes
+
+	bytes, err = json.Marshal(tmpModel)
+	if err != nil {
+		return fmt.Errorf("failed to save RF model to a file: %w", err)
+	}
+	_, err = file.Write(bytes)
+	if err != nil {
+		return fmt.Errorf("failed to save RF model to a file: %w", err)
+	}
+	return nil
 }
 
 // LoadFromFile loads model metadata from file
@@ -140,13 +144,24 @@ func LoadRFModelFromFile(filePath string) (*RFModel, error) {
 	}
 	defer file.Close()
 
-	var metadata RFModelMetadata
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&metadata); err != nil {
-		return nil, fmt.Errorf("failed to decode model metadata: %w", err)
+	var tmpModel jsonizedRFModel
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load Random Forest model from file: %w", err)
+	}
+	if err := json.Unmarshal(data, &tmpModel); err != nil {
+		return nil, fmt.Errorf("failed to load Random Forest model from file: %w", err)
 	}
 
-	model := &RFModel{}
+	model := &RFModel{
+		Comment:               tmpModel.Comment,
+		SlowQueriesPercentile: tmpModel.SlowQueriesPercentile,
+	}
 
-	return model, fmt.Errorf("WARNING: Model structure cannot be loaded. Forest must be retrained.")
+	forest, err := randomforest.LoadFromJSON(tmpModel.Forest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load Random Forest model from file: %w", err)
+	}
+	model.Forest = forest
+	return model, nil
 }

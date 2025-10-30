@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-const NumFeatures = 31
+const NumFeatures = 32
 
 type CostProvider interface {
 	Cost(model ModelParams) float64
@@ -49,13 +49,14 @@ type ModelParams struct {
 	ConcreteChars3  float64
 	NumPosAlts3     float64
 
-	GlobCond   float64
-	Meet       float64
-	Union      float64
-	Within     float64
-	Containing float64
-	CorpusSize float64 // Impact of corpus size on query time
-	Bias       float64
+	GlobCond    float64
+	Meet        float64
+	Union       float64
+	Within      float64
+	Containing  float64
+	CorpusSize  float64 // Impact of corpus size on query time
+	AlignedPart float64
+	Bias        float64
 }
 
 func (p ModelParams) ToSlice() []float64 {
@@ -90,6 +91,7 @@ func (p ModelParams) ToSlice() []float64 {
 		p.Within,
 		p.Containing,
 		p.CorpusSize,
+		p.AlignedPart,
 		p.Bias,
 	}
 }
@@ -129,7 +131,8 @@ func SliceToModelParams(slice []float64) ModelParams {
 		Within:          slice[27],
 		Containing:      slice[28],
 		CorpusSize:      slice[29],
-		Bias:            slice[30],
+		AlignedPart:     slice[30],
+		Bias:            slice[31],
 	}
 }
 
@@ -196,6 +199,7 @@ type QueryEvaluation struct {
 	ContainsWithin     int
 	ContainsContaining int
 	CorpusSize         float64 // Size of the corpus being searched (e.g., number of tokens)
+	AlignedPart        int
 }
 
 func (eval QueryEvaluation) Cost(model ModelParams) float64 {

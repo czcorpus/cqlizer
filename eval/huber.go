@@ -63,6 +63,7 @@ func (hr *HuberRegressor) computeNormalizationParams(features [][]float64, targe
 	}
 
 	numFeatures := len(features[0])
+
 	hr.featureMeans = make([]float64, numFeatures)
 	hr.featureStds = make([]float64, numFeatures)
 
@@ -258,7 +259,8 @@ func (hr *HuberRegressor) extractFeatures(eval QueryEvaluation) []float64 {
 	features[27] = float64(eval.ContainsWithin)
 	features[28] = float64(eval.ContainsContaining)
 	features[29] = math.Log(eval.CorpusSize)
-	features[30] = 1.0 // Bias term
+	features[30] = float64(eval.AlignedPart)
+	features[31] = 1.0 // Bias term
 
 	return features
 }
@@ -307,6 +309,7 @@ func (hr *HuberRegressor) CrossValidate(evaluations []QueryEvaluation, k int) Cr
 			idx := indices[i]
 			if i >= testStart && i < testEnd {
 				testEvals = append(testEvals, evaluations[idx])
+
 			} else {
 				trainEvals = append(trainEvals, evaluations[idx])
 			}
@@ -457,6 +460,7 @@ func RunModel(evaluations []QueryEvaluation) {
 	fmt.Printf("  Within:         %.6f\n", finalParams.Within)
 	fmt.Printf("  Containing:     %.6f\n", finalParams.Containing)
 	fmt.Printf("  CorpusSize:     %.6f\n", finalParams.CorpusSize)
+	fmt.Printf("  AlignedPart:    %.6f\n", finalParams.AlignedPart)
 	fmt.Printf("  Bias:           %.6f\n", finalParams.Bias)
 
 	// Final evaluation on all data

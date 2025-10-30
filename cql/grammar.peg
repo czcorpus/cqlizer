@@ -700,7 +700,13 @@ RgSimple <-
             Values: make([]ASTNode, 0, len(vSlice)),
         }
         for _, item := range vSlice {
-            ans.Values = append(ans.Values, typedOrPanic[ASTNode](item))
+            v, ok := item.(string)
+            if ok {
+                ans.Values = append(ans.Values, ASTString(v))
+
+            } else {
+                ans.Values = append(ans.Values, typedOrPanic[ASTNode](item))
+            }
         }
 
         return ans, nil
@@ -873,7 +879,7 @@ RgChar <-
     / rg:RG_UNICODE_PROP {
         ans := &RgChar{
             variant1: &rgCharVariant1{
-                Value: ASTString(typedOrPanic[string](rg)),
+                Value: ASTString(ASTString(typedOrPanic[[]uint8](rg))),
             },
         }
 
@@ -905,7 +911,8 @@ RG_UNICODE_PROP <-
     "\\p{C}" / "\\p{Cc}" / "\\p{Cf}" / "\\p{Co}" / "\\p{Cs}" / "\\p{Cn}"
 
 POSIX_CHAR_CLS <-
-    "alnum" / "alpha" / "digit" / "lower" / "upper" / "punct" / "xdigit"
+    "alnum" / "ALNUM" / "alpha" / "ALPHA" / "digit" / "DIGIT" / "lower" / "LOWER" /
+    "upper" / "UPPER" / "punct" / "PUNCT" / "xdigit" / "XDIGIT"
 
 // {n}, {n,}, {n,m}
 RgRange <-

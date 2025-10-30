@@ -75,6 +75,9 @@ func extractFeaturesFromQuery(query *cql.Query, eval *QueryEvaluation) {
 
 		case *cql.UnionOp:
 			eval.ContainsUnion = 1
+
+		case *cql.AlignedPart:
+			eval.AlignedPart = 1
 		}
 	})
 }
@@ -132,8 +135,13 @@ func extractPositionFeatures(pos *cql.OnePosition) Position {
 		position.NumAlternatives = 1
 		position.HasSmallCardAttr = 1
 
-	} else {
+	} else if numAlternatives > 0 {
 		position.NumAlternatives = numAlternatives
+
+	} else {
+		position.NumAlternatives = 1 // AUTO-FIX
+		// TODO - this should be solved within the AST,
+		// it is caused by direct regexp queries: "foo"
 	}
 	regexp.NumConcreteChars /= float64(position.NumAlternatives)
 	position.Regexp = regexp

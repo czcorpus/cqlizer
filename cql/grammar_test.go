@@ -54,3 +54,27 @@ func TestParallelQuery(t *testing.T) {
 	_, err := ParseCQL("#", q)
 	assert.NoError(t, err)
 }
+
+func TestRgUnicodeProp(t *testing.T) {
+	q1 := `[mwe_lemma=".+_\p{Lu}+" & mwe_tag=".*1"]`
+	_, err := ParseCQL("#", q1)
+	assert.NoError(t, err)
+}
+
+func TestRgPosixCharCls(t *testing.T) {
+	q1 := `[word="^[[:alpha:]]{17}$"]`
+	_, err := ParseCQL("#", q1)
+	assert.NoError(t, err)
+}
+
+func TestRgUncommonChar(t *testing.T) {
+	q1 := `[word="Bułka"]`
+	_, err := ParseCQL("#", q1)
+	assert.NoError(t, err)
+}
+
+func TestAlignedQuery(t *testing.T) {
+	q1 := `[word="test"] within <text group=\"Acquis|Bible|Core|Europarl|PressEurop|Subtitles\" /> within intercorp_v12_cs:[word="Je"]`
+	_, err := ParseCQL("#", q1)
+	assert.NoError(t, err)
+}

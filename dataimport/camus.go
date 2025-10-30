@@ -2,6 +2,7 @@ package dataimport
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,7 +17,7 @@ type StatsFileProcessor interface {
 
 // ReadStatsFile reads a JSONL file where each line is a QueryStatsRecord
 // and calls the processor for each entry.
-func ReadStatsFile(filePath string, processor StatsFileProcessor) error {
+func ReadStatsFile(ctx context.Context, filePath string, processor StatsFileProcessor) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
@@ -28,6 +29,12 @@ func ReadStatsFile(filePath string, processor StatsFileProcessor) error {
 	numProc := 0
 	numFailed := 0
 	for scanner.Scan() {
+		select {
+		case <-ctx.Done():
+			log.Warn().Msg("interrupting CQL file processing")
+			return nil
+		default:
+		}
 		lineNum++
 		line := scanner.Bytes()
 

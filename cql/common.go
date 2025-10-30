@@ -62,7 +62,7 @@ func anyToSlice(v any) []any {
 	}
 	vt, ok := v.([]any)
 	if !ok {
-		panic("expecting a slice")
+		panic(fmt.Sprintf("expecting an []any slice, got %s", reflect.TypeOf(v)))
 	}
 	return vt
 }
