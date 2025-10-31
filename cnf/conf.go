@@ -34,6 +34,12 @@ const (
 	dfltTimeZone               = "Europe/Prague"
 )
 
+type RFEnsembleConf struct {
+	ModelPath     string  `json:"modelPath"`
+	VoteThreshold float64 `json:"voteThreshold"`
+	Disable       bool    `json:"disable"`
+}
+
 type Conf struct {
 	srcPath                string
 	Logging                logging.LoggingConf `json:"logging"`
@@ -45,6 +51,8 @@ type Conf struct {
 	CorsAllowedOrigins     []string            `json:"corsAllowedOrigins"`
 	TimeZone               string              `json:"timeZone"`
 	IndexDataPath          string              `json:"indexDataPath"`
+	RFEnsemble             []RFEnsembleConf    `json:"rfEnsemble"`
+	CorporaSizes           map[string]int      `json:"corporaSizes"`
 }
 
 func LoadConfig(path string) *Conf {

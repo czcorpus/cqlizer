@@ -1,6 +1,8 @@
 package eval
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand/v2"
@@ -69,26 +71,18 @@ func (rec QueryStatsRecord) GetCQL() string {
 type BasicModel struct {
 	Evaluations []QueryEvaluation
 
-	// SlowQueryPercentile specifies which percentile of queries (by time)
+	// slowQueryPercentile specifies which percentile of queries (by time)
 	// is considered as "slow times".
 	// This value is the one user enters.
-	SlowQueryPercentile float64
+	slowQueryPercentile float64
 
-	// MidpointIdx is derived from SlowQueryPercentile and represents a sorted data index
+	// midpointIdx is derived from SlowQueryPercentile and represents a sorted data index
 	// from which SlowQueryPercentile starts.
-	MidpointIdx int
+	midpointIdx int
 
-	// BinMidpoint is the threshold time where SlowQueryPercentile starts. The value
+	// binMidpoint is the threshold time where SlowQueryPercentile starts. The value
 	// is derived from SlowQueryPercentile
-	BinMidpoint float64
-}
-
-func (model *BasicModel) computeThreshold() (int, float64) {
-	if len(model.Evaluations) == 0 {
-		return 0, 0
-	}
-	slowPercIdx := int(math.Ceil(float64(len(model.Evaluations)) * model.SlowQueryPercentile))
-	return slowPercIdx, model.Evaluations[slowPercIdx].ProcTime
+	binMidpoint float64
 }
 
 func (model *BasicModel) BalanceSample() []QueryEvaluation {
@@ -99,17 +93,24 @@ func (model *BasicModel) BalanceSample() []QueryEvaluation {
 		return 1
 	})
 	//model.MidpointIdx, model.BinMidpoint = model.computeThreshold()
-	fmt.Println("-=============== BALANCED MODEL ====")
-	model.BinMidpoint, model.MidpointIdx = findKneeDistance(model.Evaluations)
-	fmt.Println("AUTOMATIC>>> threshold idx ", model.MidpointIdx, ", threshold time: ", model.BinMidpoint)
-	fmt.Printf("SHOULD BALANCE STUFF, num valid: %d, num total: %d\n", len(model.Evaluations)-model.MidpointIdx, len(model.Evaluations))
-	numPositive := len(model.Evaluations) - model.MidpointIdx
+	log.Info().Msg("creating a balanced sample for learning")
+	model.binMidpoint, model.midpointIdx = findKneeDistance(model.Evaluations)
+	model.slowQueryPercentile = float64(model.midpointIdx) / float64(len(model.Evaluations))
+	log.Info().
+		Float64("thresholdTime", model.binMidpoint).
+		Int("thresholdIdx", model.midpointIdx).
+		Float64("slowQueryPercentile", model.slowQueryPercentile).
+		Int("totalQueries", len(model.Evaluations)).
+		Int("positiveExamples", len(model.Evaluations)-model.midpointIdx).
+		Msg("calculated threshold for slow queries")
+
+	numPositive := len(model.Evaluations) - model.midpointIdx
 	balEval := make([]QueryEvaluation, numPositive*3)
 	for i := 0; i < numPositive*2; i++ {
-		balEval[i] = model.Evaluations[rand.IntN(model.MidpointIdx)]
+		balEval[i] = model.Evaluations[rand.IntN(model.midpointIdx)]
 	}
 	for i := 0; i < numPositive; i++ {
-		balEval[i+numPositive*2] = model.Evaluations[model.MidpointIdx+i]
+		balEval[i+numPositive*2] = model.Evaluations[model.midpointIdx+i]
 	}
 	oldEvals := model.Evaluations
 	model.Evaluations = balEval
@@ -131,7 +132,10 @@ func (model *BasicModel) ProcessEntry(entry QueryStatsRecord) error {
 		if utf8.RuneCountInString(errMsg) > 80 {
 			errMsg = string([]rune(errMsg)[:80])
 		}
-		log.Warn().Err(fmt.Errorf(errMsg)).Str("query", entry.GetCQL()).Msg("Warning: Failed to parse query")
+		log.Warn().
+			Err(errors.New(errMsg)).
+			Str("query", entry.GetCQL()).
+			Msg("Warning: Failed to parse query")
 		return nil // Skip unparseable queries
 	}
 
@@ -150,20 +154,17 @@ func (model *BasicModel) PrecisionAndRecall(rfModel *RFModel, threshold float64)
 	numRetrieved := 0
 
 	for i := 0; i < len(model.Evaluations); i++ {
-		trulySlow := model.Evaluations[i].ProcTime >= model.BinMidpoint
+		trulySlow := model.Evaluations[i].ProcTime >= model.binMidpoint
 		predictedSlow := rfModel.Predict(model.Evaluations[i]) >= threshold
 		if trulySlow {
 			numRelevant++
 		}
 		if predictedSlow {
 			numRetrieved++
-
 			if trulySlow {
 				numTruePositives++
 			}
-
 		}
-
 	}
 
 	precision := float64(numTruePositives) / float64(numRetrieved)
@@ -175,36 +176,12 @@ func (model *BasicModel) PrecisionAndRecall(rfModel *RFModel, threshold float64)
 		fbeta = (1 + betaSquared) * (precision * recall) / (betaSquared*precision + recall)
 	}
 
-	fmt.Printf("precision: %.2f, recall: %.2f, f-beta: %.2f\n", precision, recall, fbeta)
+	fmt.Printf("%.2f;%.2f;%.2f;%.2f\n", threshold, precision, recall, fbeta)
 
 }
 
-// EvaluateWithRF trains a Random Forest model instead of Huber regression
-func (model *BasicModel) EvaluateWithRF(
-	numTrees int,
-	slowQueriesPerc float64,
-	votingThreshold float64,
-	testData []QueryEvaluation,
-	outputPath string,
-) error {
-	if len(model.Evaluations) == 0 {
-		return fmt.Errorf("no training data available")
-	}
+func (model *BasicModel) showSampleEvaluations(rfModel *RFModel, maxSamples int, votingThreshold float64) {
 
-	fmt.Printf("Training Random Forest with %d trees and slow queries percentile %.2f\n", numTrees, slowQueriesPerc)
-	fmt.Printf("Training data: %d samples\n", len(model.Evaluations))
-
-	rfModel := NewRFModel(slowQueriesPerc)
-	if err := rfModel.Train(model, numTrees); err != nil {
-		return fmt.Errorf("RF training failed: %w", err)
-	}
-
-	fmt.Println("\nRandom Forest trained successfully!")
-	fmt.Printf("Bin midpoint: %v\n", model.BinMidpoint)
-
-	model.Evaluations = testData
-
-	maxSamples := 30
 	if len(model.Evaluations) < maxSamples {
 		maxSamples = len(model.Evaluations)
 	}
@@ -214,9 +191,9 @@ func (model *BasicModel) EvaluateWithRF(
 
 	fmt.Println("negative examples test: ")
 	for i := 0; i < maxSamples; i++ {
-		randomIdx := rand.IntN(model.MidpointIdx)
+		randomIdx := rand.IntN(model.midpointIdx)
 		predicted := rfModel.Predict(model.Evaluations[randomIdx])
-		actual := model.Evaluations[randomIdx].ProcTime < model.BinMidpoint
+		actual := model.Evaluations[randomIdx].ProcTime < model.binMidpoint
 		fmt.Printf(
 			"       %d, match: %t, vote NO: %.2f (time: %.2f)\n",
 			randomIdx, actual == (predicted < votingThreshold), 1-predicted, model.Evaluations[randomIdx].ProcTime,
@@ -225,27 +202,63 @@ func (model *BasicModel) EvaluateWithRF(
 
 	fmt.Println("POSITIVE examples test: ")
 	for i := 0; i < maxSamples; i++ {
-		randomIdx := rand.IntN(len(model.Evaluations)-model.MidpointIdx) + model.MidpointIdx
+		randomIdx := rand.IntN(len(model.Evaluations)-model.midpointIdx) + model.midpointIdx
 		predicted := rfModel.Predict(model.Evaluations[randomIdx])
-		actual := model.Evaluations[randomIdx].ProcTime >= model.BinMidpoint
+		actual := model.Evaluations[randomIdx].ProcTime >= model.binMidpoint
 		fmt.Printf(
 			"       %d, match: %t, vote YES: %.2f (time: %.2f)\n",
 			randomIdx, actual == (predicted >= votingThreshold), predicted, model.Evaluations[randomIdx].ProcTime,
 		)
 	}
+}
 
-	fmt.Println("calculating precision and recall using data of size ", len(model.Evaluations))
+// EvaluateWithRF trains a Random Forest model instead of Huber regression
+func (model *BasicModel) EvaluateWithRF(
+	ctx context.Context,
+	numTrees int,
+	votingThreshold float64,
+	testData []QueryEvaluation,
+	outputPath string,
+) error {
+	if len(model.Evaluations) == 0 {
+		return fmt.Errorf("no training data available")
+	}
 
-	model.PrecisionAndRecall(rfModel, votingThreshold)
+	log.Info().
+		Int("numTrees", numTrees).
+		Int("trainingDataSize", len(model.Evaluations)).
+		Msg("Training Random Forest")
+
+	rfModel := NewRFModel(model.slowQueryPercentile)
+	if err := rfModel.Train(model, numTrees); err != nil {
+		return fmt.Errorf("RF training failed: %w", err)
+	}
 
 	timestamp := time.Now().Format("20060102T150405")
 	modelPath := fmt.Sprintf("cqlizer_rfmodel_%s.json", timestamp)
-	fmt.Printf("\n=== Saving RF Model ===\n")
 	if err := rfModel.SaveToFile(modelPath); err != nil {
-		fmt.Printf("Error saving model: %v\n", err)
+		return fmt.Errorf("error saving model: %w", err)
 
 	} else {
-		fmt.Printf("Model saved to %s\n", modelPath)
+		log.Debug().Str("path", modelPath).Msg("saved model file")
+	}
+
+	// ----- testing
+
+	model.Evaluations = testData
+
+	log.Info().
+		Int("evalDataSize", len(model.Evaluations)).
+		Msg("calculating precision and recall using full data")
+
+	fmt.Println("vote;precision;recall;f-beta")
+	for th := 0.7; th <= 0.991; th += 0.01 {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+		model.PrecisionAndRecall(rfModel, th)
 	}
 
 	return nil

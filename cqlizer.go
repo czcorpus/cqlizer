@@ -23,6 +23,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -31,8 +32,9 @@ import (
 
 	"github.com/czcorpus/cnc-gokit/logging"
 	"github.com/czcorpus/cqlizer/cnf"
-	"github.com/czcorpus/cqlizer/dataimport"
 	"github.com/czcorpus/cqlizer/eval"
+	"github.com/rs/zerolog/log"
+	"github.com/vmihailenco/msgpack"
 )
 
 const (
@@ -41,6 +43,8 @@ const (
 	actionVersion    = "version"
 	actionHelp       = "help"
 	actionKlogImport = "klog-import"
+	actionFeaturize  = "featurize"
+	actionAPIServer  = "server"
 
 	exitErrorGeneralFailure = iota
 	exitErrorImportFailed
@@ -193,19 +197,38 @@ func runActionREPL(modelPath string, rfPath string) {
 	}
 }
 
-func runActionKlogImport(conf *cnf.Conf, srcPath string, useRF bool, numTrees int, slowQueryPerc, voteThreshold float64) {
+func runActionKlogImport(conf *cnf.Conf, srcPath string, useRF bool, numTrees int, voteThreshold float64) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	model := &eval.BasicModel{
-		SlowQueryPercentile: slowQueryPerc,
+	/*
+		model := &eval.BasicModel{
+			SlowQueryPercentile: slowQueryPerc,
+		}
+		dataimport.ReadStatsFile(ctx, srcPath, model)
+	*/
+	f, err := os.Open(srcPath)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to open features file")
+		return
 	}
-	dataimport.ReadStatsFile(ctx, srcPath, model)
+	defer f.Close()
+	data, err := io.ReadAll(f)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to open features file")
+		return
+	}
+	var model eval.BasicModel
+	if err := msgpack.Unmarshal(data, &model); err != nil {
+		log.Fatal().Err(err).Msg("failed to open features file")
+		return
+	}
+
 	allEvals := model.BalanceSample()
 
 	if useRF {
 		// Train Random Forest model
-		if err := model.EvaluateWithRF(numTrees, slowQueryPerc, voteThreshold, allEvals, ""); err != nil {
+		if err := model.EvaluateWithRF(ctx, numTrees, voteThreshold, allEvals, ""); err != nil {
 			fmt.Fprintf(os.Stderr, "RF training failed: %v\n", err)
 			os.Exit(1)
 		}
@@ -257,12 +280,25 @@ func main() {
 	cmdKlogImport := flag.NewFlagSet(actionKlogImport, flag.ExitOnError)
 	useRF := cmdKlogImport.Bool("rf", false, "Use Random Forest instead of Huber regression")
 	numTrees := cmdKlogImport.Int("num-trees", 100, "Number of trees for Random Forest (default: 100)")
-	slowQueryPerc := cmdKlogImport.Float64("slow-query-perc", 0.95, "A percentile for slow queries. This affects learning")
 	voteThreshold := cmdKlogImport.Float64("vote-threshold", 0.3, "RF Vote threshold for marking CQL as problematic. This affects only evaluation.")
 	cmdKlogImport.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s klog-import [options] config.json logfile.txt\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmdKlogImport.PrintDefaults()
+	}
+
+	cmdFeaturize := flag.NewFlagSet(actionFeaturize, flag.ExitOnError)
+	cmdFeaturize.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s featurize [options] config.json logfile.txt\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmdFeaturize.PrintDefaults()
+	}
+
+	cmdAPIServer := flag.NewFlagSet(actionAPIServer, flag.ExitOnError)
+	cmdAPIServer.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s server [options] config.json\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmdAPIServer.PrintDefaults()
 	}
 
 	action := actionHelp
@@ -313,9 +349,23 @@ func main() {
 			cmdKlogImport.Arg(1),
 			*useRF,
 			*numTrees,
-			*slowQueryPerc,
 			*voteThreshold,
 		)
+	case actionFeaturize:
+		cmdFeaturize.Parse(os.Args[2:])
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		runActionFeaturize(
+			ctx,
+			cmdFeaturize.Arg(0),
+			cmdFeaturize.Arg(1),
+		)
+	case actionAPIServer:
+		cmdAPIServer.Parse(os.Args[2:])
+		conf := setup(cmdAPIServer.Arg(0))
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		runApiServer(ctx, conf)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown action, please use 'help' to get more information")
 	}

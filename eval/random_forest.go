@@ -8,6 +8,7 @@ import (
 	"os"
 
 	randomforest "github.com/malaschitz/randomForest"
+	"github.com/rs/zerolog/log"
 )
 
 type jsonizedRFModel struct {
@@ -37,23 +38,24 @@ func (m *RFModel) Train(dataModel *BasicModel, numTrees int) error {
 		return fmt.Errorf("no training data provided")
 	}
 
-	// Prepare training data
 	var xData [][]float64
 	var yData []int
 	numProblematic := 0
 	for _, eval := range dataModel.Evaluations {
 		features := extractFeatures(eval)
-		isProblematic := 0
-		if eval.ProcTime >= dataModel.BinMidpoint {
+		isPositive := 0
+		if eval.ProcTime >= dataModel.binMidpoint {
 			numProblematic++
-			isProblematic = 1
+			isPositive = 1
 		}
 		xData = append(xData, features)
-		yData = append(yData, isProblematic)
+		yData = append(yData, isPositive)
 	}
-	fmt.Println("#### NUM PROBLEMATIC: ", numProblematic, "  OUT OF TRANING SAMPLE ", len(dataModel.Evaluations))
+	log.Debug().
+		Int("numPositive", numProblematic).
+		Int("dataSize", len(dataModel.Evaluations)).
+		Msg("prepared training vectors")
 
-	// Train the forest
 	m.Forest.Data = randomforest.ForestData{
 		X:     xData,
 		Class: yData,
@@ -158,10 +160,10 @@ func LoadRFModelFromFile(filePath string) (*RFModel, error) {
 		SlowQueriesPercentile: tmpModel.SlowQueriesPercentile,
 	}
 
-	forest, err := randomforest.LoadFromJSON(tmpModel.Forest)
-	if err != nil {
+	var forest randomforest.Forest
+	if err := json.Unmarshal(tmpModel.Forest, &forest); err != nil {
 		return nil, fmt.Errorf("failed to load Random Forest model from file: %w", err)
 	}
-	model.Forest = forest
+	model.Forest = &forest
 	return model, nil
 }

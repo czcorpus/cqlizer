@@ -172,34 +172,34 @@ func LoadModelFromFile(filePath string) (ModelParams, error) {
 // -----------------------------------
 
 type Regexp struct {
-	StartsWithWildCard int
-	NumConcreteChars   float64
-	NumWildcards       int
-	HasRange           int
+	StartsWithWildCard int     `msgpack:"startsWithWildCard"`
+	NumConcreteChars   float64 `msgpack:"numConcreteChars"`
+	NumWildcards       int     `msgpack:"numWildcards"`
+	HasRange           int     `msgpack:"hasRange"`
 }
 
 // -----------------------------------
 
 type Position struct {
-	Index            int
-	Regexp           Regexp
-	HasSmallCardAttr int // 1 if searching by attribute with small cardinality (tag, pos, etc.) or empty query []
-	NumAlternatives  int // at least 1, solves situations like [lemma="foo" | word="fooish"]
+	Index            int    `msgpack:"index"`
+	Regexp           Regexp `msgpack:"regexp"`
+	HasSmallCardAttr int    `msgpack:"hasSmallCardAttr"` // 1 if searching by attribute with small cardinality (tag, pos, etc.) or empty query []
+	NumAlternatives  int    `msgpack:"numAlternatives"`  // at least 1, solves situations like [lemma="foo" | word="fooish"]
 }
 
 // -----------------------------------
 
 type QueryEvaluation struct {
-	ProcTime float64
+	ProcTime float64 `msgpack:"procTime"`
 
-	Positions          []Position
-	NumGlobConditions  int
-	ContainsMeet       int
-	ContainsUnion      int
-	ContainsWithin     int
-	ContainsContaining int
-	CorpusSize         float64 // Size of the corpus being searched (e.g., number of tokens)
-	AlignedPart        int
+	Positions          []Position `msgpack:"positions"`
+	NumGlobConditions  int        `msgpack:"numGlobConditions"`
+	ContainsMeet       int        `msgpack:"containsMeet"`
+	ContainsUnion      int        `msgpack:"containsUnion"`
+	ContainsWithin     int        `msgpack:"containsWithin"`
+	ContainsContaining int        `msgpack:"containsContaining"`
+	CorpusSize         float64    `msgpack:"corpusSize"` // Size of the corpus being searched (e.g., number of tokens)
+	AlignedPart        int        `msgpack:"alignedPart"`
 }
 
 func (eval QueryEvaluation) Cost(model ModelParams) float64 {
