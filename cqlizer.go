@@ -31,6 +31,7 @@ import (
 	"syscall"
 
 	"github.com/czcorpus/cnc-gokit/logging"
+	"github.com/czcorpus/cqlizer/apiserver"
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/eval"
 	"github.com/rs/zerolog/log"
@@ -365,7 +366,7 @@ func main() {
 		conf := setup(cmdAPIServer.Arg(0))
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
-		runApiServer(ctx, conf)
+		apiserver.Run(ctx, conf)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown action, please use 'help' to get more information")
 	}
