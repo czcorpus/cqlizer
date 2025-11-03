@@ -4,17 +4,16 @@ go 1.23.0
 
 require (
 	github.com/czcorpus/cnc-gokit v0.14.0
-	github.com/malaschitz/randomForest v0.0.0-20240228214944-c64ffe1648e0
+	github.com/malaschitz/randomForest v0.0.0-20251101172028-7c30b8b21d88
 	github.com/mna/pigeon v1.2.1
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.10.0
+	github.com/vmihailenco/msgpack v4.0.4+incompatible
 )
-
-replace github.com/malaschitz/randomForest => /home/tomas/work/korpus/tools/randomForest
 
 require (
 	github.com/BurntSushi/toml v1.5.0 // indirect
-	github.com/gin-gonic/gin v1.10.0 // indirect
+	github.com/gin-gonic/gin v1.10.0
 	github.com/natefinch/lumberjack v2.0.0+incompatible // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -47,7 +46,6 @@ require (
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/mod v0.25.0 // indirect
