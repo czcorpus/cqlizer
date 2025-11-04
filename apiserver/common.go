@@ -45,7 +45,7 @@ func corsMiddleware(conf *cnf.Conf) gin.HandlerFunc {
 		var allowedOrigin string
 		currOrigin := ctx.Request.Header.Get("Origin")
 		for _, origin := range conf.CorsAllowedOrigins {
-			if currOrigin == origin {
+			if currOrigin == origin || origin == "*" {
 				allowedOrigin = origin
 				break
 			}

@@ -52,8 +52,10 @@ func (api *apiServer) Start(ctx context.Context) {
 	engine.NoMethod(uniresp.NoMethodHandler)
 	engine.NoRoute(uniresp.NotFoundHandler)
 
-	engine.GET("/evaluate/:corpusId", api.handleEval)
-	engine.GET("/evaluate", api.handleEval)
+	engine.GET("/cql/:corpusId", api.handleEvalCQL)
+	engine.GET("/cql", api.handleEvalCQL)
+	engine.GET("/simple/:corpusId", api.handleEvalSimple)
+	engine.GET("/simple", api.handleEvalSimple)
 
 	log.Info().Msgf("starting to listen at %s:%d", api.conf.ListenAddress, api.conf.ListenPort)
 	api.server = &http.Server{

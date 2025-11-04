@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strings"
 
 	"github.com/czcorpus/cnc-gokit/unireq"
 	"github.com/czcorpus/cnc-gokit/uniresp"
@@ -27,9 +28,26 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (api *apiServer) handleEval(ctx *gin.Context) {
+func (api *apiServer) handleEvalSimple(ctx *gin.Context) {
 	q := ctx.Query("q")
+	defaultAttr := ctx.QueryArray("defaultAttr")
+	cqlChunks := make([]string, len(defaultAttr))
+	for i, da := range defaultAttr {
+		cqlChunks[i] = fmt.Sprintf("%s=\"%s\"", da, q)
+	}
+	q = strings.Join(cqlChunks, " | ")
+	api.evaluateRawQuery(ctx, q)
+
+}
+
+func (api *apiServer) handleEvalCQL(ctx *gin.Context) {
+	q := ctx.Query("q")
+	api.evaluateRawQuery(ctx, q)
+}
+
+func (api *apiServer) evaluateRawQuery(ctx *gin.Context, q string) {
 	corpname := ctx.Param("corpusId")
+	//aligned := ctx.QueryArray("aligned")
 	var corpusInfo eval.CorpusProps
 	var ok bool
 	if corpname != "" {
