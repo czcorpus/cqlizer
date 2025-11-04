@@ -43,7 +43,6 @@ func findKneeDistance(items []QueryEvaluation) (threshold float64, kneeIdx int) 
 			kneeIdx = i
 		}
 	}
-
 	threshold = items[kneeIdx].ProcTime
 	return threshold, kneeIdx
 }
@@ -68,6 +67,13 @@ func (rec QueryStatsRecord) GetCQL() string {
 
 // ----------------------------
 
+type CorpusProps struct {
+	Size int    `json:"size"`
+	Lang string `json:"lang"`
+}
+
+// ----------------------------
+
 type BasicModel struct {
 	Evaluations []QueryEvaluation
 
@@ -83,14 +89,25 @@ type BasicModel struct {
 	// binMidpoint is the threshold time where SlowQueryPercentile starts. The value
 	// is derived from SlowQueryPercentile
 	binMidpoint float64
+
+	corpora map[string]CorpusProps
+}
+
+func NewBasicModel(corporaProps map[string]CorpusProps) *BasicModel {
+	return &BasicModel{
+		corpora: corporaProps,
+	}
 }
 
 func (model *BasicModel) BalanceSample() []QueryEvaluation {
 	slices.SortFunc(model.Evaluations, func(v1, v2 QueryEvaluation) int {
 		if v1.ProcTime < v2.ProcTime {
 			return -1
+
+		} else if v1.ProcTime > v2.ProcTime {
+			return 1
 		}
-		return 1
+		return 0
 	})
 	//model.MidpointIdx, model.BinMidpoint = model.computeThreshold()
 	log.Info().Msg("creating a balanced sample for learning")
@@ -126,7 +143,8 @@ func (model *BasicModel) ProcessEntry(entry QueryStatsRecord) error {
 	}
 
 	// Parse the CQL query and create evaluation with corpus size
-	eval, err := NewQueryEvaluation(entry.GetCQL(), float64(entry.CorpusSize), entry.TimeProc)
+	corpInfo := model.corpora[entry.Corpus]
+	eval, err := NewQueryEvaluation(entry.GetCQL(), float64(entry.CorpusSize), entry.TimeProc, GetCharProbabilityProvider(corpInfo.Lang))
 	if err != nil {
 		errMsg := err.Error()
 		if utf8.RuneCountInString(errMsg) > 80 {
@@ -252,7 +270,8 @@ func (model *BasicModel) EvaluateWithRF(
 		Msg("calculating precision and recall using full data")
 
 	fmt.Println("vote;precision;recall;f-beta")
-	for th := 0.7; th <= 0.991; th += 0.01 {
+	//for th := 0.7; th <= 0.991; th += 0.01 {
+	for th := 0.8; th <= 0.951; th += 0.01 {
 		select {
 		case <-ctx.Done():
 			return nil

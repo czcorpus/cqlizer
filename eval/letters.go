@@ -1,8 +1,36 @@
 package eval
 
+// ------------------------
+
+type charProbabilityProvider interface {
+	CharProbability(r rune) float64
+}
+
+// ------------------------
+
+type charsProbabilityMap map[rune]float64
+
+func (chmap charsProbabilityMap) CharProbability(r rune) float64 {
+	v, ok := chmap[r]
+	if ok {
+		return v
+	}
+	return 1 / float64(len(chmap)) * 0.1
+}
+
+// --------
+
+type fallbackCharProbProvider struct{}
+
+func (fb fallbackCharProbProvider) CharProbability(r rune) float64 {
+	return 1.0 / 30.0
+}
+
+// --------
+
 // source: https://nlp.fi.muni.cz/cs/FrekvenceSlovLemmat
 
-var czCharsProbs = map[rune]float64{
+var czCharsProbs = charsProbabilityMap{
 	'a': 6.698,
 	'i': 4.571,
 	's': 4.620,
@@ -48,7 +76,7 @@ var czCharsProbs = map[rune]float64{
 
 // source: https://en.wikipedia.org/wiki/Letter_frequency
 
-var enCharsProbs = map[rune]float64{
+var enCharsProbs = charsProbabilityMap{
 
 	'a': 8.2,
 	'b': 1.5,
@@ -76,4 +104,54 @@ var enCharsProbs = map[rune]float64{
 	'x': 0.15,
 	'y': 2.0,
 	'z': 0.074,
+}
+
+// source: https://www.sttmedia.com/characterfrequency-german
+
+var deCharsProbs = charsProbabilityMap{
+	'a': 5.58,
+	'ä': 0.54,
+	'b': 1.96,
+	'c': 3.16,
+	'd': 4.98,
+	'e': 16.93,
+	'f': 1.49,
+	'g': 3.02,
+	'h': 4.98,
+	'i': 8.02,
+	'j': 0.24,
+	'k': 1.32,
+	'l': 3.60,
+	'm': 2.55,
+	'n': 10.53,
+	'o': 2.24,
+	'ö': 0.30,
+	'p': 0.67,
+	'q': 0.02,
+	'r': 6.89,
+	'ß': 0.37,
+	's': 6.42,
+	't': 5.79,
+	'u': 3.83,
+	'ü': 0.65,
+	'v': 0.84,
+	'w': 1.78,
+	'x': 0.05,
+	'y': 0.05,
+	'z': 1.21,
+}
+
+// -----------------------
+
+func GetCharProbabilityProvider(lang string) charProbabilityProvider {
+	switch lang {
+	case "cs":
+		return czCharsProbs
+	case "en":
+		return enCharsProbs
+	case "de":
+		return deCharsProbs
+	default:
+		return fallbackCharProbProvider{}
+	}
 }

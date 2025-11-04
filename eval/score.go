@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-const NumFeatures = 32
+const NumFeatures = 36
 
 type CostProvider interface {
 	Cost(model ModelParams) float64
@@ -26,6 +26,7 @@ type ModelParams struct {
 	// and we also consider the special `[]` query (= any word) as part of that.
 	SmallCardAttr0 float64
 	ConcreteChars0 float64
+	AvgCharProb0   float64
 	NumPosAlts0    float64
 
 	WildcardPrefix1 float64
@@ -33,6 +34,7 @@ type ModelParams struct {
 	RangeOp1        float64
 	SmallCardAttr1  float64
 	ConcreteChars1  float64
+	AvgCharProb1    float64
 	NumPosAlts1     float64
 
 	WildcardPrefix2 float64
@@ -40,6 +42,7 @@ type ModelParams struct {
 	RangeOp2        float64
 	SmallCardAttr2  float64
 	ConcreteChars2  float64
+	AvgCharProb2    float64
 	NumPosAlts2     float64
 
 	WildcardPrefix3 float64
@@ -47,6 +50,7 @@ type ModelParams struct {
 	RangeOp3        float64
 	SmallCardAttr3  float64
 	ConcreteChars3  float64
+	AvgCharProb3    float64
 	NumPosAlts3     float64
 
 	GlobCond    float64
@@ -66,24 +70,28 @@ func (p ModelParams) ToSlice() []float64 {
 		p.RangeOp0,
 		p.SmallCardAttr0,
 		p.ConcreteChars0,
+		p.AvgCharProb0,
 		p.NumPosAlts0,
 		p.WildcardPrefix1,
 		p.Wildcards1,
 		p.RangeOp1,
 		p.SmallCardAttr1,
 		p.ConcreteChars1,
+		p.AvgCharProb1,
 		p.NumPosAlts1,
 		p.WildcardPrefix2,
 		p.Wildcards2,
 		p.RangeOp2,
 		p.SmallCardAttr2,
 		p.ConcreteChars2,
+		p.AvgCharProb2,
 		p.NumPosAlts2,
 		p.WildcardPrefix3,
 		p.Wildcards3,
 		p.RangeOp3,
 		p.SmallCardAttr3,
 		p.ConcreteChars3,
+		p.AvgCharProb3,
 		p.NumPosAlts3,
 		p.GlobCond,
 		p.Meet,
@@ -98,7 +106,7 @@ func (p ModelParams) ToSlice() []float64 {
 
 func SliceToModelParams(slice []float64) ModelParams {
 	if len(slice) != NumFeatures {
-		panic(fmt.Sprintf("slice must have %s elements", NumFeatures))
+		panic(fmt.Sprintf("slice must have %d elements", NumFeatures))
 	}
 	return ModelParams{
 		WildcardPrefix0: slice[0],
@@ -106,33 +114,37 @@ func SliceToModelParams(slice []float64) ModelParams {
 		RangeOp0:        slice[2],
 		SmallCardAttr0:  slice[3],
 		ConcreteChars0:  slice[4],
-		NumPosAlts0:     slice[5],
-		WildcardPrefix1: slice[6],
-		Wildcards1:      slice[7],
-		RangeOp1:        slice[8],
-		SmallCardAttr1:  slice[9],
-		ConcreteChars1:  slice[10],
-		NumPosAlts1:     slice[11],
-		WildcardPrefix2: slice[12],
-		Wildcards2:      slice[13],
-		RangeOp2:        slice[14],
-		SmallCardAttr2:  slice[15],
-		ConcreteChars2:  slice[16],
-		NumPosAlts2:     slice[17],
-		WildcardPrefix3: slice[18],
-		Wildcards3:      slice[19],
-		RangeOp3:        slice[20],
-		SmallCardAttr3:  slice[21],
-		ConcreteChars3:  slice[22],
-		NumPosAlts3:     slice[23],
-		GlobCond:        slice[24],
-		Meet:            slice[25],
-		Union:           slice[26],
-		Within:          slice[27],
-		Containing:      slice[28],
-		CorpusSize:      slice[29],
-		AlignedPart:     slice[30],
-		Bias:            slice[31],
+		AvgCharProb0:    slice[5],
+		NumPosAlts0:     slice[6],
+		WildcardPrefix1: slice[7],
+		Wildcards1:      slice[8],
+		RangeOp1:        slice[9],
+		SmallCardAttr1:  slice[10],
+		ConcreteChars1:  slice[11],
+		AvgCharProb1:    slice[12],
+		NumPosAlts1:     slice[13],
+		WildcardPrefix2: slice[14],
+		Wildcards2:      slice[15],
+		RangeOp2:        slice[16],
+		SmallCardAttr2:  slice[17],
+		ConcreteChars2:  slice[18],
+		AvgCharProb2:    slice[19],
+		NumPosAlts2:     slice[20],
+		WildcardPrefix3: slice[21],
+		Wildcards3:      slice[22],
+		RangeOp3:        slice[23],
+		SmallCardAttr3:  slice[24],
+		ConcreteChars3:  slice[25],
+		AvgCharProb3:    slice[26],
+		NumPosAlts3:     slice[27],
+		GlobCond:        slice[28],
+		Meet:            slice[29],
+		Union:           slice[30],
+		Within:          slice[31],
+		Containing:      slice[32],
+		CorpusSize:      slice[33],
+		AlignedPart:     slice[34],
+		Bias:            slice[35],
 	}
 }
 
@@ -174,7 +186,8 @@ func LoadModelFromFile(filePath string) (ModelParams, error) {
 type Regexp struct {
 	StartsWithWildCard int     `msgpack:"startsWithWildCard"`
 	NumConcreteChars   float64 `msgpack:"numConcreteChars"`
-	NumWildcards       int     `msgpack:"numWildcards"`
+	AvgCharProb        float64 `msgpack:"avgCharProb"`
+	WildcardScore      float64 `msgpack:"wildcardScore"`
 	HasRange           int     `msgpack:"hasRange"`
 }
 
@@ -209,7 +222,7 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 	for i := 0; i < len(eval.Positions) && i < MaxPositions; i++ {
 		pos := eval.Positions[i]
 		// Get position-specific parameters
-		var wildcardPrefix, wildcards, rangeOp, smallCardAttr, concreteChars, numPosAlts float64
+		var wildcardPrefix, wildcards, rangeOp, smallCardAttr, concreteChars, avgCharProb, numPosAlts float64
 		switch i {
 		case 0:
 			wildcardPrefix = model.WildcardPrefix0
@@ -217,6 +230,7 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			rangeOp = model.RangeOp0
 			smallCardAttr = model.SmallCardAttr0
 			concreteChars = model.ConcreteChars0
+			avgCharProb = model.AvgCharProb0
 			numPosAlts = model.NumPosAlts0
 		case 1:
 			wildcardPrefix = model.WildcardPrefix1
@@ -224,6 +238,7 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			rangeOp = model.RangeOp1
 			smallCardAttr = model.SmallCardAttr1
 			concreteChars = model.ConcreteChars1
+			avgCharProb = model.AvgCharProb1
 			numPosAlts = model.NumPosAlts1
 		case 2:
 			wildcardPrefix = model.WildcardPrefix2
@@ -231,6 +246,7 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			rangeOp = model.RangeOp2
 			smallCardAttr = model.SmallCardAttr2
 			concreteChars = model.ConcreteChars2
+			avgCharProb = model.AvgCharProb2
 			numPosAlts = model.NumPosAlts2
 		case 3:
 			wildcardPrefix = model.WildcardPrefix3
@@ -238,15 +254,17 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			rangeOp = model.RangeOp3
 			smallCardAttr = model.SmallCardAttr3
 			concreteChars = model.ConcreteChars3
+			avgCharProb = model.AvgCharProb3
 			numPosAlts = model.NumPosAlts3
 		}
 
 		// Calculate position cost
 		positionCost := (wildcardPrefix*float64(pos.Regexp.StartsWithWildCard) +
-			wildcards*float64(pos.Regexp.NumWildcards) +
+			wildcards*float64(pos.Regexp.WildcardScore) +
 			rangeOp*float64(pos.Regexp.HasRange) +
 			smallCardAttr*float64(pos.HasSmallCardAttr)) +
 			concreteChars*float64(pos.Regexp.NumConcreteChars) +
+			avgCharProb*float64(pos.Regexp.AvgCharProb) +
 			numPosAlts*float64(pos.NumAlternatives)
 
 		total += positionCost

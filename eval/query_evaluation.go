@@ -24,7 +24,7 @@ import (
 )
 
 // NewQueryEvaluation creates a QueryEvaluation from a CQL query string and corpus size
-func NewQueryEvaluation(cqlQuery string, corpusSize, procTime float64) (QueryEvaluation, error) {
+func NewQueryEvaluation(cqlQuery string, corpusSize, procTime float64, charProbs charProbabilityProvider) (QueryEvaluation, error) {
 	query, err := cql.ParseCQL("", cqlQuery)
 	if err != nil {
 		return QueryEvaluation{}, err
@@ -37,18 +37,18 @@ func NewQueryEvaluation(cqlQuery string, corpusSize, procTime float64) (QueryEva
 	}
 
 	// Extract features from the parsed query
-	extractFeaturesFromQuery(query, &eval)
+	extractFeaturesFromQuery(query, &eval, charProbs)
 	return eval, nil
 }
 
 // extractFeaturesFromQuery walks the AST and extracts relevant features
-func extractFeaturesFromQuery(query *cql.Query, eval *QueryEvaluation) {
+func extractFeaturesFromQuery(query *cql.Query, eval *QueryEvaluation, charProbs charProbabilityProvider) {
 	// First pass: collect all OnePosition nodes in order and extract their features
 	if query.Sequence != nil {
 		positionIndex := 0
 		query.Sequence.ForEachElement(query.Sequence, func(parent, v cql.ASTNode) {
 			if onePos, ok := v.(*cql.OnePosition); ok && positionIndex < MaxPositions {
-				pos := extractPositionFeatures(onePos)
+				pos := extractPositionFeatures(onePos, charProbs)
 				pos.Index = positionIndex
 				eval.Positions = append(eval.Positions, pos)
 				positionIndex++
@@ -82,12 +82,22 @@ func extractFeaturesFromQuery(query *cql.Query, eval *QueryEvaluation) {
 	})
 }
 
+func textToProbs(v string, probsMap charProbabilityProvider) float64 {
+	var ansProb float64 = 0
+	var size int
+	for _, c := range v {
+		ansProb += probsMap.CharProbability(c)
+		size++
+	}
+	return ansProb / float64(size)
+}
+
 // extractPositionFeatures analyzes a position to extract all features including regexp and attribute info
-func extractPositionFeatures(pos *cql.OnePosition) Position {
+func extractPositionFeatures(pos *cql.OnePosition, charProbs charProbabilityProvider) Position {
 	regexp := Regexp{
 		StartsWithWildCard: 0,
 		NumConcreteChars:   0,
-		NumWildcards:       0,
+		WildcardScore:      0,
 		HasRange:           0,
 	}
 	position := Position{
@@ -103,19 +113,21 @@ func extractPositionFeatures(pos *cql.OnePosition) Position {
 		switch typedNode := v.(type) {
 		case *cql.RegExp:
 			isEmpty = false
-			analyzeRegExp(typedNode, &regexp)
+			analyzeRegExp(typedNode, &regexp, charProbs)
 
 		case *cql.RgSimple:
 			isEmpty = false
 			// Use the built-in method to count wildcards
-			regexp.NumWildcards += typedNode.NumWildcards()
+			regexp.WildcardScore += typedNode.WildcardScore()
 
 		case *cql.RawString:
 			isEmpty = false
 			// Simple string - count characters
 			text := typedNode.Text()
 			if len(text) > 2 {
+				text = strings.Trim(text, `"`)
 				regexp.NumConcreteChars = float64(len(text) - 2) // -2 for quotes
+				regexp.AvgCharProb = textToProbs(text, charProbs)
 			}
 
 		case *cql.AttVal:
@@ -151,7 +163,7 @@ func extractPositionFeatures(pos *cql.OnePosition) Position {
 }
 
 // analyzeRegExp examines a RegExp node to extract features
-func analyzeRegExp(re *cql.RegExp, regexp *Regexp) {
+func analyzeRegExp(re *cql.RegExp, regexp *Regexp, charProbs charProbabilityProvider) {
 	if len(re.RegExpRaw) == 0 {
 		return
 	}
@@ -163,7 +175,8 @@ func analyzeRegExp(re *cql.RegExp, regexp *Regexp) {
 	}
 
 	// Count concrete chars and check for ranges
-	concreteChars := 0
+	var concreteChars int
+	var avgCharProb float64
 	hasRange := false
 
 	for _, raw := range re.RegExpRaw {
@@ -175,6 +188,7 @@ func analyzeRegExp(re *cql.RegExp, regexp *Regexp) {
 			case *cql.RgChar:
 				if typedNode.IsConstant() {
 					concreteChars++
+					avgCharProb += textToProbs(typedNode.Text(), charProbs)
 				}
 			}
 		})
@@ -182,6 +196,8 @@ func analyzeRegExp(re *cql.RegExp, regexp *Regexp) {
 
 	if concreteChars > 0 {
 		regexp.NumConcreteChars += float64(concreteChars)
+		avgCharProb /= float64(concreteChars)
+		regexp.AvgCharProb += avgCharProb
 	}
 	if hasRange {
 		regexp.HasRange = 1

@@ -122,10 +122,13 @@ func runActionREPL(modelPath string, rfPath string) {
 	// Default corpus size (can be overridden with 'set corpussize <value>')
 	corpusSize := 100000000.0 // 100M tokens default
 
+	lang := "cs"
+
 	fmt.Println("CQL Query Cost Estimator")
 	fmt.Println("Commands:")
 	fmt.Println("  <CQL query>            - Estimate query execution time")
 	fmt.Println("  set corpussize <size>  - Set corpus size (e.g., 'set corpussize 121826797')")
+	fmt.Println("  set lang <lang>  - Set corpus language (e.g., 'set lang cs')")
 	fmt.Println("  exit                   - Exit REPL")
 	fmt.Printf("\nCurrent corpus size: %.0f tokens\n\n", corpusSize)
 
@@ -154,17 +157,30 @@ func runActionREPL(modelPath string, rfPath string) {
 				if _, err := fmt.Sscanf(parts[2], "%f", &newSize); err == nil {
 					corpusSize = newSize
 					fmt.Printf("✓ Corpus size set to %.0f tokens\n", corpusSize)
+
 				} else {
 					fmt.Fprintf(os.Stderr, "Error: Invalid corpus size\n")
 				}
+
 			} else {
 				fmt.Fprintf(os.Stderr, "Usage: set corpussize <size>\n")
+			}
+			continue
+
+		} else if strings.HasPrefix(input, "set lang ") {
+			parts := strings.Fields(input)
+			if len(parts) == 3 {
+				lang = parts[2]
+
+			} else {
+				fmt.Fprintf(os.Stderr, "Usage: set lang <lang>\n")
 			}
 			continue
 		}
 
 		// Treat as CQL query
-		queryEval, err := eval.NewQueryEvaluation(input, corpusSize, 0)
+		charProbs := eval.GetCharProbabilityProvider(lang)
+		queryEval, err := eval.NewQueryEvaluation(input, corpusSize, 0, charProbs)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error parsing CQL: %v\n", err)
 			continue
@@ -179,8 +195,8 @@ func runActionREPL(modelPath string, rfPath string) {
 		fmt.Printf("Corpus size:     %.0f tokens\n", corpusSize)
 		fmt.Printf("Positions:       %d\n", len(queryEval.Positions))
 		for i, pos := range queryEval.Positions {
-			fmt.Printf("  Position %d:    wildcards=%d, range=%d, smallCard=%d, numConcreteChars=%d, posNumAlts: %d\n",
-				i, pos.Regexp.NumWildcards, pos.Regexp.HasRange, pos.HasSmallCardAttr, pos.Regexp.NumConcreteChars, pos.NumAlternatives)
+			fmt.Printf("  Position %d:    wildcards=%0.2f, range=%d, smallCard=%d, numConcreteChars=%d, posNumAlts: %d\n",
+				i, pos.Regexp.WildcardScore, pos.Regexp.HasRange, pos.HasSmallCardAttr, pos.Regexp.NumConcreteChars, pos.NumAlternatives)
 		}
 		fmt.Printf("Global features: glob=%d, meet=%d, union=%d, within=%d, containing=%d\n",
 			queryEval.NumGlobConditions, queryEval.ContainsMeet,
@@ -354,12 +370,14 @@ func main() {
 		)
 	case actionFeaturize:
 		cmdFeaturize.Parse(os.Args[2:])
+		conf := setup(cmdFeaturize.Arg(0))
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
 		runActionFeaturize(
 			ctx,
-			cmdFeaturize.Arg(0),
+			conf.CorporaProps,
 			cmdFeaturize.Arg(1),
+			cmdFeaturize.Arg(2),
 		)
 	case actionAPIServer:
 		cmdAPIServer.Parse(os.Args[2:])

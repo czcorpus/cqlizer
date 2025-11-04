@@ -35,8 +35,19 @@ func (r *RgSimple) Text() string {
 	return r.origValue
 }
 
-func (r *RgSimple) NumWildcards() int {
-	return strings.Count(r.Text(), ".*") + strings.Count(r.Text(), ".+")
+func (r *RgSimple) WildcardScore() float64 {
+	ans := 0.0
+	r.ForEachElement(r, func(parent, item ASTNode) {
+		switch tItem := item.(type) {
+		case *RgChar:
+			if tItem.Text() == "?" {
+				ans += 1
+			}
+		}
+	})
+	ans += float64(strings.Count(r.Text(), ".*")) * 5
+	ans += float64(strings.Count(r.Text(), ".+")) * 5
+	return ans
 }
 
 // -------------------------------------------------
@@ -177,7 +188,7 @@ type RgChar struct {
 	variant5 *rgCharVariant5
 }
 
-func (rc *RgChar) Text() string {
+func (rc *RgChar) Info() string {
 	if rc.variant1 != nil {
 		return fmt.Sprintf("#RgChar[%s]", rc.variant1.Value.String())
 
@@ -194,6 +205,25 @@ func (rc *RgChar) Text() string {
 		return fmt.Sprintf("#RgChar[%s]", rc.variant5.RgQM.Value.String())
 	}
 	return "#RgChar(_unknown_)"
+}
+
+func (rc *RgChar) Text() string {
+	if rc.variant1 != nil {
+		return rc.variant1.Value.String()
+
+	} else if rc.variant2 != nil {
+		return rc.variant2.RgOp.Value.String()
+
+	} else if rc.variant3 != nil {
+		return rc.variant3.RgRepeat.Value.String()
+
+	} else if rc.variant4 != nil {
+		return rc.variant4.RgAny.Value.String()
+
+	} else if rc.variant5 != nil {
+		return rc.variant5.RgQM.Value.String()
+	}
+	return ""
 }
 
 func (rc *RgChar) IsRgOperator(v string) bool {

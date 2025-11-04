@@ -82,25 +82,26 @@ func extractFeatures(eval QueryEvaluation) []float64 {
 			pos := eval.Positions[i]
 			// Position-specific features (normalized by concrete chars)
 			features[idx] = float64(pos.Regexp.StartsWithWildCard)
-			features[idx+1] = float64(pos.Regexp.NumWildcards)
+			features[idx+1] = pos.Regexp.WildcardScore
 			features[idx+2] = float64(pos.Regexp.HasRange)
 			features[idx+3] = float64(pos.HasSmallCardAttr)
 			features[idx+4] = float64(pos.Regexp.NumConcreteChars)
-			features[idx+5] = float64(pos.NumAlternatives)
+			features[idx+5] = pos.Regexp.AvgCharProb
+			features[idx+6] = float64(pos.NumAlternatives)
 		}
 		// If position doesn't exist, features remain 0
-		idx += 6
+		idx += 7
 	}
 
 	// Global features
-	features[24] = float64(eval.NumGlobConditions)
-	features[25] = float64(eval.ContainsMeet)
-	features[26] = float64(eval.ContainsUnion)
-	features[27] = float64(eval.ContainsWithin)
-	features[28] = float64(eval.ContainsContaining)
-	features[29] = math.Log(eval.CorpusSize)
-	features[30] = float64(eval.AlignedPart)
-	features[31] = 1.0 // Bias term
+	features[28] = float64(eval.NumGlobConditions)
+	features[29] = float64(eval.ContainsMeet)
+	features[30] = float64(eval.ContainsUnion)
+	features[31] = float64(eval.ContainsWithin)
+	features[32] = float64(eval.ContainsContaining)
+	features[33] = math.Log(eval.CorpusSize)
+	features[34] = float64(eval.AlignedPart)
+	features[35] = 1.0 // Bias term
 
 	return features
 }

@@ -11,8 +11,8 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
-func runActionFeaturize(ctx context.Context, srcPath, dstPath string) {
-	model := &eval.BasicModel{}
+func runActionFeaturize(ctx context.Context, corporaProps map[string]eval.CorpusProps, srcPath, dstPath string) {
+	model := eval.NewBasicModel(corporaProps)
 	dataimport.ReadStatsFile(ctx, srcPath, model)
 	srz, err := msgpack.Marshal(model)
 	if err != nil {

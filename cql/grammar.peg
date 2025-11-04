@@ -947,6 +947,9 @@ AnyLetter <-
     / LETTER_PHON {
         return string(c.text), nil
     }
+    / NUMBER {
+        return string(c.text), nil
+    }
 
 // ------------------------- paradigmatic query -------------------------
 

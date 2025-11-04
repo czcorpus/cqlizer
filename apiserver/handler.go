@@ -30,10 +30,10 @@ import (
 func (api *apiServer) handleEval(ctx *gin.Context) {
 	q := ctx.Query("q")
 	corpname := ctx.Param("corpusId")
-	var corpusSize int
+	var corpusInfo eval.CorpusProps
 	var ok bool
 	if corpname != "" {
-		corpusSize, ok = api.conf.CorporaSizes[corpname]
+		corpusInfo, ok = api.conf.CorporaProps[corpname]
 
 		if !ok {
 			uniresp.RespondWithErrorJSON(
@@ -50,12 +50,14 @@ func (api *apiServer) handleEval(ctx *gin.Context) {
 		}
 
 	} else {
-		corpusSize, ok = unireq.GetURLIntArgOrFail(ctx, "corpusSize", 1000000000)
+		corpusInfo.Size, ok = unireq.GetURLIntArgOrFail(ctx, "corpusSize", 1000000000)
 		if !ok {
 			return
 		}
+		corpusInfo.Lang = ctx.Query("lang")
 	}
-	queryEval, err := eval.NewQueryEvaluation(q, float64(corpusSize), 3)
+	charProb := eval.GetCharProbabilityProvider(corpusInfo.Lang)
+	queryEval, err := eval.NewQueryEvaluation(q, float64(corpusInfo.Size), 3, charProb)
 	if err != nil {
 		uniresp.RespondWithErrorJSON(ctx, err, http.StatusInternalServerError)
 		return
@@ -72,7 +74,7 @@ func (api *apiServer) handleEval(ctx *gin.Context) {
 		}
 	}
 	resp := evaluation{
-		CorpusSize:  corpusSize,
+		CorpusSize:  corpusInfo.Size,
 		Votes:       predictions,
 		IsSlowQuery: votesFor > int(math.Floor(float64(len(api.rfEnsemble))/2)),
 	}
