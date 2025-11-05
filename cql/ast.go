@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -444,8 +446,11 @@ func (a *AttValList) Text() string {
 	return fmt.Sprintf("#AttValList[ %s ]", tmp.String())
 }
 
-func (a *AttValList) IsEmpty() bool {
-	return a == nil || len(a.AttValAnd) == 0
+func (a *AttValList) NumAttVals() int {
+	if a == nil {
+		return 0
+	}
+	return len(a.AttValAnd)
 }
 
 func (a *AttValList) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -876,8 +881,22 @@ func (r *Repetition) IsAnyPosition() bool {
 	return false
 }
 
+func (r *Repetition) SubcorpusDefScore() float64 {
+	if r.Variant2 != nil && r.Variant2.OpenStructTag != nil {
+		return r.Variant2.OpenStructTag.SubcorpusDefScore()
+	}
+	return 0
+}
+
 func (r *Repetition) Text() string {
 	return r.origValue
+}
+
+func (r *Repetition) RepetitionScore() float64 {
+	if r.Variant1 != nil && r.Variant1.RepOpt != nil {
+		return r.Variant1.RepOpt.RepetitionScore()
+	}
+	return 0
 }
 
 func (r *Repetition) GetRepOpt() string {
@@ -1072,8 +1091,21 @@ type RepOpt struct {
 	Variant2 *repOptVariant2
 }
 
-func (r *RepOpt) DefinesInfReps() bool {
-	return r.Variant1 != nil && (r.Variant1.Value == "+" || r.Variant1.Value == "*")
+func (r *RepOpt) RepetitionScore() float64 {
+	if r.Variant1 != nil && (r.Variant1.Value == "+" || r.Variant1.Value == "*") ||
+		r.Variant2 != nil && r.Variant2.From.Text() != "" && r.Variant2.To.Text() == "" {
+		return 100
+	}
+	if r.Variant2 != nil && r.Variant2.From.Text() != "" && r.Variant2.To.Text() != "" {
+		toInt, err := strconv.Atoi(r.Variant2.To.Text())
+		if err != nil {
+			// TODO
+			log.Error().Err(err).Msg("failed to determine position repetition score")
+			return 0
+		}
+		return float64(toInt)
+	}
+	return 0
 }
 
 func (r *RepOpt) Text() string {
@@ -1151,6 +1183,13 @@ func (ost *OpenStructTag) MarshalJSON() ([]byte, error) {
 		RuleName:  "OpenStructTag",
 		Expansion: *ost,
 	})
+}
+
+func (ost *OpenStructTag) SubcorpusDefScore() float64 {
+	if ost.Structure != nil && ost.Structure.AttValList != nil {
+		return float64(ost.Structure.AttValList.NumAttVals())
+	}
+	return 0
 }
 
 func (ost *OpenStructTag) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {

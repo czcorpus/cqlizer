@@ -82,7 +82,7 @@ func (api *apiServer) evaluateRawQuery(ctx *gin.Context, q string) {
 	}
 	predictions := make([]vote, 0, len(api.rfEnsemble))
 	for _, md := range api.rfEnsemble {
-		predictions = append(predictions, vote{Value: md.Predict(queryEval), Threshold: md.threshold})
+		predictions = append(predictions, vote{Value: float64(md.Predict(queryEval).PredictedClass) / 100, Threshold: md.threshold})
 	}
 
 	var votesFor int

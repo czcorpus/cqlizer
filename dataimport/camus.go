@@ -63,6 +63,22 @@ func ReadStatsFile(ctx context.Context, filePath string, processor StatsFileProc
 		}
 	}
 
+	for _, item := range eval.ObligatoryExamples {
+
+		if err := processor.ProcessEntry(item); err != nil {
+			log.Error().
+				Err(err).
+				Any("entry", item).
+				Int("line", lineNum).
+				Msg("failed to process CQL entry, skipping")
+			numFailed++
+			continue
+
+		} else {
+			numProc++
+		}
+	}
+
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("error reading file: %w", err)
 	}

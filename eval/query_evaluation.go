@@ -23,6 +23,10 @@ import (
 	"github.com/czcorpus/cqlizer/cql"
 )
 
+const (
+	MaxPositions = 4
+)
+
 // NewQueryEvaluation creates a QueryEvaluation from a CQL query string and corpus size
 func NewQueryEvaluation(cqlQuery string, corpusSize, procTime float64, charProbs charProbabilityProvider) (QueryEvaluation, error) {
 	query, err := cql.ParseCQL("", cqlQuery)
@@ -31,6 +35,7 @@ func NewQueryEvaluation(cqlQuery string, corpusSize, procTime float64, charProbs
 	}
 
 	eval := QueryEvaluation{
+		OrigQuery:  cqlQuery,
 		ProcTime:   procTime,
 		Positions:  make([]Position, 0, MaxPositions),
 		CorpusSize: math.Log(corpusSize),
@@ -47,11 +52,26 @@ func extractFeaturesFromQuery(query *cql.Query, eval *QueryEvaluation, charProbs
 	if query.Sequence != nil {
 		positionIndex := 0
 		query.Sequence.ForEachElement(query.Sequence, func(parent, v cql.ASTNode) {
-			if onePos, ok := v.(*cql.OnePosition); ok && positionIndex < MaxPositions {
-				pos := extractPositionFeatures(onePos, charProbs)
-				pos.Index = positionIndex
-				eval.Positions = append(eval.Positions, pos)
-				positionIndex++
+			switch typedNode := v.(type) {
+			case *cql.Repetition:
+				if positionIndex < MaxPositions {
+					var pos Position
+					if typedNode.IsAnyPosition() {
+						pos.NumAlternatives = 1
+						pos.Regexp.StartsWithWildCard = 1
+						pos.Regexp.WildcardScore = 5 // TODO is this equivalent score to [attr=".*"]
+					}
+					pos.PosRepetition = typedNode.RepetitionScore()
+					typedNode.ForEachElement(typedNode, func(parent, v2 cql.ASTNode) {
+						switch typedNode2 := v2.(type) {
+						case *cql.OnePosition:
+							extractPositionFeatures(typedNode2, charProbs, &pos)
+							pos.Index = positionIndex
+							eval.Positions = append(eval.Positions, pos)
+							positionIndex++
+						}
+					})
+				}
 			}
 		})
 	}
@@ -69,6 +89,13 @@ func extractFeaturesFromQuery(query *cql.Query, eval *QueryEvaluation, charProbs
 			if typedNode.NumContainingParts() > 0 {
 				eval.ContainsContaining = 1
 			}
+
+			typedNode.ForEachElement(typedNode, func(parent, v2 cql.ASTNode) {
+				switch typedNode2 := v2.(type) {
+				case *cql.Repetition:
+					eval.AdhocSubcorpus += typedNode2.SubcorpusDefScore()
+				}
+			})
 
 		case *cql.MeetOp:
 			eval.ContainsMeet = 1
@@ -93,48 +120,34 @@ func textToProbs(v string, probsMap charProbabilityProvider) float64 {
 }
 
 // extractPositionFeatures analyzes a position to extract all features including regexp and attribute info
-func extractPositionFeatures(pos *cql.OnePosition, charProbs charProbabilityProvider) Position {
-	regexp := Regexp{
-		StartsWithWildCard: 0,
-		NumConcreteChars:   0,
-		WildcardScore:      0,
-		HasRange:           0,
-	}
-	position := Position{
-		HasSmallCardAttr: 0,
-	}
+func extractPositionFeatures(pos *cql.OnePosition, charProbs charProbabilityProvider, outPos *Position) {
 
 	// Check if this is an empty position query []
-	isEmpty := true
 	numAlternatives := 0
 	// Traverse the position to find regexp patterns and attribute info
 	// Using DFS-like approach to maintain proper parent-child context
 	pos.ForEachElement(pos, func(parent, v cql.ASTNode) {
 		switch typedNode := v.(type) {
 		case *cql.RegExp:
-			isEmpty = false
-			analyzeRegExp(typedNode, &regexp, charProbs)
+			analyzeRegExp(typedNode, &outPos.Regexp, charProbs)
 
 		case *cql.RgSimple:
-			isEmpty = false
 			// Use the built-in method to count wildcards
-			regexp.WildcardScore += typedNode.WildcardScore()
+			outPos.Regexp.WildcardScore += typedNode.WildcardScore()
 
 		case *cql.RawString:
-			isEmpty = false
 			// Simple string - count characters
 			text := typedNode.Text()
 			if len(text) > 2 {
 				text = strings.Trim(text, `"`)
-				regexp.NumConcreteChars = float64(len(text) - 2) // -2 for quotes
-				regexp.AvgCharProb = textToProbs(text, charProbs)
+				outPos.Regexp.NumConcreteChars = float64(len(text) - 2) // -2 for quotes
+				outPos.Regexp.AvgCharProb = textToProbs(text, charProbs)
 			}
 
 		case *cql.AttVal:
-			isEmpty = false
 			// Check if this is a small cardinality attribute
 			if isSmallCardinalityAttr(typedNode) {
-				position.HasSmallCardAttr = 1
+				outPos.HasSmallCardAttr = 1
 			}
 			if !typedNode.IsRecursive() {
 				numAlternatives++
@@ -142,24 +155,15 @@ func extractPositionFeatures(pos *cql.OnePosition, charProbs charProbabilityProv
 		}
 	})
 
-	// Empty query [] is considered a small cardinality attribute search
-	if isEmpty {
-		position.NumAlternatives = 1
-		position.HasSmallCardAttr = 1
-
-	} else if numAlternatives > 0 {
-		position.NumAlternatives = numAlternatives
+	if numAlternatives > 0 {
+		outPos.NumAlternatives = numAlternatives
 
 	} else {
-		position.NumAlternatives = 1 // AUTO-FIX
+		outPos.NumAlternatives = 1 // AUTO-FIX
 		// TODO - this should be solved within the AST,
 		// it is caused by direct regexp queries: "foo"
 	}
-	regexp.NumConcreteChars /= float64(position.NumAlternatives)
-	position.Regexp = regexp
-
-	//fmt.Printf("POSION >>> %#v\n", position)
-	return position
+	outPos.Regexp.NumConcreteChars /= float64(outPos.NumAlternatives)
 }
 
 // analyzeRegExp examines a RegExp node to extract features

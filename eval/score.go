@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 )
 
-const NumFeatures = 36
+const NumFeatures = 41
 
 type CostProvider interface {
 	Cost(model ModelParams) float64
@@ -28,6 +29,7 @@ type ModelParams struct {
 	ConcreteChars0 float64
 	AvgCharProb0   float64
 	NumPosAlts0    float64
+	PosRepetition0 float64
 
 	WildcardPrefix1 float64
 	Wildcards1      float64
@@ -36,6 +38,7 @@ type ModelParams struct {
 	ConcreteChars1  float64
 	AvgCharProb1    float64
 	NumPosAlts1     float64
+	PosRepetition1  float64
 
 	WildcardPrefix2 float64
 	Wildcards2      float64
@@ -44,6 +47,7 @@ type ModelParams struct {
 	ConcreteChars2  float64
 	AvgCharProb2    float64
 	NumPosAlts2     float64
+	PosRepetition2  float64
 
 	WildcardPrefix3 float64
 	Wildcards3      float64
@@ -52,15 +56,17 @@ type ModelParams struct {
 	ConcreteChars3  float64
 	AvgCharProb3    float64
 	NumPosAlts3     float64
+	PosRepetition3  float64
 
-	GlobCond    float64
-	Meet        float64
-	Union       float64
-	Within      float64
-	Containing  float64
-	CorpusSize  float64 // Impact of corpus size on query time
-	AlignedPart float64
-	Bias        float64
+	GlobCond       float64
+	Meet           float64
+	Union          float64
+	Within         float64
+	AdhocSubcorpus float64
+	Containing     float64
+	CorpusSize     float64 // Impact of corpus size on query time
+	AlignedPart    float64
+	Bias           float64
 }
 
 func (p ModelParams) ToSlice() []float64 {
@@ -72,6 +78,7 @@ func (p ModelParams) ToSlice() []float64 {
 		p.ConcreteChars0,
 		p.AvgCharProb0,
 		p.NumPosAlts0,
+		p.PosRepetition0,
 		p.WildcardPrefix1,
 		p.Wildcards1,
 		p.RangeOp1,
@@ -79,6 +86,7 @@ func (p ModelParams) ToSlice() []float64 {
 		p.ConcreteChars1,
 		p.AvgCharProb1,
 		p.NumPosAlts1,
+		p.PosRepetition1,
 		p.WildcardPrefix2,
 		p.Wildcards2,
 		p.RangeOp2,
@@ -86,6 +94,7 @@ func (p ModelParams) ToSlice() []float64 {
 		p.ConcreteChars2,
 		p.AvgCharProb2,
 		p.NumPosAlts2,
+		p.PosRepetition2,
 		p.WildcardPrefix3,
 		p.Wildcards3,
 		p.RangeOp3,
@@ -93,10 +102,12 @@ func (p ModelParams) ToSlice() []float64 {
 		p.ConcreteChars3,
 		p.AvgCharProb3,
 		p.NumPosAlts3,
+		p.PosRepetition3,
 		p.GlobCond,
 		p.Meet,
 		p.Union,
 		p.Within,
+		p.AdhocSubcorpus,
 		p.Containing,
 		p.CorpusSize,
 		p.AlignedPart,
@@ -116,35 +127,40 @@ func SliceToModelParams(slice []float64) ModelParams {
 		ConcreteChars0:  slice[4],
 		AvgCharProb0:    slice[5],
 		NumPosAlts0:     slice[6],
-		WildcardPrefix1: slice[7],
-		Wildcards1:      slice[8],
-		RangeOp1:        slice[9],
-		SmallCardAttr1:  slice[10],
-		ConcreteChars1:  slice[11],
-		AvgCharProb1:    slice[12],
-		NumPosAlts1:     slice[13],
-		WildcardPrefix2: slice[14],
-		Wildcards2:      slice[15],
-		RangeOp2:        slice[16],
-		SmallCardAttr2:  slice[17],
-		ConcreteChars2:  slice[18],
-		AvgCharProb2:    slice[19],
-		NumPosAlts2:     slice[20],
-		WildcardPrefix3: slice[21],
-		Wildcards3:      slice[22],
-		RangeOp3:        slice[23],
-		SmallCardAttr3:  slice[24],
-		ConcreteChars3:  slice[25],
-		AvgCharProb3:    slice[26],
-		NumPosAlts3:     slice[27],
-		GlobCond:        slice[28],
-		Meet:            slice[29],
-		Union:           slice[30],
-		Within:          slice[31],
-		Containing:      slice[32],
-		CorpusSize:      slice[33],
-		AlignedPart:     slice[34],
-		Bias:            slice[35],
+		PosRepetition0:  slice[7],
+		WildcardPrefix1: slice[8],
+		Wildcards1:      slice[9],
+		RangeOp1:        slice[10],
+		SmallCardAttr1:  slice[11],
+		ConcreteChars1:  slice[12],
+		AvgCharProb1:    slice[13],
+		NumPosAlts1:     slice[14],
+		PosRepetition1:  slice[15],
+		WildcardPrefix2: slice[16],
+		Wildcards2:      slice[17],
+		RangeOp2:        slice[18],
+		SmallCardAttr2:  slice[19],
+		ConcreteChars2:  slice[20],
+		AvgCharProb2:    slice[21],
+		NumPosAlts2:     slice[22],
+		PosRepetition2:  slice[23],
+		WildcardPrefix3: slice[24],
+		Wildcards3:      slice[25],
+		RangeOp3:        slice[26],
+		SmallCardAttr3:  slice[27],
+		ConcreteChars3:  slice[28],
+		AvgCharProb3:    slice[29],
+		NumPosAlts3:     slice[30],
+		PosRepetition3:  slice[31],
+		GlobCond:        slice[32],
+		Meet:            slice[33],
+		Union:           slice[34],
+		Within:          slice[35],
+		AdhocSubcorpus:  slice[36],
+		Containing:      slice[37],
+		CorpusSize:      slice[38],
+		AlignedPart:     slice[39],
+		Bias:            slice[40],
 	}
 }
 
@@ -194,10 +210,11 @@ type Regexp struct {
 // -----------------------------------
 
 type Position struct {
-	Index            int    `msgpack:"index"`
-	Regexp           Regexp `msgpack:"regexp"`
-	HasSmallCardAttr int    `msgpack:"hasSmallCardAttr"` // 1 if searching by attribute with small cardinality (tag, pos, etc.) or empty query []
-	NumAlternatives  int    `msgpack:"numAlternatives"`  // at least 1, solves situations like [lemma="foo" | word="fooish"]
+	Index            int     `msgpack:"index"`
+	Regexp           Regexp  `msgpack:"regexp"`
+	HasSmallCardAttr int     `msgpack:"hasSmallCardAttr"` // 1 if searching by attribute with small cardinality (tag, pos, etc.) or empty query []
+	NumAlternatives  int     `msgpack:"numAlternatives"`  // at least 1, solves situations like [lemma="foo" | word="fooish"]
+	PosRepetition    float64 `msgpack:"posRepetition"`    // stuff like [word="foo"]+
 }
 
 // -----------------------------------
@@ -205,14 +222,46 @@ type Position struct {
 type QueryEvaluation struct {
 	ProcTime float64 `msgpack:"procTime"`
 
+	OrigQuery          string     `msgpack:"q"`
 	Positions          []Position `msgpack:"positions"`
 	NumGlobConditions  int        `msgpack:"numGlobConditions"`
 	ContainsMeet       int        `msgpack:"containsMeet"`
 	ContainsUnion      int        `msgpack:"containsUnion"`
 	ContainsWithin     int        `msgpack:"containsWithin"`
+	AdhocSubcorpus     float64    `msgpack:"adhocSubcorpus"`
 	ContainsContaining int        `msgpack:"containsContaining"`
 	CorpusSize         float64    `msgpack:"corpusSize"` // Size of the corpus being searched (e.g., number of tokens)
 	AlignedPart        int        `msgpack:"alignedPart"`
+}
+
+func (eval QueryEvaluation) UniqKey() string {
+	return fmt.Sprintf("%s-%.5f", eval.OrigQuery, eval.CorpusSize)
+}
+
+func (eval QueryEvaluation) Show() string {
+	var ans strings.Builder
+	for i, pos := range eval.Positions {
+		ans.WriteString(fmt.Sprintf("position %d:\n", i))
+		ans.WriteString(fmt.Sprintf("    HasSmallCardAttr: %d\n", pos.HasSmallCardAttr))
+		ans.WriteString(fmt.Sprintf("    NumAlternatives: %d\n", pos.NumAlternatives))
+		ans.WriteString(fmt.Sprintf("    PosRepetition: %.2f\n", pos.PosRepetition))
+		ans.WriteString("        regexp:    \n")
+		ans.WriteString(fmt.Sprintf("            StartsWithWildCard: %d\n", pos.Regexp.StartsWithWildCard))
+		ans.WriteString(fmt.Sprintf("            NumConcreteChars: %.2f\n", pos.Regexp.NumConcreteChars))
+		ans.WriteString(fmt.Sprintf("            AvgCharProb: %.2f\n", pos.Regexp.AvgCharProb))
+		ans.WriteString(fmt.Sprintf("            WildcardScore: %.2f\n", pos.Regexp.WildcardScore))
+		ans.WriteString(fmt.Sprintf("            HasRange: %d\n", pos.Regexp.HasRange))
+	}
+	ans.WriteString(fmt.Sprintf("NumGlobConditions: %d\n", eval.NumGlobConditions))
+	ans.WriteString(fmt.Sprintf("ContainsMeet: %d\n", eval.ContainsMeet))
+	ans.WriteString(fmt.Sprintf("ContainsUnion: %d\n", eval.ContainsUnion))
+	ans.WriteString(fmt.Sprintf("ContainsWithin: %d\n", eval.ContainsWithin))
+	ans.WriteString(fmt.Sprintf("AdhocSubcorpus: %.2f\n", eval.AdhocSubcorpus))
+	ans.WriteString(fmt.Sprintf("ContainsContaining: %d\n", eval.ContainsContaining))
+	ans.WriteString(fmt.Sprintf("CorpusSize: %0.2f\n", eval.CorpusSize))
+	ans.WriteString(fmt.Sprintf("AlignedPart: %d\n", eval.AlignedPart))
+
+	return ans.String()
 }
 
 func (eval QueryEvaluation) Cost(model ModelParams) float64 {
@@ -222,7 +271,7 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 	for i := 0; i < len(eval.Positions) && i < MaxPositions; i++ {
 		pos := eval.Positions[i]
 		// Get position-specific parameters
-		var wildcardPrefix, wildcards, rangeOp, smallCardAttr, concreteChars, avgCharProb, numPosAlts float64
+		var wildcardPrefix, wildcards, rangeOp, smallCardAttr, concreteChars, avgCharProb, numPosAlts, posRepetition float64
 		switch i {
 		case 0:
 			wildcardPrefix = model.WildcardPrefix0
@@ -232,6 +281,7 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			concreteChars = model.ConcreteChars0
 			avgCharProb = model.AvgCharProb0
 			numPosAlts = model.NumPosAlts0
+			posRepetition = model.PosRepetition0
 		case 1:
 			wildcardPrefix = model.WildcardPrefix1
 			wildcards = model.Wildcards1
@@ -240,6 +290,7 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			concreteChars = model.ConcreteChars1
 			avgCharProb = model.AvgCharProb1
 			numPosAlts = model.NumPosAlts1
+			posRepetition = model.PosRepetition1
 		case 2:
 			wildcardPrefix = model.WildcardPrefix2
 			wildcards = model.Wildcards2
@@ -248,6 +299,7 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			concreteChars = model.ConcreteChars2
 			avgCharProb = model.AvgCharProb2
 			numPosAlts = model.NumPosAlts2
+			posRepetition = model.PosRepetition2
 		case 3:
 			wildcardPrefix = model.WildcardPrefix3
 			wildcards = model.Wildcards3
@@ -256,6 +308,7 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			concreteChars = model.ConcreteChars3
 			avgCharProb = model.AvgCharProb3
 			numPosAlts = model.NumPosAlts3
+			posRepetition = model.PosRepetition3
 		}
 
 		// Calculate position cost
@@ -265,7 +318,8 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			smallCardAttr*float64(pos.HasSmallCardAttr)) +
 			concreteChars*float64(pos.Regexp.NumConcreteChars) +
 			avgCharProb*float64(pos.Regexp.AvgCharProb) +
-			numPosAlts*float64(pos.NumAlternatives)
+			numPosAlts*float64(pos.NumAlternatives) +
+			posRepetition*pos.PosRepetition
 
 		total += positionCost
 	}
@@ -275,6 +329,7 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 	total += model.Meet * float64(eval.ContainsMeet)
 	total += model.Union * float64(eval.ContainsUnion)
 	total += model.Within * float64(eval.ContainsWithin)
+	total += model.AdhocSubcorpus * float64(eval.AdhocSubcorpus)
 	total += model.Containing * float64(eval.ContainsContaining)
 	total += model.CorpusSize * math.Log(eval.CorpusSize)
 	total += model.Bias

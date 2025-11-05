@@ -8,11 +8,22 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strings"
-	"time"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/rs/zerolog/log"
 )
+
+type PrecAndRecall struct {
+	Threshold float64
+	Precision float64
+	Recall    float64
+	FBeta     float64
+}
+
+func (pr PrecAndRecall) CSV() string {
+	return fmt.Sprintf("%.2f;%.2f;%.2f;%.2f", pr.Threshold, pr.Precision, pr.Recall, pr.FBeta)
+}
 
 func findKneeDistance(items []QueryEvaluation) (threshold float64, kneeIdx int) {
 
@@ -46,6 +57,8 @@ func findKneeDistance(items []QueryEvaluation) (threshold float64, kneeIdx int) 
 	threshold = items[kneeIdx].ProcTime
 	return threshold, kneeIdx
 }
+
+// ------------------------------------
 
 type QueryStatsRecord struct {
 	Corpus     string  `json:"corpus"`
@@ -109,6 +122,12 @@ func (model *BasicModel) BalanceSample() []QueryEvaluation {
 		}
 		return 0
 	})
+	for i := 0; i < len(model.Evaluations); i++ {
+		if model.Evaluations[i].ProcTime > 450 {
+			model.Evaluations[i].ProcTime = 450
+			fmt.Println("HUGE WQUERY ------------ ", model.Evaluations[i].Positions)
+		}
+	}
 	//model.MidpointIdx, model.BinMidpoint = model.computeThreshold()
 	log.Info().Msg("creating a balanced sample for learning")
 	model.binMidpoint, model.midpointIdx = findKneeDistance(model.Evaluations)
@@ -119,6 +138,8 @@ func (model *BasicModel) BalanceSample() []QueryEvaluation {
 		Float64("slowQueryPercentile", model.slowQueryPercentile).
 		Int("totalQueries", len(model.Evaluations)).
 		Int("positiveExamples", len(model.Evaluations)-model.midpointIdx).
+		Float64("maxProcTime", model.Evaluations[len(model.Evaluations)-1].ProcTime).
+		Float64("minProcTime", model.Evaluations[0].ProcTime).
 		Msg("calculated threshold for slow queries")
 
 	numPositive := len(model.Evaluations) - model.midpointIdx
@@ -162,39 +183,31 @@ func (model *BasicModel) ProcessEntry(entry QueryStatsRecord) error {
 	return nil
 }
 
-func (model *BasicModel) Evaluate() {
-	RunModel(model.Evaluations)
-}
+func (model *BasicModel) PrecisionAndRecall(rfModel *RFModel, threshold float64) PrecAndRecall {
 
-func (model *BasicModel) PrecisionAndRecall(rfModel *RFModel, threshold float64) {
-	numTruePositives := 0
-	numRelevant := 0
-	numRetrieved := 0
-
+	meanErr := 0.0
+	bucketErrors := make([]float64, 7)
+	numCritical := 0
 	for i := 0; i < len(model.Evaluations); i++ {
-		trulySlow := model.Evaluations[i].ProcTime >= model.binMidpoint
-		predictedSlow := rfModel.Predict(model.Evaluations[i]) >= threshold
-		if trulySlow {
-			numRelevant++
-		}
-		if predictedSlow {
-			numRetrieved++
-			if trulySlow {
-				numTruePositives++
-			}
+		truePerc := float64(i) / float64(len(model.Evaluations))
+		trueBucket := rfModel.bucketize(len(model.Evaluations), truePerc)
+		entry := model.Evaluations[i]
+		prediction := rfModel.Predict(entry)
+		errSize := int(math.Abs(float64(prediction.PredictedClass) - float64(trueBucket)))
+		bucketErrors[errSize] += 1
+		meanErr += math.Abs(float64(trueBucket - prediction.PredictedClass))
+
+		if trueBucket <= 2 && prediction.PredictedClass >= 3 || trueBucket >= 3 && prediction.PredictedClass <= 2 {
+			numCritical++
 		}
 	}
 
-	precision := float64(numTruePositives) / float64(numRetrieved)
-	recall := float64(numTruePositives) / float64(numRelevant)
-	beta := 1.0
-	fbeta := 0.0
-	if precision+recall > 0 {
-		betaSquared := beta * beta
-		fbeta = (1 + betaSquared) * (precision * recall) / (betaSquared*precision + recall)
+	fmt.Println("MEAN ERROR ", meanErr/float64(len(model.Evaluations)))
+	for i, be := range bucketErrors {
+		fmt.Printf("error %d: %.1f\n", i, be)
 	}
-
-	fmt.Printf("%.2f;%.2f;%.2f;%.2f\n", threshold, precision, recall, fbeta)
+	fmt.Println("SLOW/FAST confusion errors: ", numCritical)
+	return PrecAndRecall{}
 
 }
 
@@ -210,7 +223,7 @@ func (model *BasicModel) showSampleEvaluations(rfModel *RFModel, maxSamples int,
 	fmt.Println("negative examples test: ")
 	for i := 0; i < maxSamples; i++ {
 		randomIdx := rand.IntN(model.midpointIdx)
-		predicted := rfModel.Predict(model.Evaluations[randomIdx])
+		predicted := float64(rfModel.Predict(model.Evaluations[randomIdx]).PredictedClass) / 100.0
 		actual := model.Evaluations[randomIdx].ProcTime < model.binMidpoint
 		fmt.Printf(
 			"       %d, match: %t, vote NO: %.2f (time: %.2f)\n",
@@ -221,13 +234,59 @@ func (model *BasicModel) showSampleEvaluations(rfModel *RFModel, maxSamples int,
 	fmt.Println("POSITIVE examples test: ")
 	for i := 0; i < maxSamples; i++ {
 		randomIdx := rand.IntN(len(model.Evaluations)-model.midpointIdx) + model.midpointIdx
-		predicted := rfModel.Predict(model.Evaluations[randomIdx])
+		predicted := float64(rfModel.Predict(model.Evaluations[randomIdx]).PredictedClass) / 100.0
 		actual := model.Evaluations[randomIdx].ProcTime >= model.binMidpoint
 		fmt.Printf(
 			"       %d, match: %t, vote YES: %.2f (time: %.2f)\n",
 			randomIdx, actual == (predicted >= votingThreshold), predicted, model.Evaluations[randomIdx].ProcTime,
 		)
 	}
+}
+
+func (model *BasicModel) Deduplicate() {
+	uniq := make(map[string][]QueryEvaluation)
+	for _, v := range model.Evaluations {
+		_, ok := uniq[v.UniqKey()]
+		if !ok {
+			uniq[v.UniqKey()] = make([]QueryEvaluation, 0, 10)
+		}
+		uniq[v.UniqKey()] = append(uniq[v.UniqKey()], v)
+	}
+	for _, evals := range uniq {
+		slices.SortFunc(evals, func(v1, v2 QueryEvaluation) int {
+			if v1.ProcTime < v2.ProcTime {
+				return -1
+			}
+			return 1
+		})
+		sum := 0.0
+		sum2 := 0.0
+		n := 0.0
+		for _, v := range evals {
+			sum += v.ProcTime
+			sum2 += v.ProcTime * v.ProcTime
+			n += 1
+		}
+		mean := sum / n
+		//variance := (sum2 / n) - (mean * mean)
+		//stdDev := math.Sqrt(variance)
+		var median float64
+		if len(evals) <= 2 {
+			median = mean
+
+		} else {
+			middle := int(math.Ceil(float64(len(evals)) / 2.0))
+			median = evals[middle].ProcTime
+		}
+		evals[0].ProcTime = median
+	}
+	model.Evaluations = make([]QueryEvaluation, len(uniq))
+	i := 0
+	for _, u := range uniq {
+		model.Evaluations[i] = u[0]
+		i++
+	}
+	log.Info().Int("newSize", len(model.Evaluations)).Msg("deduplicated queries")
 }
 
 // EvaluateWithRF trains a Random Forest model instead of Huber regression
@@ -252,33 +311,36 @@ func (model *BasicModel) EvaluateWithRF(
 		return fmt.Errorf("RF training failed: %w", err)
 	}
 
-	timestamp := time.Now().Format("20060102T150405")
-	modelPath := fmt.Sprintf("cqlizer_rfmodel_%s.json", timestamp)
-	if err := rfModel.SaveToFile(modelPath); err != nil {
+	if err := rfModel.SaveToFile(outputPath); err != nil {
 		return fmt.Errorf("error saving model: %w", err)
 
 	} else {
-		log.Debug().Str("path", modelPath).Msg("saved model file")
+		log.Debug().Str("path", outputPath).Msg("saved model file")
 	}
 
 	// ----- testing
-
+	slices.SortFunc(
+		testData,
+		func(v1, v2 QueryEvaluation) int {
+			if v1.ProcTime < v2.ProcTime {
+				return -1
+			}
+			if v1.ProcTime > v2.ProcTime {
+				return 1
+			}
+			return 0
+		})
 	model.Evaluations = testData
 
 	log.Info().
 		Int("evalDataSize", len(model.Evaluations)).
 		Msg("calculating precision and recall using full data")
 
-	fmt.Println("vote;precision;recall;f-beta")
 	//for th := 0.7; th <= 0.991; th += 0.01 {
-	for th := 0.8; th <= 0.951; th += 0.01 {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-		}
-		model.PrecisionAndRecall(rfModel, th)
-	}
+	var wg sync.WaitGroup
+	chunks := []float64{0.6, 0.7, 0.8, 0.9}
+	wg.Add(len(chunks))
+	model.PrecisionAndRecall(rfModel, 0)
 
 	return nil
 }

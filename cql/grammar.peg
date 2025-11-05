@@ -301,7 +301,6 @@ Sequence <-
             ans.Seq = append(ans.Seq, seqVal)
         }
 
-
         return ans, nil
     }
     / s1:Seq {

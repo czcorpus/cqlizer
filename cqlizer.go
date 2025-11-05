@@ -97,17 +97,9 @@ func runActionMCPServer() {
 
 }
 
-func runActionREPL(modelPath string, rfPath string) {
-	// Load the model
-	fmt.Printf("Loading model from %s...\n", modelPath)
-	model, err := eval.LoadModelFromFile(modelPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading Huber model: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Println("✓ Huber model loaded successfully\n")
-
+func runActionREPL(rfPath string) {
 	var rfModel *eval.RFModel
+	var err error
 	if rfPath != "" {
 		rfModel, err = eval.LoadRFModelFromFile(rfPath)
 		if err != nil {
@@ -120,7 +112,7 @@ func runActionREPL(modelPath string, rfPath string) {
 	}
 
 	// Default corpus size (can be overridden with 'set corpussize <value>')
-	corpusSize := 100000000.0 // 100M tokens default
+	corpusSize := 6400000000.0 // 6.4G tokens default
 
 	lang := "cs"
 
@@ -186,26 +178,23 @@ func runActionREPL(modelPath string, rfPath string) {
 			continue
 		}
 
-		// Calculate estimated cost
-		estimatedTime := queryEval.Cost(model)
-
 		// Display results
 		fmt.Printf("\n--- Query Analysis ---\n")
 		fmt.Printf("Query:           %s\n", input)
 		fmt.Printf("Corpus size:     %.0f tokens\n", corpusSize)
 		fmt.Printf("Positions:       %d\n", len(queryEval.Positions))
 		for i, pos := range queryEval.Positions {
-			fmt.Printf("  Position %d:    wildcards=%0.2f, range=%d, smallCard=%d, numConcreteChars=%d, posNumAlts: %d\n",
+			fmt.Printf("  Position %d:    wildcards=%0.2f, range=%d, smallCard=%d, numConcreteChars=%.2f, posNumAlts: %d\n",
 				i, pos.Regexp.WildcardScore, pos.Regexp.HasRange, pos.HasSmallCardAttr, pos.Regexp.NumConcreteChars, pos.NumAlternatives)
 		}
 		fmt.Printf("Global features: glob=%d, meet=%d, union=%d, within=%d, containing=%d\n",
 			queryEval.NumGlobConditions, queryEval.ContainsMeet,
 			queryEval.ContainsUnion, queryEval.ContainsWithin, queryEval.ContainsContaining)
-		fmt.Printf("\n⏱️  Estimated time: %.4f seconds\n\n", estimatedTime)
 
 		if rfModel != nil {
 			rfPRediction := rfModel.Predict(queryEval)
-			fmt.Printf("RF prediction: %0.2f\n", rfPRediction)
+			fmt.Printf("RF prediction: %d\n", rfPRediction.PredictedClass)
+			fmt.Printf("votes: %#v\n", rfPRediction.Votes)
 		}
 	}
 
@@ -214,7 +203,7 @@ func runActionREPL(modelPath string, rfPath string) {
 	}
 }
 
-func runActionKlogImport(conf *cnf.Conf, srcPath string, useRF bool, numTrees int, voteThreshold float64) {
+func runActionKlogImport(conf *cnf.Conf, srcPath string, numTrees int, voteThreshold float64) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -224,6 +213,8 @@ func runActionKlogImport(conf *cnf.Conf, srcPath string, useRF bool, numTrees in
 		}
 		dataimport.ReadStatsFile(ctx, srcPath, model)
 	*/
+	srcPathExt := filepath.Ext(srcPath)
+	outFile := srcPath[:len(srcPath)-len(srcPathExt)] + ".rfmodel.json"
 	f, err := os.Open(srcPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to open features file")
@@ -243,15 +234,10 @@ func runActionKlogImport(conf *cnf.Conf, srcPath string, useRF bool, numTrees in
 
 	allEvals := model.BalanceSample()
 
-	if useRF {
-		// Train Random Forest model
-		if err := model.EvaluateWithRF(ctx, numTrees, voteThreshold, allEvals, ""); err != nil {
-			fmt.Fprintf(os.Stderr, "RF training failed: %v\n", err)
-			os.Exit(1)
-		}
-	} else {
-		// Train Huber regression model (default)
-		model.Evaluate()
+	// Train Random Forest model
+	if err := model.EvaluateWithRF(ctx, numTrees, voteThreshold, allEvals, outFile); err != nil {
+		fmt.Fprintf(os.Stderr, "RF training failed: %v\n", err)
+		os.Exit(1)
 	}
 }
 
@@ -289,13 +275,11 @@ func main() {
 	}
 
 	cmdREPL := flag.NewFlagSet(actionREPL, flag.ExitOnError)
-	useRFRepl := cmdREPL.String("rfPath", "", "Use also Random forest model from the specified file")
 	cmdREPL.Usage = func() {
 		cmdREPL.PrintDefaults()
 	}
 
 	cmdKlogImport := flag.NewFlagSet(actionKlogImport, flag.ExitOnError)
-	useRF := cmdKlogImport.Bool("rf", false, "Use Random Forest instead of Huber regression")
 	numTrees := cmdKlogImport.Int("num-trees", 100, "Number of trees for Random Forest (default: 100)")
 	voteThreshold := cmdKlogImport.Float64("vote-threshold", 0.3, "RF Vote threshold for marking CQL as problematic. This affects only evaluation.")
 	cmdKlogImport.Usage = func() {
@@ -305,6 +289,11 @@ func main() {
 	}
 
 	cmdFeaturize := flag.NewFlagSet(actionFeaturize, flag.ExitOnError)
+	featurizeDebug := cmdFeaturize.Bool(
+		"debug",
+		false,
+		"if set then features will be written to stdout in human readable form and no feats file will be created",
+	)
 	cmdFeaturize.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s featurize [options] config.json logfile.txt\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
@@ -356,7 +345,8 @@ func main() {
 			os.Exit(1)
 		}
 		modelPath := cmdREPL.Arg(0)
-		runActionREPL(modelPath, *useRFRepl)
+		fmt.Println("MODEL: ", modelPath)
+		runActionREPL(modelPath)
 	case actionKlogImport:
 		cmdKlogImport.Parse(os.Args[2:])
 		conf := setup(cmdKlogImport.Arg(0))
@@ -364,7 +354,6 @@ func main() {
 		runActionKlogImport(
 			conf,
 			cmdKlogImport.Arg(1),
-			*useRF,
 			*numTrees,
 			*voteThreshold,
 		)
@@ -378,6 +367,7 @@ func main() {
 			conf.CorporaProps,
 			cmdFeaturize.Arg(1),
 			cmdFeaturize.Arg(2),
+			*featurizeDebug,
 		)
 	case actionAPIServer:
 		cmdAPIServer.Parse(os.Args[2:])

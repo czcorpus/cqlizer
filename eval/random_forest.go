@@ -24,6 +24,11 @@ type RFModel struct {
 	SlowQueriesPercentile float64              `json:"slowQueriesPercentile"`
 }
 
+type Prediction struct {
+	Votes          []float64
+	PredictedClass int
+}
+
 // NewRFModel creates a new Random Forest model with time binning
 func NewRFModel(slowQueriesPerc float64) *RFModel {
 	return &RFModel{
@@ -40,16 +45,17 @@ func (m *RFModel) Train(dataModel *BasicModel, numTrees int) error {
 
 	var xData [][]float64
 	var yData []int
+	numTotal := len(dataModel.Evaluations)
 	numProblematic := 0
-	for _, eval := range dataModel.Evaluations {
+	for i, eval := range dataModel.Evaluations {
 		features := extractFeatures(eval)
-		isPositive := 0
+		//isPositive := 0
 		if eval.ProcTime >= dataModel.binMidpoint {
 			numProblematic++
-			isPositive = 1
+			//isPositive = 1
 		}
 		xData = append(xData, features)
-		yData = append(yData, isPositive)
+		yData = append(yData, m.bucketize(numTotal, float64(i)/float64(numTotal)))
 	}
 	log.Debug().
 		Int("numPositive", numProblematic).
@@ -64,11 +70,32 @@ func (m *RFModel) Train(dataModel *BasicModel, numTrees int) error {
 	return nil
 }
 
+func (m *RFModel) bucketize(totalItems int, percentile float64) int {
+	thresholds := []float64{0.5, 0.75, 0.875, 0.9375, 0.96875, 0.984375, 1.0}
+	for i, v := range thresholds {
+		if percentile < v {
+			return i
+		}
+	}
+	return len(thresholds) - 1
+}
+
 // Predict estimates query execution time using the trained forest
-func (m *RFModel) Predict(eval QueryEvaluation) float64 {
+func (m *RFModel) Predict(eval QueryEvaluation) Prediction {
 	features := extractFeatures(eval)
+	best := 0.0
+	bestIdx := 0
 	votes := m.Forest.Vote(features)
-	return votes[1]
+	for i, v := range votes {
+		if v > best {
+			best = v
+			bestIdx = i
+		}
+	}
+	return Prediction{
+		Votes:          votes,
+		PredictedClass: bestIdx,
+	}
 }
 
 // extractFeatures converts QueryEvaluation to feature vector (same as Huber)
@@ -88,20 +115,22 @@ func extractFeatures(eval QueryEvaluation) []float64 {
 			features[idx+4] = float64(pos.Regexp.NumConcreteChars)
 			features[idx+5] = pos.Regexp.AvgCharProb
 			features[idx+6] = float64(pos.NumAlternatives)
+			features[idx+7] = pos.PosRepetition
 		}
 		// If position doesn't exist, features remain 0
-		idx += 7
+		idx += 8
 	}
 
 	// Global features
-	features[28] = float64(eval.NumGlobConditions)
-	features[29] = float64(eval.ContainsMeet)
-	features[30] = float64(eval.ContainsUnion)
-	features[31] = float64(eval.ContainsWithin)
-	features[32] = float64(eval.ContainsContaining)
-	features[33] = math.Log(eval.CorpusSize)
-	features[34] = float64(eval.AlignedPart)
-	features[35] = 1.0 // Bias term
+	features[32] = float64(eval.NumGlobConditions)
+	features[33] = float64(eval.ContainsMeet)
+	features[34] = float64(eval.ContainsUnion)
+	features[35] = float64(eval.ContainsWithin)
+	features[36] = eval.AdhocSubcorpus
+	features[37] = float64(eval.ContainsContaining)
+	features[38] = math.Log(eval.CorpusSize)
+	features[39] = float64(eval.AlignedPart)
+	features[40] = 1.0 // Bias term
 
 	return features
 }

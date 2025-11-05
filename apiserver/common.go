@@ -33,7 +33,7 @@ type ensembleModel struct {
 	threshold float64
 }
 
-func (md ensembleModel) Predict(queryEval eval.QueryEvaluation) float64 {
+func (md ensembleModel) Predict(queryEval eval.QueryEvaluation) eval.Prediction {
 	return md.model.Predict(queryEval)
 }
 
