@@ -235,7 +235,7 @@ func runActionKlogImport(conf *cnf.Conf, srcPath string, numTrees int, voteThres
 	allEvals := model.BalanceSample()
 
 	// Train Random Forest model
-	if err := model.EvaluateWithRF(ctx, numTrees, voteThreshold, allEvals, outFile); err != nil {
+	if err := model.Evaluate(ctx, numTrees, voteThreshold, allEvals, outFile); err != nil {
 		fmt.Fprintf(os.Stderr, "RF training failed: %v\n", err)
 		os.Exit(1)
 	}

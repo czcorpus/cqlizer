@@ -183,30 +183,36 @@ func (model *BasicModel) ProcessEntry(entry QueryStatsRecord) error {
 	return nil
 }
 
-func (model *BasicModel) PrecisionAndRecall(rfModel *RFModel, threshold float64) PrecAndRecall {
+func (model *BasicModel) PrecisionAndRecall(rfModel *RFModel) PrecAndRecall {
 
-	meanErr := 0.0
-	bucketErrors := make([]float64, 7)
-	numCritical := 0
+	numTruePositives := 0
+	numRelevant := 0
+	numRetrieved := 0
+
 	for i := 0; i < len(model.Evaluations); i++ {
-		truePerc := float64(i) / float64(len(model.Evaluations))
-		trueBucket := rfModel.bucketize(len(model.Evaluations), truePerc)
-		entry := model.Evaluations[i]
-		prediction := rfModel.Predict(entry)
-		errSize := int(math.Abs(float64(prediction.PredictedClass) - float64(trueBucket)))
-		bucketErrors[errSize] += 1
-		meanErr += math.Abs(float64(trueBucket - prediction.PredictedClass))
-
-		if trueBucket <= 2 && prediction.PredictedClass >= 3 || trueBucket >= 3 && prediction.PredictedClass <= 2 {
-			numCritical++
+		trulySlow := model.Evaluations[i].ProcTime >= model.binMidpoint
+		predictedSlow := rfModel.Predict(model.Evaluations[i]).PredictedClass >= 0.5
+		if trulySlow {
+			numRelevant++
+		}
+		if predictedSlow {
+			numRetrieved++
+			if trulySlow {
+				numTruePositives++
+			}
 		}
 	}
 
-	fmt.Println("MEAN ERROR ", meanErr/float64(len(model.Evaluations)))
-	for i, be := range bucketErrors {
-		fmt.Printf("error %d: %.1f\n", i, be)
+	precision := float64(numTruePositives) / float64(numRetrieved)
+	recall := float64(numTruePositives) / float64(numRelevant)
+	beta := 1.0
+	fbeta := 0.0
+	if precision+recall > 0 {
+		betaSquared := beta * beta
+		fbeta = (1 + betaSquared) * (precision * recall) / (betaSquared*precision + recall)
 	}
-	fmt.Println("SLOW/FAST confusion errors: ", numCritical)
+
+	fmt.Printf("%.2f;%.2f;%.2f\n", precision, recall, fbeta)
 	return PrecAndRecall{}
 
 }
@@ -307,7 +313,7 @@ func (model *BasicModel) EvaluateWithRF(
 		Msg("Training Random Forest")
 
 	rfModel := NewRFModel(model.slowQueryPercentile)
-	if err := rfModel.Train(model, numTrees); err != nil {
+	if err := rfModel.TrainRF(model, numTrees); err != nil {
 		return fmt.Errorf("RF training failed: %w", err)
 	}
 
@@ -340,7 +346,48 @@ func (model *BasicModel) EvaluateWithRF(
 	var wg sync.WaitGroup
 	chunks := []float64{0.6, 0.7, 0.8, 0.9}
 	wg.Add(len(chunks))
-	model.PrecisionAndRecall(rfModel, 0)
+	model.PrecisionAndRecall(rfModel)
+
+	return nil
+}
+
+func (model *BasicModel) Evaluate(
+	ctx context.Context,
+	numTrees int,
+	votingThreshold float64,
+	testData []QueryEvaluation,
+	outputPath string,
+) error {
+	if len(model.Evaluations) == 0 {
+		return fmt.Errorf("no training data available")
+	}
+
+	log.Info().
+		Int("numTrees", numTrees).
+		Int("trainingDataSize", len(model.Evaluations)).
+		Msg("Training Random Forest")
+
+	rfModel := NewRFModel(model.slowQueryPercentile)
+	if err := rfModel.Train(model, numTrees); err != nil {
+		return fmt.Errorf("RF training failed: %w", err)
+	}
+
+	if err := rfModel.SaveToFile(outputPath); err != nil {
+		return fmt.Errorf("error saving model: %w", err)
+
+	} else {
+		log.Debug().Str("path", outputPath).Msg("saved model file")
+	}
+
+	// ----- testing
+
+	model.Evaluations = testData
+
+	log.Info().
+		Int("evalDataSize", len(model.Evaluations)).
+		Msg("calculating precision and recall using full data")
+
+	model.PrecisionAndRecall(rfModel)
 
 	return nil
 }

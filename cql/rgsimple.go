@@ -45,8 +45,8 @@ func (r *RgSimple) WildcardScore() float64 {
 			}
 		}
 	})
-	ans += float64(strings.Count(r.Text(), ".*")) * 5
-	ans += float64(strings.Count(r.Text(), ".+")) * 5
+	ans += float64(strings.Count(r.Text(), ".*")) * 20
+	ans += float64(strings.Count(r.Text(), ".+")) * 20
 	return ans
 }
 
@@ -140,8 +140,26 @@ func (r *RgAlt) NumItems() int {
 	return len(r.Values)
 }
 
+func (r *RgAlt) Score() float64 {
+	var ans float64
+	for _, v := range r.Values {
+		ans += v.SrchScore()
+	}
+	if r.Not {
+		ans *= 5 // rough estimate
+	}
+	return ans
+}
+
 func (r *RgAlt) Text() string {
-	return "#RgAlt"
+	var ans strings.Builder
+	for i, v := range r.Values {
+		if i > 0 {
+			ans.WriteString(", ")
+		}
+		ans.WriteString(v.Text())
+	}
+	return fmt.Sprintf("#RgAlt(%s)")
 }
 
 func (r *RgAlt) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -161,7 +179,8 @@ func (r *RgAlt) DFS(fn func(v ASTNode)) {
 // --------------------------------------------------------
 
 type rgCharVariant1 struct {
-	Value ASTString
+	Value          ASTString
+	IsUnicodeClass bool
 }
 
 type rgCharVariant2 struct {
@@ -186,6 +205,13 @@ type RgChar struct {
 	variant3 *rgCharVariant3
 	variant4 *rgCharVariant4
 	variant5 *rgCharVariant5
+}
+
+func (rc *RgChar) IsUnicodeClass() bool {
+	if rc.variant1 != nil {
+		return rc.variant1.IsUnicodeClass
+	}
+	return false
 }
 
 func (rc *RgChar) Info() string {
@@ -529,8 +555,25 @@ type RgAltVal struct {
 	variant3 *rgAltValVariant3
 }
 
+func (rc *RgAltVal) SrchScore() float64 {
+	if rc.variant1 != nil {
+		textLen := float64(len(rc.variant1.RgChar.Text()))
+		if rc.variant1.RgChar.IsUnicodeClass() {
+			textLen *= 20
+		}
+		return textLen
+	}
+	if rc.variant2 != nil {
+		return float64(len(rc.variant2.Value.Text()))
+	}
+	if rc.variant3 != nil {
+		return float64(len(rc.variant3.From)) * 10 // TODO this is just a rough estimate
+	}
+	return 0
+}
+
 func (rc *RgAltVal) Text() string {
-	return "RgAltVal"
+	return "#RgAltVal"
 }
 
 func (r *RgAltVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {

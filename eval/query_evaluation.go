@@ -59,7 +59,7 @@ func extractFeaturesFromQuery(query *cql.Query, eval *QueryEvaluation, charProbs
 					if typedNode.IsAnyPosition() {
 						pos.NumAlternatives = 1
 						pos.Regexp.StartsWithWildCard = 1
-						pos.Regexp.WildcardScore = 5 // TODO is this equivalent score to [attr=".*"]
+						pos.Regexp.WildcardScore = 500 // TODO is this equivalent score to [attr=".*"]
 					}
 					pos.PosRepetition = typedNode.RepetitionScore()
 					typedNode.ForEachElement(typedNode, func(parent, v2 cql.ASTNode) {
@@ -144,13 +144,19 @@ func extractPositionFeatures(pos *cql.OnePosition, charProbs charProbabilityProv
 				outPos.Regexp.AvgCharProb = textToProbs(text, charProbs)
 			}
 
+		case *cql.RgAlt:
+			outPos.Regexp.CharClasses = typedNode.Score()
+
 		case *cql.AttVal:
 			// Check if this is a small cardinality attribute
 			if isSmallCardinalityAttr(typedNode) {
-				outPos.HasSmallCardAttr = 1
+				outPos.HasSmallCardAttr = 500
 			}
 			if !typedNode.IsRecursive() {
 				numAlternatives++
+			}
+			if typedNode.IsNegation() {
+				outPos.HasNegation = 1
 			}
 		}
 	})

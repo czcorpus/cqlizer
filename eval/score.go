@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const NumFeatures = 41
+const NumFeatures = 49
 
 type CostProvider interface {
 	Cost(model ModelParams) float64
@@ -30,6 +30,8 @@ type ModelParams struct {
 	AvgCharProb0   float64
 	NumPosAlts0    float64
 	PosRepetition0 float64
+	CharClasses0   float64
+	HasNegation0   float64
 
 	WildcardPrefix1 float64
 	Wildcards1      float64
@@ -39,6 +41,8 @@ type ModelParams struct {
 	AvgCharProb1    float64
 	NumPosAlts1     float64
 	PosRepetition1  float64
+	CharClasses1    float64
+	HasNegation1    float64
 
 	WildcardPrefix2 float64
 	Wildcards2      float64
@@ -48,6 +52,8 @@ type ModelParams struct {
 	AvgCharProb2    float64
 	NumPosAlts2     float64
 	PosRepetition2  float64
+	CharClasses2    float64
+	HasNegation2    float64
 
 	WildcardPrefix3 float64
 	Wildcards3      float64
@@ -57,6 +63,8 @@ type ModelParams struct {
 	AvgCharProb3    float64
 	NumPosAlts3     float64
 	PosRepetition3  float64
+	CharClasses3    float64
+	HasNegation3    float64
 
 	GlobCond       float64
 	Meet           float64
@@ -79,6 +87,8 @@ func (p ModelParams) ToSlice() []float64 {
 		p.AvgCharProb0,
 		p.NumPosAlts0,
 		p.PosRepetition0,
+		p.CharClasses0,
+		p.HasNegation0,
 		p.WildcardPrefix1,
 		p.Wildcards1,
 		p.RangeOp1,
@@ -87,6 +97,8 @@ func (p ModelParams) ToSlice() []float64 {
 		p.AvgCharProb1,
 		p.NumPosAlts1,
 		p.PosRepetition1,
+		p.CharClasses1,
+		p.HasNegation1,
 		p.WildcardPrefix2,
 		p.Wildcards2,
 		p.RangeOp2,
@@ -95,6 +107,8 @@ func (p ModelParams) ToSlice() []float64 {
 		p.AvgCharProb2,
 		p.NumPosAlts2,
 		p.PosRepetition2,
+		p.CharClasses2,
+		p.HasNegation2,
 		p.WildcardPrefix3,
 		p.Wildcards3,
 		p.RangeOp3,
@@ -103,6 +117,8 @@ func (p ModelParams) ToSlice() []float64 {
 		p.AvgCharProb3,
 		p.NumPosAlts3,
 		p.PosRepetition3,
+		p.CharClasses3,
+		p.HasNegation3,
 		p.GlobCond,
 		p.Meet,
 		p.Union,
@@ -128,39 +144,47 @@ func SliceToModelParams(slice []float64) ModelParams {
 		AvgCharProb0:    slice[5],
 		NumPosAlts0:     slice[6],
 		PosRepetition0:  slice[7],
-		WildcardPrefix1: slice[8],
-		Wildcards1:      slice[9],
-		RangeOp1:        slice[10],
-		SmallCardAttr1:  slice[11],
-		ConcreteChars1:  slice[12],
-		AvgCharProb1:    slice[13],
-		NumPosAlts1:     slice[14],
-		PosRepetition1:  slice[15],
-		WildcardPrefix2: slice[16],
-		Wildcards2:      slice[17],
-		RangeOp2:        slice[18],
-		SmallCardAttr2:  slice[19],
-		ConcreteChars2:  slice[20],
-		AvgCharProb2:    slice[21],
-		NumPosAlts2:     slice[22],
-		PosRepetition2:  slice[23],
-		WildcardPrefix3: slice[24],
-		Wildcards3:      slice[25],
-		RangeOp3:        slice[26],
-		SmallCardAttr3:  slice[27],
-		ConcreteChars3:  slice[28],
-		AvgCharProb3:    slice[29],
-		NumPosAlts3:     slice[30],
-		PosRepetition3:  slice[31],
-		GlobCond:        slice[32],
-		Meet:            slice[33],
-		Union:           slice[34],
-		Within:          slice[35],
-		AdhocSubcorpus:  slice[36],
-		Containing:      slice[37],
-		CorpusSize:      slice[38],
-		AlignedPart:     slice[39],
-		Bias:            slice[40],
+		CharClasses0:    slice[8],
+		HasNegation0:    slice[9],
+		WildcardPrefix1: slice[10],
+		Wildcards1:      slice[11],
+		RangeOp1:        slice[12],
+		SmallCardAttr1:  slice[13],
+		ConcreteChars1:  slice[14],
+		AvgCharProb1:    slice[15],
+		NumPosAlts1:     slice[16],
+		PosRepetition1:  slice[17],
+		CharClasses1:    slice[18],
+		HasNegation1:    slice[19],
+		WildcardPrefix2: slice[20],
+		Wildcards2:      slice[21],
+		RangeOp2:        slice[22],
+		SmallCardAttr2:  slice[23],
+		ConcreteChars2:  slice[24],
+		AvgCharProb2:    slice[25],
+		NumPosAlts2:     slice[26],
+		PosRepetition2:  slice[27],
+		CharClasses2:    slice[28],
+		HasNegation2:    slice[29],
+		WildcardPrefix3: slice[30],
+		Wildcards3:      slice[31],
+		RangeOp3:        slice[32],
+		SmallCardAttr3:  slice[33],
+		ConcreteChars3:  slice[34],
+		AvgCharProb3:    slice[35],
+		NumPosAlts3:     slice[36],
+		PosRepetition3:  slice[37],
+		CharClasses3:    slice[38],
+		HasNegation3:    slice[39],
+		GlobCond:        slice[40],
+		Meet:            slice[41],
+		Union:           slice[42],
+		Within:          slice[43],
+		AdhocSubcorpus:  slice[44],
+		Containing:      slice[45],
+		CorpusSize:      slice[46],
+		AlignedPart:     slice[47],
+		Bias:            slice[48],
 	}
 }
 
@@ -205,6 +229,7 @@ type Regexp struct {
 	AvgCharProb        float64 `msgpack:"avgCharProb"`
 	WildcardScore      float64 `msgpack:"wildcardScore"`
 	HasRange           int     `msgpack:"hasRange"`
+	CharClasses        float64 `msgpack:"charClasses"`
 }
 
 // -----------------------------------
@@ -215,6 +240,7 @@ type Position struct {
 	HasSmallCardAttr int     `msgpack:"hasSmallCardAttr"` // 1 if searching by attribute with small cardinality (tag, pos, etc.) or empty query []
 	NumAlternatives  int     `msgpack:"numAlternatives"`  // at least 1, solves situations like [lemma="foo" | word="fooish"]
 	PosRepetition    float64 `msgpack:"posRepetition"`    // stuff like [word="foo"]+
+	HasNegation      int     `msgpack:"hasNegation"`
 }
 
 // -----------------------------------
@@ -245,12 +271,14 @@ func (eval QueryEvaluation) Show() string {
 		ans.WriteString(fmt.Sprintf("    HasSmallCardAttr: %d\n", pos.HasSmallCardAttr))
 		ans.WriteString(fmt.Sprintf("    NumAlternatives: %d\n", pos.NumAlternatives))
 		ans.WriteString(fmt.Sprintf("    PosRepetition: %.2f\n", pos.PosRepetition))
+		ans.WriteString(fmt.Sprintf("    HasNegation: %d\n", pos.HasNegation))
 		ans.WriteString("        regexp:    \n")
 		ans.WriteString(fmt.Sprintf("            StartsWithWildCard: %d\n", pos.Regexp.StartsWithWildCard))
 		ans.WriteString(fmt.Sprintf("            NumConcreteChars: %.2f\n", pos.Regexp.NumConcreteChars))
 		ans.WriteString(fmt.Sprintf("            AvgCharProb: %.2f\n", pos.Regexp.AvgCharProb))
 		ans.WriteString(fmt.Sprintf("            WildcardScore: %.2f\n", pos.Regexp.WildcardScore))
 		ans.WriteString(fmt.Sprintf("            HasRange: %d\n", pos.Regexp.HasRange))
+		ans.WriteString(fmt.Sprintf("            CharClasses: %.2f\n", pos.Regexp.CharClasses))
 	}
 	ans.WriteString(fmt.Sprintf("NumGlobConditions: %d\n", eval.NumGlobConditions))
 	ans.WriteString(fmt.Sprintf("ContainsMeet: %d\n", eval.ContainsMeet))
@@ -271,7 +299,8 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 	for i := 0; i < len(eval.Positions) && i < MaxPositions; i++ {
 		pos := eval.Positions[i]
 		// Get position-specific parameters
-		var wildcardPrefix, wildcards, rangeOp, smallCardAttr, concreteChars, avgCharProb, numPosAlts, posRepetition float64
+		var wildcardPrefix, wildcards, rangeOp, smallCardAttr, concreteChars,
+			avgCharProb, numPosAlts, posRepetition, charClasses, hasNegation float64
 		switch i {
 		case 0:
 			wildcardPrefix = model.WildcardPrefix0
@@ -282,6 +311,8 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			avgCharProb = model.AvgCharProb0
 			numPosAlts = model.NumPosAlts0
 			posRepetition = model.PosRepetition0
+			charClasses = model.CharClasses0
+			hasNegation = model.HasNegation0
 		case 1:
 			wildcardPrefix = model.WildcardPrefix1
 			wildcards = model.Wildcards1
@@ -291,6 +322,8 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			avgCharProb = model.AvgCharProb1
 			numPosAlts = model.NumPosAlts1
 			posRepetition = model.PosRepetition1
+			charClasses = model.CharClasses1
+			hasNegation = model.HasNegation1
 		case 2:
 			wildcardPrefix = model.WildcardPrefix2
 			wildcards = model.Wildcards2
@@ -300,6 +333,8 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			avgCharProb = model.AvgCharProb2
 			numPosAlts = model.NumPosAlts2
 			posRepetition = model.PosRepetition2
+			charClasses = model.CharClasses2
+			hasNegation = model.HasNegation2
 		case 3:
 			wildcardPrefix = model.WildcardPrefix3
 			wildcards = model.Wildcards3
@@ -309,6 +344,8 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			avgCharProb = model.AvgCharProb3
 			numPosAlts = model.NumPosAlts3
 			posRepetition = model.PosRepetition3
+			charClasses = model.CharClasses3
+			hasNegation = model.HasNegation3
 		}
 
 		// Calculate position cost
@@ -319,7 +356,9 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 			concreteChars*float64(pos.Regexp.NumConcreteChars) +
 			avgCharProb*float64(pos.Regexp.AvgCharProb) +
 			numPosAlts*float64(pos.NumAlternatives) +
-			posRepetition*pos.PosRepetition
+			posRepetition*pos.PosRepetition +
+			charClasses*pos.Regexp.CharClasses +
+			hasNegation*float64(pos.HasNegation)
 
 		total += positionCost
 	}

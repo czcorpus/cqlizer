@@ -460,7 +460,7 @@ AttValAnd <-
     }
 
 AttVal <-
-    an:AttName (_ NOT)? _ EEQ _ rs:RawString {
+    an:AttName n:(_ NOT)? _ EEQ _ rs:RawString {
         ans := &AttVal{
             origValue: string(c.text),
             Variant1: &attValVariant1 {
@@ -879,6 +879,7 @@ RgChar <-
         ans := &RgChar{
             variant1: &rgCharVariant1{
                 Value: ASTString(ASTString(typedOrPanic[[]uint8](rg))),
+                IsUnicodeClass: true,
             },
         }
 
