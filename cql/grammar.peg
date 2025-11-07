@@ -301,7 +301,6 @@ Sequence <-
             ans.Seq = append(ans.Seq, seqVal)
         }
 
-
         return ans, nil
     }
     / s1:Seq {
@@ -461,7 +460,7 @@ AttValAnd <-
     }
 
 AttVal <-
-    an:AttName (_ NOT)? _ EEQ _ rs:RawString {
+    an:AttName n:(_ NOT)? _ EEQ _ rs:RawString {
         ans := &AttVal{
             origValue: string(c.text),
             Variant1: &attValVariant1 {
@@ -700,7 +699,13 @@ RgSimple <-
             Values: make([]ASTNode, 0, len(vSlice)),
         }
         for _, item := range vSlice {
-            ans.Values = append(ans.Values, typedOrPanic[ASTNode](item))
+            v, ok := item.(string)
+            if ok {
+                ans.Values = append(ans.Values, ASTString(v))
+
+            } else {
+                ans.Values = append(ans.Values, typedOrPanic[ASTNode](item))
+            }
         }
 
         return ans, nil
@@ -873,7 +878,8 @@ RgChar <-
     / rg:RG_UNICODE_PROP {
         ans := &RgChar{
             variant1: &rgCharVariant1{
-                Value: ASTString(typedOrPanic[string](rg)),
+                Value: ASTString(ASTString(typedOrPanic[[]uint8](rg))),
+                IsUnicodeClass: true,
             },
         }
 
@@ -905,7 +911,8 @@ RG_UNICODE_PROP <-
     "\\p{C}" / "\\p{Cc}" / "\\p{Cf}" / "\\p{Co}" / "\\p{Cs}" / "\\p{Cn}"
 
 POSIX_CHAR_CLS <-
-    "alnum" / "alpha" / "digit" / "lower" / "upper" / "punct" / "xdigit"
+    "alnum" / "ALNUM" / "alpha" / "ALPHA" / "digit" / "DIGIT" / "lower" / "LOWER" /
+    "upper" / "UPPER" / "punct" / "PUNCT" / "xdigit" / "XDIGIT"
 
 // {n}, {n,}, {n,m}
 RgRange <-
@@ -938,6 +945,9 @@ AnyLetter <-
         return string(c.text), nil
     }
     / LETTER_PHON {
+        return string(c.text), nil
+    }
+    / NUMBER {
         return string(c.text), nil
     }
 

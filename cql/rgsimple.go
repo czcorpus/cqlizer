@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/rs/zerolog/log"
 )
 
 type state int
@@ -37,120 +35,19 @@ func (r *RgSimple) Text() string {
 	return r.origValue
 }
 
-func (r *RgSimple) Normalize() string {
-	var ans strings.Builder
-	ans.WriteString(" ")
-	for _, v := range r.Values {
-		ans.WriteString(v.Normalize())
-	}
-	return ans.String()
-}
-
-// ExpensiveOps
-// TODO consider whether the .* etc are at the beginning or end
-// as it matters in index search
-func (r *RgSimple) ExhaustionScore() float64 {
-	var state state
-	var ans float64
-	for _, val := range r.Values {
-		switch state {
-		case ConstChar:
-			switch tVal := val.(type) {
-			case *RgChar:
-				if tVal.IsConstant() {
-					if ans == 0 {
-						ans = SingleCharExhaustiveness
-
-					} else {
-						ans *= NextCharPenaltyDrop
-					}
-
-				} else if tVal.IsRgOperator(".") {
-					if ans == 0 {
-						ans = SingleDotExhaustiveness
-
-					} else {
-						ans *= DotPenalty
-					}
-
-				} else if tVal.IsRgOperator("?") {
-					state = QMark
-					ans *= QuestionMarkPenalty
-
-				} else if tVal.IsRgOperator("+") || tVal.IsRgOperator("*") {
-					state = Repeat
-					ans *= InfRepeatPenalty
-				}
-			case *RgRange:
-				v := tVal.NumericRepr()
-				if v[0] > -1 {
-					if v[1] > 0 {
-						ans *= RangePenalty * float64(v[1]-v[0])
-
-					} else {
-						ans *= RangePenalty * float64(RangeInfReplac-v[0])
-					}
-				}
-			case *RgAlt:
-				if ans == 0 {
-					ans = tVal.ExhaustionScore()
-
-				} else {
-					ans += tVal.ExhaustionScore() // TODO what about the adding operation?
-				}
-
-			case *RgPosixClass:
-				// currently NOP
-			default:
-				log.Error().Type("inputType", val).Msg("Rg parsing error in state ConstChar")
-			}
-		case Repeat:
-			switch tVal := val.(type) {
-			case *RgChar:
-				if tVal.IsConstant() {
-					ans *= NextCharPenaltyDrop
-					state = ConstChar
-
-				} else if tVal.IsRgOperator(".") {
-					ans *= DotPenalty
-					state = ConstChar
-				}
-			case *RgAlt, *RgPosixClass:
-				// currently NOP
-			default:
-				log.Error().Type("inputType", val).Msg("Rg parsing error in state Repeat")
-			}
-		case QMark:
-			switch tVal := val.(type) {
-			case *RgChar:
-				if tVal.IsConstant() {
-					ans *= NextCharPenaltyDrop
-					state = ConstChar
-
-				} else if tVal.IsRgOperator(".") {
-					ans *= DotPenalty
-					state = ConstChar
-				}
-			case *RgAlt, *RgPosixClass:
-				// currently NOP
-			default:
-				log.Error().Type("inputType", val).Msg("Rg parsing error in state QMark")
+func (r *RgSimple) WildcardScore() float64 {
+	ans := 0.0
+	r.ForEachElement(r, func(parent, item ASTNode) {
+		switch tItem := item.(type) {
+		case *RgChar:
+			if tItem.Text() == "?" {
+				ans += 1
 			}
 		}
-	}
-	return ans
-}
-
-func (r *RgSimple) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName        string
-		Expansion       RgSimple
-		ExhaustionScore float64
-	}{
-		RuleName:        "RgSimple",
-		Expansion:       *r,
-		ExhaustionScore: r.ExhaustionScore(),
 	})
+	ans += float64(strings.Count(r.Text(), ".*")) * 20
+	ans += float64(strings.Count(r.Text(), ".+")) * 20
+	return ans
 }
 
 // -------------------------------------------------
@@ -161,31 +58,6 @@ type RgGrouped struct {
 
 func (r *RgGrouped) Text() string {
 	return "#RgGrouped"
-}
-
-func (r *RgGrouped) Normalize() string {
-	var ans strings.Builder
-	for i, v := range r.Values {
-		if i > 0 {
-			ans.WriteString(" <OR> " + v.Normalize())
-
-		} else {
-			ans.WriteString(" " + v.Normalize())
-		}
-	}
-	return ans.String()
-}
-
-func (r *RgGrouped) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName        string
-		Expansion       RgGrouped
-		ExhaustionScore float64
-	}{
-		RuleName:        "RgGrouped",
-		Expansion:       *r,
-		ExhaustionScore: r.ExhaustionScore(),
-	})
 }
 
 func (r *RgGrouped) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -202,14 +74,6 @@ func (r *RgGrouped) DFS(fn func(v ASTNode)) {
 	fn(r)
 }
 
-func (r *RgGrouped) ExhaustionScore() float64 {
-	var ans float64
-	for _, v := range r.Values {
-		ans += v.ExhaustionScore()
-	}
-	return ans
-}
-
 // ----------------------------------------------------
 
 type RgPosixClass struct {
@@ -217,11 +81,7 @@ type RgPosixClass struct {
 }
 
 func (r *RgPosixClass) Text() string {
-	return r.Value.Normalize()
-}
-
-func (r *RgPosixClass) Normalize() string {
-	return " #RgPosixClass"
+	return "RgPosixClass"
 }
 
 func (r *RgPosixClass) MarshalJSON() ([]byte, error) {
@@ -244,10 +104,6 @@ type RgLook struct {
 
 func (r *RgLook) Text() string {
 	return "#RgLook"
-}
-
-func (r *RgLook) Normalize() string {
-	return r.Value.Normalize()
 }
 
 func (r *RgLook) MarshalJSON() ([]byte, error) {
@@ -284,35 +140,26 @@ func (r *RgAlt) NumItems() int {
 	return len(r.Values)
 }
 
-func (r *RgAlt) Text() string {
-	return "#RgAlt"
-}
-
-func (r *RgAlt) Normalize() string {
-	var ans strings.Builder
-	if r.Not {
-		ans.WriteString(" ( rgalt <NEGATION> ")
-
-	} else {
-		ans.WriteString(" ( rgalt ")
-	}
+func (r *RgAlt) Score() float64 {
+	var ans float64
 	for _, v := range r.Values {
-		ans.WriteString(" " + v.Normalize())
+		ans += v.SrchScore()
 	}
-	ans.WriteString(" )")
-	return ans.String()
+	if r.Not {
+		ans *= 5 // rough estimate
+	}
+	return ans
 }
 
-func (r *RgAlt) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName        string
-		Expansion       RgAlt
-		ExhaustionScore float64
-	}{
-		RuleName:        "RgAlt",
-		Expansion:       *r,
-		ExhaustionScore: r.ExhaustionScore(),
-	})
+func (r *RgAlt) Text() string {
+	var ans strings.Builder
+	for i, v := range r.Values {
+		if i > 0 {
+			ans.WriteString(", ")
+		}
+		ans.WriteString(v.Text())
+	}
+	return fmt.Sprintf("#RgAlt(%s)")
 }
 
 func (r *RgAlt) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -329,18 +176,11 @@ func (r *RgAlt) DFS(fn func(v ASTNode)) {
 	fn(r)
 }
 
-func (r *RgAlt) ExhaustionScore() float64 {
-	ans := 0.0
-	for _, v := range r.Values {
-		ans += v.ExhaustionScore()
-	}
-	return ans
-}
-
 // --------------------------------------------------------
 
 type rgCharVariant1 struct {
-	Value ASTString
+	Value          ASTString
+	IsUnicodeClass bool
 }
 
 type rgCharVariant2 struct {
@@ -367,25 +207,47 @@ type RgChar struct {
 	variant5 *rgCharVariant5
 }
 
-func (rc *RgChar) Text() string {
-	return "#RgChar"
+func (rc *RgChar) IsUnicodeClass() bool {
+	if rc.variant1 != nil {
+		return rc.variant1.IsUnicodeClass
+	}
+	return false
 }
 
-func (rc *RgChar) Normalize() string {
+func (rc *RgChar) Info() string {
 	if rc.variant1 != nil {
-		return rc.variant1.Value.Normalize()
-	}
-	if rc.variant2 != nil {
-		return rc.variant2.RgOp.Normalize()
-	}
-	if rc.variant3 != nil {
-		return rc.variant3.RgRepeat.Normalize()
+		return fmt.Sprintf("#RgChar[%s]", rc.variant1.Value.String())
+
+	} else if rc.variant2 != nil {
+		return fmt.Sprintf("#RgChar[%s]", rc.variant2.RgOp.Value.String())
+
+	} else if rc.variant3 != nil {
+		return fmt.Sprintf("#RgChar[%s]", rc.variant3.RgRepeat.Value.String())
 
 	} else if rc.variant4 != nil {
-		return rc.variant4.RgAny.Normalize()
+		return fmt.Sprintf("#RgChar[%s]", rc.variant4.RgAny.Value.String())
 
 	} else if rc.variant5 != nil {
-		return rc.variant5.RgQM.Normalize()
+		return fmt.Sprintf("#RgChar[%s]", rc.variant5.RgQM.Value.String())
+	}
+	return "#RgChar(_unknown_)"
+}
+
+func (rc *RgChar) Text() string {
+	if rc.variant1 != nil {
+		return rc.variant1.Value.String()
+
+	} else if rc.variant2 != nil {
+		return rc.variant2.RgOp.Value.String()
+
+	} else if rc.variant3 != nil {
+		return rc.variant3.RgRepeat.Value.String()
+
+	} else if rc.variant4 != nil {
+		return rc.variant4.RgAny.Value.String()
+
+	} else if rc.variant5 != nil {
+		return rc.variant5.RgQM.Value.String()
 	}
 	return ""
 }
@@ -396,35 +258,6 @@ func (rc *RgChar) IsRgOperator(v string) bool {
 
 func (rc *RgChar) IsConstant() bool {
 	return rc.variant1 != nil
-}
-
-func (rc *RgChar) MarshalJSON() ([]byte, error) {
-	var variant any
-	if rc.variant1 != nil {
-		variant = rc.variant1
-
-	} else if rc.variant2 != nil {
-		variant = rc.variant2
-
-	} else if rc.variant3 != nil {
-		variant = rc.variant3
-
-	} else if rc.variant4 != nil {
-		variant = rc.variant4
-
-	} else if rc.variant5 != nil {
-		variant = rc.variant5
-
-	} else {
-		variant = struct{}{}
-	}
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion any
-	}{
-		RuleName:  "RgChar",
-		Expansion: variant,
-	})
 }
 
 func (r *RgChar) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -475,10 +308,6 @@ func (rr *RgRepeat) Text() string {
 	return rr.Value.String()
 }
 
-func (rr *RgRepeat) Normalize() string {
-	return " <REPEAT>"
-}
-
 func (rr *RgRepeat) MarshalJSON() ([]byte, error) {
 	return json.Marshal(
 		struct {
@@ -510,10 +339,6 @@ type RgQM struct {
 
 func (rr *RgQM) Text() string {
 	return rr.Value.String()
-}
-
-func (rr *RgQM) Normalize() string {
-	return rr.Value.Normalize()
 }
 
 func (rr *RgQM) MarshalJSON() ([]byte, error) {
@@ -549,10 +374,6 @@ func (rr *RgAny) Text() string {
 	return rr.Value.String()
 }
 
-func (rr *RgAny) Normalize() string {
-	return " <ANY>"
-}
-
 func (rr *RgAny) MarshalJSON() ([]byte, error) {
 	return json.Marshal(
 		struct {
@@ -586,10 +407,6 @@ func (r *RgRange) Text() string {
 		return r.RgRangeSpec.Text()
 	}
 	return "RgRange{?, ?}"
-}
-
-func (r *RgRange) Normalize() string {
-	return fmt.Sprintf(" rgrange ( %s )", r.RgRangeSpec.Normalize())
 }
 
 func (r *RgRange) MarshalJSON() ([]byte, error) {
@@ -645,10 +462,6 @@ func (r *RgRangeSpec) Text() string {
 	return r.origValue
 }
 
-func (r *RgRangeSpec) Normalize() string {
-	return fmt.Sprintf(" %s , %s", r.Number1.Normalize(), r.Number2.Normalize())
-}
-
 func (r *RgRangeSpec) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		RuleName  string
@@ -681,10 +494,6 @@ func (a *AnyLetter) Text() string {
 	return string(a.Value)
 }
 
-func (a *AnyLetter) Normalize() string {
-	return a.Value.Normalize()
-}
-
 func (a *AnyLetter) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.Value)
 }
@@ -705,10 +514,6 @@ type RgOp struct {
 
 func (r *RgOp) Text() string {
 	return string(r.Value)
-}
-
-func (r *RgOp) Normalize() string {
-	return "x" // TODO
 }
 
 func (r *RgOp) MarshalJSON() ([]byte, error) {
@@ -750,58 +555,25 @@ type RgAltVal struct {
 	variant3 *rgAltValVariant3
 }
 
-func (rc *RgAltVal) Text() string {
-	var ans strings.Builder
+func (rc *RgAltVal) SrchScore() float64 {
 	if rc.variant1 != nil {
-		ans.WriteString(rc.variant1.RgChar.Normalize())
-
-	} else if rc.variant2 != nil {
-		ans.WriteString(rc.variant2.Value.Normalize())
-
-	} else if rc.variant3 != nil {
-		ans.WriteString(rc.variant3.From.Normalize() + ", " + rc.variant3.To.Normalize())
-	}
-	return ans.String()
-}
-
-func (rc *RgAltVal) Normalize() string {
-	var ans strings.Builder
-	if rc.variant1 != nil {
-		return rc.variant1.RgChar.Normalize()
+		textLen := float64(len(rc.variant1.RgChar.Text()))
+		if rc.variant1.RgChar.IsUnicodeClass() {
+			textLen *= 20
+		}
+		return textLen
 	}
 	if rc.variant2 != nil {
-		return rc.variant2.Value.Normalize()
+		return float64(len(rc.variant2.Value.Text()))
 	}
 	if rc.variant3 != nil {
-		return fmt.Sprintf(" ( chrng %s - %s )", rc.variant3.From.Normalize(), rc.variant3.To.Normalize())
+		return float64(len(rc.variant3.From)) * 10 // TODO this is just a rough estimate
 	}
-	return ans.String()
+	return 0
 }
 
-func (rc *RgAltVal) MarshalJSON() ([]byte, error) {
-	var variant any
-	if rc.variant1 != nil {
-		variant = rc.variant1
-
-	} else if rc.variant2 != nil {
-		variant = rc.variant2
-
-	} else if rc.variant3 != nil {
-		variant = rc.variant3
-
-	} else {
-		variant = struct{}{}
-	}
-
-	return json.Marshal(struct {
-		RuleName        string
-		Expansion       any
-		ExhaustionScore float64
-	}{
-		RuleName:        "RgAltVal",
-		Expansion:       variant,
-		ExhaustionScore: rc.ExhaustionScore(),
-	})
+func (rc *RgAltVal) Text() string {
+	return "#RgAltVal"
 }
 
 func (r *RgAltVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -830,21 +602,6 @@ func (r *RgAltVal) DFS(fn func(v ASTNode)) {
 		fn(r.variant3.To)
 	}
 	fn(r)
-}
-
-func (r *RgAltVal) ExhaustionScore() float64 {
-	if r.variant1 != nil {
-		return 2.0 // TODO
-	}
-	if r.variant2 != nil {
-		return 2
-	}
-	if r.variant3 != nil {
-		ch1 := []rune(r.variant3.From.String())
-		ch2 := []rune(r.variant3.To.String())
-		return float64(ch2[0]-ch1[0]+1) * 1.05
-	}
-	return 0
 }
 
 func (r *RgSimple) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {

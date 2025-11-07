@@ -27,17 +27,12 @@ func (s ASTString) Text() string {
 	return string(s)
 }
 
-func (s ASTString) Normalize() string {
-	return "x"
-}
-
 func (s ASTString) String() string {
 	return string(s)
 }
 
 type ASTNode interface {
 	Text() string
-	Normalize() string
 }
 
 func fromIdxOfUntypedSlice[T any](arr any, idx int) T {
@@ -67,7 +62,7 @@ func anyToSlice(v any) []any {
 	}
 	vt, ok := v.([]any)
 	if !ok {
-		panic("expecting a slice")
+		panic(fmt.Sprintf("expecting an []any slice, got %s", reflect.TypeOf(v)))
 	}
 	return vt
 }
@@ -79,7 +74,7 @@ func typedOrPanic[T any](v any) T {
 	}
 	vt, ok := v.(T)
 	if !ok {
-		panic(fmt.Sprintf("unexpected type %s", reflect.TypeOf(v)))
+		panic(fmt.Sprintf("unexpected type %s of: %v", reflect.TypeOf(v), v))
 	}
 	return vt
 }

@@ -23,6 +23,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -30,11 +31,14 @@ import (
 	"syscall"
 
 	"github.com/czcorpus/cnc-gokit/logging"
+	"github.com/czcorpus/cqlizer/apiserver"
 	"github.com/czcorpus/cqlizer/cnf"
-	"github.com/czcorpus/cqlizer/cql"
-	"github.com/czcorpus/cqlizer/dataimport"
-	"github.com/czcorpus/cqlizer/embedding"
-	"github.com/czcorpus/cqlizer/index"
+	"github.com/czcorpus/cqlizer/eval"
+	"github.com/czcorpus/cqlizer/eval/feats"
+	"github.com/czcorpus/cqlizer/eval/nn"
+	"github.com/czcorpus/cqlizer/eval/rf"
+	"github.com/rs/zerolog/log"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 const (
@@ -43,6 +47,8 @@ const (
 	actionVersion    = "version"
 	actionHelp       = "help"
 	actionKlogImport = "klog-import"
+	actionFeaturize  = "featurize"
+	actionAPIServer  = "server"
 
 	exitErrorGeneralFailure = iota
 	exitErrorImportFailed
@@ -94,7 +100,33 @@ func runActionMCPServer() {
 
 }
 
-func runActionREPL(db *index.DB, model *embedding.CQLEmbedder) {
+func runActionREPL(rfPath string) {
+	var rfModel *rf.Model
+	var err error
+	if rfPath != "" {
+		rfModel, err = rf.LoadFromFile(rfPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading RF model: %v\n", err)
+			os.Exit(1)
+		}
+
+	} else {
+		fmt.Println("no RF model specified")
+	}
+
+	// Default corpus size (can be overridden with 'set corpussize <value>')
+	corpusSize := 6400000000.0 // 6.4G tokens default
+
+	lang := "cs"
+
+	fmt.Println("CQL Query Cost Estimator")
+	fmt.Println("Commands:")
+	fmt.Println("  <CQL query>            - Estimate query execution time")
+	fmt.Println("  set corpussize <size>  - Set corpus size (e.g., 'set corpussize 121826797')")
+	fmt.Println("  set lang <lang>  - Set corpus language (e.g., 'set lang cs')")
+	fmt.Println("  exit                   - Exit REPL")
+	fmt.Printf("\nCurrent corpus size: %.0f tokens\n\n", corpusSize)
+
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Print("> ")
@@ -103,85 +135,123 @@ func runActionREPL(db *index.DB, model *embedding.CQLEmbedder) {
 		}
 		input := strings.TrimSpace(scanner.Text())
 
+		if input == "" {
+			continue
+		}
+
 		if input == "exit" {
 			fmt.Println("Goodbye!")
 			break
 		}
 
-		response, err := db.SearchByPrefix(input, 10)
-		if err != nil {
-			os.Exit(exiterrrorREPLReading)
-			return
-		}
-		fmt.Println(response)
-		parsed, err := cql.ParseCQL("input", input)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to parse")
-			return
-		}
-		v, err := model.CreateEmbeddingNormalized(parsed.Normalize())
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "ERR: ", err)
-			os.Exit(exiterrrorREPLReading)
-			return
+		// Handle 'set corpussize' command
+		if strings.HasPrefix(input, "set corpussize ") {
+			parts := strings.Fields(input)
+			if len(parts) == 3 {
+				var newSize float64
+				if _, err := fmt.Sscanf(parts[2], "%f", &newSize); err == nil {
+					corpusSize = newSize
+					fmt.Printf("✓ Corpus size set to %.0f tokens\n", corpusSize)
+
+				} else {
+					fmt.Fprintf(os.Stderr, "Error: Invalid corpus size\n")
+				}
+
+			} else {
+				fmt.Fprintf(os.Stderr, "Usage: set corpussize <size>\n")
+			}
+			continue
+
+		} else if strings.HasPrefix(input, "set lang ") {
+			parts := strings.Fields(input)
+			if len(parts) == 3 {
+				lang = parts[2]
+
+			} else {
+				fmt.Fprintf(os.Stderr, "Usage: set lang <lang>\n")
+			}
+			continue
 		}
 
-		abstract, err := db.FindSimilarQueries(v.Vector, 10)
+		// Treat as CQL query
+		charProbs := feats.GetCharProbabilityProvider(lang)
+		queryEval, err := feats.NewQueryEvaluation(input, corpusSize, 0, charProbs)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to find: %s\n", err)
-			os.Exit(exiterrrorREPLReading)
-			return
-		}
-		for _, v := range abstract {
-			fmt.Fprintf(os.Stderr, "%s: %01.2f\n", v.AbstractQuery, v.Score)
+			fmt.Fprintf(os.Stderr, "Error parsing CQL: %v\n", err)
+			continue
 		}
 
+		// Display results
+		fmt.Printf("\n--- Query Analysis ---\n")
+		fmt.Printf("Query:           %s\n", input)
+		fmt.Printf("Corpus size:     %.0f tokens\n", corpusSize)
+		fmt.Printf("Positions:       %d\n", len(queryEval.Positions))
+		for i, pos := range queryEval.Positions {
+			fmt.Printf("  Position %d:    wildcards=%0.2f, range=%d, smallCard=%d, numConcreteChars=%.2f, posNumAlts: %d\n",
+				i, pos.Regexp.WildcardScore, pos.Regexp.HasRange, pos.HasSmallCardAttr, pos.Regexp.NumConcreteChars, pos.NumAlternatives)
+		}
+		fmt.Printf("Global features: glob=%d, meet=%d, union=%d, within=%d, containing=%d\n",
+			queryEval.NumGlobConditions, queryEval.ContainsMeet,
+			queryEval.ContainsUnion, queryEval.ContainsWithin, queryEval.ContainsContaining)
+
+		if rfModel != nil {
+			rfPRediction := rfModel.Predict(queryEval)
+			fmt.Printf("RF prediction: %d\n", rfPRediction.PredictedClass)
+			fmt.Printf("votes: %#v\n", rfPRediction.Votes)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
 	}
 }
 
-func runActionKlogImport(conf *cnf.Conf, srcPath string, fromDB bool, fromDate string) {
+func runActionKlogImport(conf *cnf.Conf, srcPath string, modelType string, numTrees int, voteThreshold float64) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	targetDB, err := index.OpenDB(conf.IndexDataPath)
+
+	/*
+		model := &eval.BasicModel{
+			SlowQueryPercentile: slowQueryPerc,
+		}
+		dataimport.ReadStatsFile(ctx, srcPath, model)
+	*/
+	srcPathExt := filepath.Ext(srcPath)
+	outFile := fmt.Sprintf("%s.%s.json", srcPath[:len(srcPath)-len(srcPathExt)], modelType)
+	f, err := os.Open(srcPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open index: %s", err)
-		os.Exit(exitErrorFailedToOpenIdex)
+		log.Fatal().Err(err).Msg("failed to open features file")
+		return
 	}
-	if fromDB {
-		cp, err := dataimport.NewConcPersistence(conf.DataImportDB)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to open conc. persistence database: %s", err)
-			os.Exit(exitErrorFailedToOpenQueryPersistence)
-		}
-		w2vModel, err := embedding.NewCQLEmbedder(conf.W2VModelPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to open w2v model: %s", err)
-			os.Exit(exitErrorFailedToOpenW2VModel)
-		}
-		
-		// Initialize hyperplanes using the model's vector dimension
-		if err := targetDB.InitializeHyperplanes(w2vModel.GetVectorDimensions()); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to initialize hyperplanes: %s", err)
-			os.Exit(exitErrorFailedToOpenIdex)
-		}
+	defer f.Close()
+	data, err := io.ReadAll(f)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to open features file")
+		return
+	}
 
-		if err := dataimport.ImportFromConcPersistence(
-			ctx,
-			cp,
-			targetDB,
-			conf.W2VSourceFilePath,
-			w2vModel,
-			fromDate,
-		); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to import KonText log: %s", err)
-			os.Exit(exitErrorImportFailed)
-		}
+	var mlModel eval.MLModel
+	switch modelType {
+	case "rf":
+		mlModel = rf.NewModel(numTrees, voteThreshold)
+	case "nn":
+		mlModel = nn.NewModel()
+	default:
+		log.Fatal().Str("modelType", modelType).Msg("Unknown model")
+		return
+	}
 
-	} else {
-		if err := dataimport.ImportKontextLog(srcPath, targetDB); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to import KonText log: %s", err)
-			os.Exit(exitErrorImportFailed)
-		}
+	model := eval.NewPredictor(mlModel, conf.CorporaProps)
+	if err := msgpack.Unmarshal(data, &model); err != nil {
+		log.Fatal().Err(err).Msg("failed to open features file")
+		return
+	}
+
+	allEvals := model.BalanceSample()
+
+	if err := model.CreateAndTestModel(ctx, allEvals, outFile); err != nil {
+		fmt.Fprintf(os.Stderr, "RF training failed: %v\n", err)
+		os.Exit(1)
 	}
 }
 
@@ -224,10 +294,32 @@ func main() {
 	}
 
 	cmdKlogImport := flag.NewFlagSet(actionKlogImport, flag.ExitOnError)
-	importFromDB := cmdKlogImport.Bool("from-db", true, "if set, then the import will be performed from a configured SQL database (table kontext_conc_persistence)")
-	importFromDate := cmdKlogImport.String("from-date", "", "if set, then cqlizer will read queries from a specified date (even if the index contains a previous import info)")
+	numTrees := cmdKlogImport.Int("num-trees", 100, "Number of trees for Random Forest (default: 100)")
+	klogImportModel := cmdKlogImport.String("model", "rf", "Specifies model which will be used (nn, rf)")
+	voteThreshold := cmdKlogImport.Float64("vote-threshold", 0, "RF Vote threshold for marking CQL as problematic. This affects only evaluation. If none, then range from 0.7 to 0.99 is examined")
 	cmdKlogImport.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s klog-import [options] config.json logfile.txt\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmdKlogImport.PrintDefaults()
+	}
+
+	cmdFeaturize := flag.NewFlagSet(actionFeaturize, flag.ExitOnError)
+	featurizeDebug := cmdFeaturize.Bool(
+		"debug",
+		false,
+		"if set then features will be written to stdout in human readable form and no feats file will be created",
+	)
+	cmdFeaturize.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s featurize [options] config.json logfile.txt\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmdFeaturize.PrintDefaults()
+	}
+
+	cmdAPIServer := flag.NewFlagSet(actionAPIServer, flag.ExitOnError)
+	cmdAPIServer.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s server [options] config.json\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmdAPIServer.PrintDefaults()
 	}
 
 	action := actionHelp
@@ -262,30 +354,43 @@ func main() {
 		runActionMCPServer()
 	case actionREPL:
 		cmdREPL.Parse(os.Args[2:])
-		conf := setup(cmdREPL.Arg(0))
-		db, err := index.OpenDB(conf.IndexDataPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to open index: %s", err)
-			os.Exit(exitErrorFailedToOpenIdex)
+		if cmdREPL.NArg() < 1 {
+			fmt.Fprintf(os.Stderr, "Error: model file path required\n")
+			fmt.Fprintf(os.Stderr, "Usage: %s repl <model_file.json>\n", os.Args[0])
+			os.Exit(1)
 		}
-		model, err := embedding.NewCQLEmbedder(conf.W2VModelPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to open model: %s", err)
-			os.Exit(exitErrorFailedToOpenIdex)
-		}
-		
-		// Initialize hyperplanes using the model's vector dimension
-		if err := db.InitializeHyperplanes(model.GetVectorDimensions()); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to initialize hyperplanes: %s", err)
-			os.Exit(exitErrorFailedToOpenIdex)
-		}
-		
-		runActionREPL(db, model)
+		modelPath := cmdREPL.Arg(0)
+		fmt.Println("MODEL: ", modelPath)
+		runActionREPL(modelPath)
 	case actionKlogImport:
 		cmdKlogImport.Parse(os.Args[2:])
 		conf := setup(cmdKlogImport.Arg(0))
 
-		runActionKlogImport(conf, cmdKlogImport.Arg(1), *importFromDB, *importFromDate)
+		runActionKlogImport(
+			conf,
+			cmdKlogImport.Arg(1),
+			*klogImportModel,
+			*numTrees,
+			*voteThreshold,
+		)
+	case actionFeaturize:
+		cmdFeaturize.Parse(os.Args[2:])
+		conf := setup(cmdFeaturize.Arg(0))
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		runActionFeaturize(
+			ctx,
+			conf.CorporaProps,
+			cmdFeaturize.Arg(1),
+			cmdFeaturize.Arg(2),
+			*featurizeDebug,
+		)
+	case actionAPIServer:
+		cmdAPIServer.Parse(os.Args[2:])
+		conf := setup(cmdAPIServer.Arg(0))
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		apiserver.Run(ctx, conf)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown action, please use 'help' to get more information")
 	}
