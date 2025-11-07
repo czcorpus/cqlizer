@@ -7,17 +7,18 @@ import (
 
 	"github.com/czcorpus/cqlizer/dataimport"
 	"github.com/czcorpus/cqlizer/eval"
+	"github.com/czcorpus/cqlizer/eval/feats"
 	"github.com/rs/zerolog/log"
-	"github.com/vmihailenco/msgpack"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 func runActionFeaturize(
 	ctx context.Context,
-	corporaProps map[string]eval.CorpusProps,
+	corporaProps map[string]feats.CorpusProps,
 	srcPath, dstPath string,
 	debug bool,
 ) {
-	model := eval.NewBasicModel(corporaProps)
+	model := eval.NewPredictor(nil, corporaProps)
 	dataimport.ReadStatsFile(ctx, srcPath, model)
 	model.Deduplicate()
 

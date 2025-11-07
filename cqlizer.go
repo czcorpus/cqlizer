@@ -34,8 +34,11 @@ import (
 	"github.com/czcorpus/cqlizer/apiserver"
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/eval"
+	"github.com/czcorpus/cqlizer/eval/feats"
+	"github.com/czcorpus/cqlizer/eval/nn"
+	"github.com/czcorpus/cqlizer/eval/rf"
 	"github.com/rs/zerolog/log"
-	"github.com/vmihailenco/msgpack"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 const (
@@ -98,10 +101,10 @@ func runActionMCPServer() {
 }
 
 func runActionREPL(rfPath string) {
-	var rfModel *eval.RFModel
+	var rfModel *rf.Model
 	var err error
 	if rfPath != "" {
-		rfModel, err = eval.LoadRFModelFromFile(rfPath)
+		rfModel, err = rf.LoadFromFile(rfPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error loading RF model: %v\n", err)
 			os.Exit(1)
@@ -171,8 +174,8 @@ func runActionREPL(rfPath string) {
 		}
 
 		// Treat as CQL query
-		charProbs := eval.GetCharProbabilityProvider(lang)
-		queryEval, err := eval.NewQueryEvaluation(input, corpusSize, 0, charProbs)
+		charProbs := feats.GetCharProbabilityProvider(lang)
+		queryEval, err := feats.NewQueryEvaluation(input, corpusSize, 0, charProbs)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error parsing CQL: %v\n", err)
 			continue
@@ -203,7 +206,7 @@ func runActionREPL(rfPath string) {
 	}
 }
 
-func runActionKlogImport(conf *cnf.Conf, srcPath string, numTrees int, voteThreshold float64) {
+func runActionKlogImport(conf *cnf.Conf, srcPath string, modelType string, numTrees int, voteThreshold float64) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -214,7 +217,7 @@ func runActionKlogImport(conf *cnf.Conf, srcPath string, numTrees int, voteThres
 		dataimport.ReadStatsFile(ctx, srcPath, model)
 	*/
 	srcPathExt := filepath.Ext(srcPath)
-	outFile := srcPath[:len(srcPath)-len(srcPathExt)] + ".rfmodel.json"
+	outFile := fmt.Sprintf("%s.%s.json", srcPath[:len(srcPath)-len(srcPathExt)], modelType)
 	f, err := os.Open(srcPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to open features file")
@@ -226,7 +229,19 @@ func runActionKlogImport(conf *cnf.Conf, srcPath string, numTrees int, voteThres
 		log.Fatal().Err(err).Msg("failed to open features file")
 		return
 	}
-	var model eval.BasicModel
+
+	var mlModel eval.MLModel
+	switch modelType {
+	case "rf":
+		mlModel = rf.NewModel(numTrees, voteThreshold)
+	case "nn":
+		mlModel = nn.NewModel()
+	default:
+		log.Fatal().Str("modelType", modelType).Msg("Unknown model")
+		return
+	}
+
+	model := eval.NewPredictor(mlModel, conf.CorporaProps)
 	if err := msgpack.Unmarshal(data, &model); err != nil {
 		log.Fatal().Err(err).Msg("failed to open features file")
 		return
@@ -234,8 +249,7 @@ func runActionKlogImport(conf *cnf.Conf, srcPath string, numTrees int, voteThres
 
 	allEvals := model.BalanceSample()
 
-	// Train Random Forest model
-	if err := model.Evaluate(ctx, numTrees, voteThreshold, allEvals, outFile); err != nil {
+	if err := model.CreateAndTestModel(ctx, allEvals, outFile); err != nil {
 		fmt.Fprintf(os.Stderr, "RF training failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -281,7 +295,8 @@ func main() {
 
 	cmdKlogImport := flag.NewFlagSet(actionKlogImport, flag.ExitOnError)
 	numTrees := cmdKlogImport.Int("num-trees", 100, "Number of trees for Random Forest (default: 100)")
-	voteThreshold := cmdKlogImport.Float64("vote-threshold", 0.3, "RF Vote threshold for marking CQL as problematic. This affects only evaluation.")
+	klogImportModel := cmdKlogImport.String("model", "rf", "Specifies model which will be used (nn, rf)")
+	voteThreshold := cmdKlogImport.Float64("vote-threshold", 0, "RF Vote threshold for marking CQL as problematic. This affects only evaluation. If none, then range from 0.7 to 0.99 is examined")
 	cmdKlogImport.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s klog-import [options] config.json logfile.txt\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
@@ -354,6 +369,7 @@ func main() {
 		runActionKlogImport(
 			conf,
 			cmdKlogImport.Arg(1),
+			*klogImportModel,
 			*numTrees,
 			*voteThreshold,
 		)

@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/czcorpus/cnc-gokit/logging"
-	"github.com/czcorpus/cqlizer/eval"
+	"github.com/czcorpus/cqlizer/eval/feats"
 	"github.com/rs/zerolog/log"
 )
 
@@ -38,22 +38,23 @@ const (
 type RFEnsembleConf struct {
 	ModelPath     string  `json:"modelPath"`
 	VoteThreshold float64 `json:"voteThreshold"`
+	ModelType     string  `json:"modelType"`
 	Disable       bool    `json:"disable"`
 }
 
 type Conf struct {
 	srcPath                string
-	Logging                logging.LoggingConf         `json:"logging"`
-	ListenAddress          string                      `json:"listenAddress"`
-	PublicURL              string                      `json:"publicUrl"`
-	ListenPort             int                         `json:"listenPort"`
-	ServerReadTimeoutSecs  int                         `json:"serverReadTimeoutSecs"`
-	ServerWriteTimeoutSecs int                         `json:"serverWriteTimeoutSecs"`
-	CorsAllowedOrigins     []string                    `json:"corsAllowedOrigins"`
-	TimeZone               string                      `json:"timeZone"`
-	IndexDataPath          string                      `json:"indexDataPath"`
-	RFEnsemble             []RFEnsembleConf            `json:"rfEnsemble"`
-	CorporaProps           map[string]eval.CorpusProps `json:"corporaProps"`
+	Logging                logging.LoggingConf          `json:"logging"`
+	ListenAddress          string                       `json:"listenAddress"`
+	PublicURL              string                       `json:"publicUrl"`
+	ListenPort             int                          `json:"listenPort"`
+	ServerReadTimeoutSecs  int                          `json:"serverReadTimeoutSecs"`
+	ServerWriteTimeoutSecs int                          `json:"serverWriteTimeoutSecs"`
+	CorsAllowedOrigins     []string                     `json:"corsAllowedOrigins"`
+	TimeZone               string                       `json:"timeZone"`
+	IndexDataPath          string                       `json:"indexDataPath"`
+	RFEnsemble             []RFEnsembleConf             `json:"rfEnsemble"`
+	CorporaProps           map[string]feats.CorpusProps `json:"corporaProps"`
 }
 
 func LoadConfig(path string) *Conf {

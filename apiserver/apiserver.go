@@ -27,6 +27,8 @@ import (
 	"github.com/czcorpus/cnc-gokit/uniresp"
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/eval"
+	"github.com/czcorpus/cqlizer/eval/nn"
+	"github.com/czcorpus/cqlizer/eval/rf"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 )
@@ -92,18 +94,30 @@ func Run(
 		if rfc.Disable {
 			continue
 		}
-		rfModel, err := eval.LoadRFModelFromFile(rfc.ModelPath)
+		var mlModel eval.MLModel
+		var err error
+
+		switch rfc.ModelType {
+		case "rf":
+			mlModel, err = rf.LoadFromFile(rfc.ModelPath)
+		case "nn":
+			mlModel, err = nn.LoadFromFile(rfc.ModelPath)
+		default:
+			err = fmt.Errorf("unkown model type '%s' for %s", rfc.ModelType, rfc.ModelPath)
+		}
 		if err != nil {
 			log.Fatal().Err(err).Msg("Error loading RF model")
 			return
 		}
+		mlModel.SetClassThreshold(rfc.VoteThreshold)
+
 		log.Info().
-			Float64("slowQueryPercentile", rfModel.SlowQueriesPercentile).
+			Float64("slowQueryTime", rfc.VoteThreshold).
 			Msg("loaded RF model")
 		server.rfEnsemble = append(
 			server.rfEnsemble,
 			ensembleModel{
-				model:     rfModel,
+				model:     mlModel,
 				threshold: rfc.VoteThreshold,
 			},
 		)

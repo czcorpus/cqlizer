@@ -11,21 +11,22 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/czcorpus/cqlizer/eval/feats"
+	"github.com/czcorpus/cqlizer/eval/predict"
 	"github.com/rs/zerolog/log"
 )
 
 type PrecAndRecall struct {
-	Threshold float64
 	Precision float64
 	Recall    float64
 	FBeta     float64
 }
 
-func (pr PrecAndRecall) CSV() string {
-	return fmt.Sprintf("%.2f;%.2f;%.2f;%.2f", pr.Threshold, pr.Precision, pr.Recall, pr.FBeta)
+func (pr PrecAndRecall) CSV(x float64) string {
+	return fmt.Sprintf("%.2f;%.2f;%.2f;%.2f", x, pr.Precision, pr.Recall, pr.FBeta)
 }
 
-func findKneeDistance(items []QueryEvaluation) (threshold float64, kneeIdx int) {
+func findKneeDistance(items []feats.QueryEvaluation) (threshold float64, kneeIdx int) {
 
 	n := len(items)
 	if n < 2 {
@@ -80,15 +81,21 @@ func (rec QueryStatsRecord) GetCQL() string {
 
 // ----------------------------
 
-type CorpusProps struct {
-	Size int    `json:"size"`
-	Lang string `json:"lang"`
+// ----------------------------
+
+type MLModel interface {
+	Train(data []feats.QueryEvaluation, slowQueriesTime float64) error
+	Predict(feats.QueryEvaluation) predict.Prediction
+	SetClassThreshold(v float64)
+	SaveToFile(string) error
 }
 
 // ----------------------------
 
-type BasicModel struct {
-	Evaluations []QueryEvaluation
+type Predictor struct {
+	mlModel MLModel
+
+	Evaluations []feats.QueryEvaluation
 
 	// slowQueryPercentile specifies which percentile of queries (by time)
 	// is considered as "slow times".
@@ -103,17 +110,18 @@ type BasicModel struct {
 	// is derived from SlowQueryPercentile
 	binMidpoint float64
 
-	corpora map[string]CorpusProps
+	corpora map[string]feats.CorpusProps
 }
 
-func NewBasicModel(corporaProps map[string]CorpusProps) *BasicModel {
-	return &BasicModel{
+func NewPredictor(mlModel MLModel, corporaProps map[string]feats.CorpusProps) *Predictor {
+	return &Predictor{
 		corpora: corporaProps,
+		mlModel: mlModel,
 	}
 }
 
-func (model *BasicModel) BalanceSample() []QueryEvaluation {
-	slices.SortFunc(model.Evaluations, func(v1, v2 QueryEvaluation) int {
+func (model *Predictor) BalanceSample() []feats.QueryEvaluation {
+	slices.SortFunc(model.Evaluations, func(v1, v2 feats.QueryEvaluation) int {
 		if v1.ProcTime < v2.ProcTime {
 			return -1
 
@@ -143,7 +151,7 @@ func (model *BasicModel) BalanceSample() []QueryEvaluation {
 		Msg("calculated threshold for slow queries")
 
 	numPositive := len(model.Evaluations) - model.midpointIdx
-	balEval := make([]QueryEvaluation, numPositive*3)
+	balEval := make([]feats.QueryEvaluation, numPositive*3)
 	for i := 0; i < numPositive*2; i++ {
 		balEval[i] = model.Evaluations[rand.IntN(model.midpointIdx)]
 	}
@@ -155,7 +163,7 @@ func (model *BasicModel) BalanceSample() []QueryEvaluation {
 	return oldEvals
 }
 
-func (model *BasicModel) ProcessEntry(entry QueryStatsRecord) error {
+func (model *Predictor) ProcessEntry(entry QueryStatsRecord) error {
 	if entry.CorpusSize == 0 {
 		return fmt.Errorf("zero processing time or corpus size")
 	}
@@ -165,7 +173,7 @@ func (model *BasicModel) ProcessEntry(entry QueryStatsRecord) error {
 
 	// Parse the CQL query and create evaluation with corpus size
 	corpInfo := model.corpora[entry.Corpus]
-	eval, err := NewQueryEvaluation(entry.GetCQL(), float64(entry.CorpusSize), entry.TimeProc, GetCharProbabilityProvider(corpInfo.Lang))
+	eval, err := feats.NewQueryEvaluation(entry.GetCQL(), float64(entry.CorpusSize), entry.TimeProc, feats.GetCharProbabilityProvider(corpInfo.Lang))
 	if err != nil {
 		errMsg := err.Error()
 		if utf8.RuneCountInString(errMsg) > 80 {
@@ -183,7 +191,7 @@ func (model *BasicModel) ProcessEntry(entry QueryStatsRecord) error {
 	return nil
 }
 
-func (model *BasicModel) PrecisionAndRecall(rfModel *RFModel) PrecAndRecall {
+func (model *Predictor) PrecisionAndRecall() PrecAndRecall {
 
 	numTruePositives := 0
 	numRelevant := 0
@@ -191,18 +199,25 @@ func (model *BasicModel) PrecisionAndRecall(rfModel *RFModel) PrecAndRecall {
 
 	for i := 0; i < len(model.Evaluations); i++ {
 		trulySlow := model.Evaluations[i].ProcTime >= model.binMidpoint
-		predictedSlow := rfModel.Predict(model.Evaluations[i]).PredictedClass >= 0.5
+		prediction := model.mlModel.Predict(model.Evaluations[i]).PredictedClass
 		if trulySlow {
 			numRelevant++
 		}
-		if predictedSlow {
+		if prediction == 1 {
 			numRetrieved++
 			if trulySlow {
 				numTruePositives++
+
+			} else {
+				/*
+					fmt.Printf(
+						"WE SAY %s IS SLOW (%0.2f) BUT IT IS NOT (time %.2f, corpsize: %0.2f)\n",
+						model.Evaluations[i].OrigQuery, prediction, model.Evaluations[i].ProcTime, math.Exp(model.Evaluations[i].CorpusSize),
+					)
+				*/
 			}
 		}
 	}
-
 	precision := float64(numTruePositives) / float64(numRetrieved)
 	recall := float64(numTruePositives) / float64(numRelevant)
 	beta := 1.0
@@ -211,13 +226,11 @@ func (model *BasicModel) PrecisionAndRecall(rfModel *RFModel) PrecAndRecall {
 		betaSquared := beta * beta
 		fbeta = (1 + betaSquared) * (precision * recall) / (betaSquared*precision + recall)
 	}
-
-	fmt.Printf("%.2f;%.2f;%.2f\n", precision, recall, fbeta)
-	return PrecAndRecall{}
+	return PrecAndRecall{Precision: precision, Recall: recall, FBeta: fbeta}
 
 }
 
-func (model *BasicModel) showSampleEvaluations(rfModel *RFModel, maxSamples int, votingThreshold float64) {
+func (model *Predictor) showSampleEvaluations(rfModel MLModel, maxSamples int, votingThreshold float64) {
 
 	if len(model.Evaluations) < maxSamples {
 		maxSamples = len(model.Evaluations)
@@ -249,17 +262,17 @@ func (model *BasicModel) showSampleEvaluations(rfModel *RFModel, maxSamples int,
 	}
 }
 
-func (model *BasicModel) Deduplicate() {
-	uniq := make(map[string][]QueryEvaluation)
+func (model *Predictor) Deduplicate() {
+	uniq := make(map[string][]feats.QueryEvaluation)
 	for _, v := range model.Evaluations {
 		_, ok := uniq[v.UniqKey()]
 		if !ok {
-			uniq[v.UniqKey()] = make([]QueryEvaluation, 0, 10)
+			uniq[v.UniqKey()] = make([]feats.QueryEvaluation, 0, 10)
 		}
 		uniq[v.UniqKey()] = append(uniq[v.UniqKey()], v)
 	}
 	for _, evals := range uniq {
-		slices.SortFunc(evals, func(v1, v2 QueryEvaluation) int {
+		slices.SortFunc(evals, func(v1, v2 feats.QueryEvaluation) int {
 			if v1.ProcTime < v2.ProcTime {
 				return -1
 			}
@@ -286,7 +299,7 @@ func (model *BasicModel) Deduplicate() {
 		}
 		evals[0].ProcTime = median
 	}
-	model.Evaluations = make([]QueryEvaluation, len(uniq))
+	model.Evaluations = make([]feats.QueryEvaluation, len(uniq))
 	i := 0
 	for _, u := range uniq {
 		model.Evaluations[i] = u[0]
@@ -295,12 +308,10 @@ func (model *BasicModel) Deduplicate() {
 	log.Info().Int("newSize", len(model.Evaluations)).Msg("deduplicated queries")
 }
 
-// EvaluateWithRF trains a Random Forest model instead of Huber regression
-func (model *BasicModel) EvaluateWithRF(
+// CreateAndTestModel trains a ML model
+func (model *Predictor) CreateAndTestModel(
 	ctx context.Context,
-	numTrees int,
-	votingThreshold float64,
-	testData []QueryEvaluation,
+	testData []feats.QueryEvaluation,
 	outputPath string,
 ) error {
 	if len(model.Evaluations) == 0 {
@@ -308,16 +319,14 @@ func (model *BasicModel) EvaluateWithRF(
 	}
 
 	log.Info().
-		Int("numTrees", numTrees).
 		Int("trainingDataSize", len(model.Evaluations)).
 		Msg("Training Random Forest")
 
-	rfModel := NewRFModel(model.slowQueryPercentile)
-	if err := rfModel.TrainRF(model, numTrees); err != nil {
+	if err := model.mlModel.Train(model.Evaluations, model.binMidpoint); err != nil {
 		return fmt.Errorf("RF training failed: %w", err)
 	}
 
-	if err := rfModel.SaveToFile(outputPath); err != nil {
+	if err := model.mlModel.SaveToFile(outputPath); err != nil {
 		return fmt.Errorf("error saving model: %w", err)
 
 	} else {
@@ -327,7 +336,7 @@ func (model *BasicModel) EvaluateWithRF(
 	// ----- testing
 	slices.SortFunc(
 		testData,
-		func(v1, v2 QueryEvaluation) int {
+		func(v1, v2 feats.QueryEvaluation) int {
 			if v1.ProcTime < v2.ProcTime {
 				return -1
 			}
@@ -346,48 +355,11 @@ func (model *BasicModel) EvaluateWithRF(
 	var wg sync.WaitGroup
 	chunks := []float64{0.6, 0.7, 0.8, 0.9}
 	wg.Add(len(chunks))
-	model.PrecisionAndRecall(rfModel)
-
-	return nil
-}
-
-func (model *BasicModel) Evaluate(
-	ctx context.Context,
-	numTrees int,
-	votingThreshold float64,
-	testData []QueryEvaluation,
-	outputPath string,
-) error {
-	if len(model.Evaluations) == 0 {
-		return fmt.Errorf("no training data available")
+	for v := 0.5; v < 1; v += 0.01 {
+		model.mlModel.SetClassThreshold(v)
+		precall := model.PrecisionAndRecall()
+		fmt.Println(precall.CSV(v))
 	}
-
-	log.Info().
-		Int("numTrees", numTrees).
-		Int("trainingDataSize", len(model.Evaluations)).
-		Msg("Training Random Forest")
-
-	rfModel := NewRFModel(model.slowQueryPercentile)
-	if err := rfModel.Train(model, numTrees); err != nil {
-		return fmt.Errorf("RF training failed: %w", err)
-	}
-
-	if err := rfModel.SaveToFile(outputPath); err != nil {
-		return fmt.Errorf("error saving model: %w", err)
-
-	} else {
-		log.Debug().Str("path", outputPath).Msg("saved model file")
-	}
-
-	// ----- testing
-
-	model.Evaluations = testData
-
-	log.Info().
-		Int("evalDataSize", len(model.Evaluations)).
-		Msg("calculating precision and recall using full data")
-
-	model.PrecisionAndRecall(rfModel)
 
 	return nil
 }

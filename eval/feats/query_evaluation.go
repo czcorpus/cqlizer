@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package eval
+package feats
 
 import (
 	"math"
@@ -26,6 +26,11 @@ import (
 const (
 	MaxPositions = 4
 )
+
+type CorpusProps struct {
+	Size int    `json:"size"`
+	Lang string `json:"lang"`
+}
 
 // NewQueryEvaluation creates a QueryEvaluation from a CQL query string and corpus size
 func NewQueryEvaluation(cqlQuery string, corpusSize, procTime float64, charProbs charProbabilityProvider) (QueryEvaluation, error) {
@@ -249,4 +254,43 @@ func isSmallCardinalityAttr(attVal *cql.AttVal) bool {
 	}
 
 	return false
+}
+
+// ExtractFeatures converts QueryEvaluation to feature vector (same as Huber)
+func ExtractFeatures(eval QueryEvaluation) []float64 {
+	features := make([]float64, NumFeatures)
+	idx := 0
+
+	// Extract features for up to 4 positions
+	for i := 0; i < MaxPositions; i++ {
+		if i < len(eval.Positions) {
+			pos := eval.Positions[i]
+			// Position-specific features (normalized by concrete chars)
+			features[idx] = float64(pos.Regexp.StartsWithWildCard)
+			features[idx+1] = pos.Regexp.WildcardScore
+			features[idx+2] = float64(pos.Regexp.HasRange)
+			features[idx+3] = float64(pos.HasSmallCardAttr)
+			features[idx+4] = float64(pos.Regexp.NumConcreteChars)
+			features[idx+5] = pos.Regexp.AvgCharProb
+			features[idx+6] = float64(pos.NumAlternatives)
+			features[idx+7] = pos.PosRepetition
+			features[idx+8] = pos.Regexp.CharClasses
+			features[idx+9] = float64(pos.HasNegation)
+		}
+		// If position doesn't exist, features remain 0
+		idx += 10
+	}
+
+	// Global features
+	features[40] = float64(eval.NumGlobConditions)
+	features[41] = float64(eval.ContainsMeet)
+	features[42] = float64(eval.ContainsUnion)
+	features[43] = float64(eval.ContainsWithin)
+	features[44] = eval.AdhocSubcorpus
+	features[45] = float64(eval.ContainsContaining)
+	features[46] = math.Log(eval.CorpusSize)
+	features[47] = float64(eval.AlignedPart)
+	features[48] = 1.0 // Bias term
+
+	return features
 }

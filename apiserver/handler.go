@@ -24,7 +24,7 @@ import (
 
 	"github.com/czcorpus/cnc-gokit/unireq"
 	"github.com/czcorpus/cnc-gokit/uniresp"
-	"github.com/czcorpus/cqlizer/eval"
+	"github.com/czcorpus/cqlizer/eval/feats"
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,7 +48,7 @@ func (api *apiServer) handleEvalCQL(ctx *gin.Context) {
 func (api *apiServer) evaluateRawQuery(ctx *gin.Context, q string) {
 	corpname := ctx.Param("corpusId")
 	//aligned := ctx.QueryArray("aligned")
-	var corpusInfo eval.CorpusProps
+	var corpusInfo feats.CorpusProps
 	var ok bool
 	if corpname != "" {
 		corpusInfo, ok = api.conf.CorporaProps[corpname]
@@ -74,22 +74,27 @@ func (api *apiServer) evaluateRawQuery(ctx *gin.Context, q string) {
 		}
 		corpusInfo.Lang = ctx.Query("lang")
 	}
-	charProb := eval.GetCharProbabilityProvider(corpusInfo.Lang)
-	queryEval, err := eval.NewQueryEvaluation(q, float64(corpusInfo.Size), 3, charProb)
+	charProb := feats.GetCharProbabilityProvider(corpusInfo.Lang)
+	queryEval, err := feats.NewQueryEvaluation(q, float64(corpusInfo.Size), 3, charProb)
 	if err != nil {
 		uniresp.RespondWithErrorJSON(ctx, err, http.StatusInternalServerError)
 		return
 	}
 	predictions := make([]vote, 0, len(api.rfEnsemble))
 	for _, md := range api.rfEnsemble {
-		predictions = append(predictions, vote{Value: float64(md.Predict(queryEval).PredictedClass) / 100, Threshold: md.threshold})
+		pr := md.Predict(queryEval)
+		predictions = append(
+			predictions,
+			vote{
+				Votes:  pr.Votes,
+				Result: pr.PredictedClass,
+			},
+		)
 	}
 
 	var votesFor int
-	for i, pred := range predictions {
-		if pred.Value >= api.rfEnsemble[i].threshold {
-			votesFor++
-		}
+	for _, pred := range predictions {
+		votesFor += pred.Result
 	}
 	resp := evaluation{
 		CorpusSize:  corpusInfo.Size,

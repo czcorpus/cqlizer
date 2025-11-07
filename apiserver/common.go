@@ -5,6 +5,8 @@ import (
 
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/eval"
+	"github.com/czcorpus/cqlizer/eval/feats"
+	"github.com/czcorpus/cqlizer/eval/predict"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,18 +24,18 @@ type evaluation struct {
 }
 
 type vote struct {
-	Value     float64 `json:"value"`
-	Threshold float64 `json:"threshold"`
+	Votes  []float64 `json:"votes"`
+	Result int       `json:"result"`
 }
 
 // ------
 
 type ensembleModel struct {
-	model     *eval.RFModel
+	model     eval.MLModel
 	threshold float64
 }
 
-func (md ensembleModel) Predict(queryEval eval.QueryEvaluation) eval.Prediction {
+func (md ensembleModel) Predict(queryEval feats.QueryEvaluation) predict.Prediction {
 	return md.model.Predict(queryEval)
 }
 
