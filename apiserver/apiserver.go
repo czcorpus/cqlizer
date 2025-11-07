@@ -54,6 +54,7 @@ func (api *apiServer) Start(ctx context.Context) {
 	engine.NoMethod(uniresp.NoMethodHandler)
 	engine.NoRoute(uniresp.NotFoundHandler)
 
+	engine.GET("/test", api.handleTestPage)
 	engine.GET("/cql/:corpusId", api.handleEvalCQL)
 	engine.GET("/cql", api.handleEvalCQL)
 	engine.GET("/simple/:corpusId", api.handleEvalSimple)

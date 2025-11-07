@@ -138,7 +138,7 @@ func (m *Model) Predict(eval feats.QueryEvaluation) predict.Prediction {
 		predClass = 1
 	}
 	return predict.Prediction{
-		Votes:          out,
+		Votes:          []float64{1 - out[0], out[0]},
 		PredictedClass: predClass,
 	}
 }
