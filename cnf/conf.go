@@ -43,18 +43,19 @@ type RFEnsembleConf struct {
 }
 
 type Conf struct {
-	srcPath                string
-	Logging                logging.LoggingConf          `json:"logging"`
-	ListenAddress          string                       `json:"listenAddress"`
-	PublicURL              string                       `json:"publicUrl"`
-	ListenPort             int                          `json:"listenPort"`
-	ServerReadTimeoutSecs  int                          `json:"serverReadTimeoutSecs"`
-	ServerWriteTimeoutSecs int                          `json:"serverWriteTimeoutSecs"`
-	CorsAllowedOrigins     []string                     `json:"corsAllowedOrigins"`
-	TimeZone               string                       `json:"timeZone"`
-	IndexDataPath          string                       `json:"indexDataPath"`
-	RFEnsemble             []RFEnsembleConf             `json:"rfEnsemble"`
-	CorporaProps           map[string]feats.CorpusProps `json:"corporaProps"`
+	srcPath                  string
+	Logging                  logging.LoggingConf          `json:"logging"`
+	ListenAddress            string                       `json:"listenAddress"`
+	PublicURL                string                       `json:"publicUrl"`
+	ListenPort               int                          `json:"listenPort"`
+	ServerReadTimeoutSecs    int                          `json:"serverReadTimeoutSecs"`
+	TestingPageURLPathPrefix string                       `json:"testingPageURLPathPrefix"`
+	ServerWriteTimeoutSecs   int                          `json:"serverWriteTimeoutSecs"`
+	CorsAllowedOrigins       []string                     `json:"corsAllowedOrigins"`
+	TimeZone                 string                       `json:"timeZone"`
+	IndexDataPath            string                       `json:"indexDataPath"`
+	RFEnsemble               []RFEnsembleConf             `json:"rfEnsemble"`
+	CorporaProps             map[string]feats.CorpusProps `json:"corporaProps"`
 }
 
 func LoadConfig(path string) *Conf {

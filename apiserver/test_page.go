@@ -70,6 +70,13 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
 		)
 	}
 
+	// Get URL prefix for proxy support
+	urlPrefix := api.conf.TestingPageURLPathPrefix
+	if urlPrefix != "" && !strings.HasPrefix(urlPrefix, "/") {
+		urlPrefix = "/" + urlPrefix
+	}
+	urlPrefix = strings.TrimSuffix(urlPrefix, "/")
+
 	html := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -332,6 +339,7 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
     </div>
 
     <script>
+        const urlPrefix = '%s';
         const form = document.getElementById('cqlForm');
         const resultBox = document.getElementById('resultBox');
         const resultContent = document.getElementById('resultContent');
@@ -355,7 +363,7 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
             resultBox.classList.remove('show');
 
             try {
-                const url = '/cql/' + encodeURIComponent(corpus) + '?q=' + encodeURIComponent(query);
+                const url = urlPrefix + '/cql/' + encodeURIComponent(corpus) + '?q=' + encodeURIComponent(query);
                 const response = await fetch(url);
                 const data = await response.json();
 
@@ -431,7 +439,7 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
         });
     </script>
 </body>
-</html>`, corpusOptions.String())
+</html>`, corpusOptions.String(), urlPrefix)
 
 	ctx.Header("Content-Type", "text/html; charset=utf-8")
 	ctx.String(http.StatusOK, html)
