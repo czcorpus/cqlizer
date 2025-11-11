@@ -36,7 +36,9 @@ func (m *Model) SetClassThreshold(v float64) {
 	m.ClassThreshold = v
 }
 
-func (m *Model) Train(data []feats.QueryEvaluation, slowQueriesTime float64) error {
+// Train
+// TODO: comment is not stored
+func (m *Model) Train(data []feats.QueryEvaluation, slowQueriesTime float64, comment string) error {
 	if len(data) == 0 {
 		return fmt.Errorf("no training data provided")
 	}

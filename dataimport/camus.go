@@ -13,6 +13,7 @@ import (
 
 type StatsFileProcessor interface {
 	ProcessEntry(entry eval.QueryStatsRecord) error
+	SetStats(numProcessed, numFailed int)
 }
 
 // ReadStatsFile reads a JSONL file where each line is a QueryStatsRecord
@@ -79,10 +80,10 @@ func ReadStatsFile(ctx context.Context, filePath string, processor StatsFileProc
 		}
 	}
 
+	processor.SetStats(numProc, numFailed)
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("error reading file: %w", err)
 	}
-
 	fmt.Printf("Stats file processed. Num imported queries: %d, num failed: %d\n", numProc, numFailed)
 
 	return nil

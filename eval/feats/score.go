@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const NumFeatures = 49
+const NumFeatures = 50
 
 type CostProvider interface {
 	Cost(model ModelParams) float64
@@ -66,15 +66,16 @@ type ModelParams struct {
 	CharClasses3    float64
 	HasNegation3    float64
 
-	GlobCond       float64
-	Meet           float64
-	Union          float64
-	Within         float64
-	AdhocSubcorpus float64
-	Containing     float64
-	CorpusSize     float64 // Impact of corpus size on query time
-	AlignedPart    float64
-	Bias           float64
+	GlobCond           float64
+	Meet               float64
+	Union              float64
+	Within             float64
+	AdhocSubcorpus     float64
+	Containing         float64
+	CorpusSize         float64 // Impact of corpus size on query time
+	NamedSubcorpusSize float64
+	AlignedPart        float64
+	Bias               float64
 }
 
 func (p ModelParams) ToSlice() []float64 {
@@ -126,6 +127,7 @@ func (p ModelParams) ToSlice() []float64 {
 		p.AdhocSubcorpus,
 		p.Containing,
 		p.CorpusSize,
+		p.NamedSubcorpusSize,
 		p.AlignedPart,
 		p.Bias,
 	}
@@ -136,55 +138,56 @@ func SliceToModelParams(slice []float64) ModelParams {
 		panic(fmt.Sprintf("slice must have %d elements", NumFeatures))
 	}
 	return ModelParams{
-		WildcardPrefix0: slice[0],
-		Wildcards0:      slice[1],
-		RangeOp0:        slice[2],
-		SmallCardAttr0:  slice[3],
-		ConcreteChars0:  slice[4],
-		AvgCharProb0:    slice[5],
-		NumPosAlts0:     slice[6],
-		PosRepetition0:  slice[7],
-		CharClasses0:    slice[8],
-		HasNegation0:    slice[9],
-		WildcardPrefix1: slice[10],
-		Wildcards1:      slice[11],
-		RangeOp1:        slice[12],
-		SmallCardAttr1:  slice[13],
-		ConcreteChars1:  slice[14],
-		AvgCharProb1:    slice[15],
-		NumPosAlts1:     slice[16],
-		PosRepetition1:  slice[17],
-		CharClasses1:    slice[18],
-		HasNegation1:    slice[19],
-		WildcardPrefix2: slice[20],
-		Wildcards2:      slice[21],
-		RangeOp2:        slice[22],
-		SmallCardAttr2:  slice[23],
-		ConcreteChars2:  slice[24],
-		AvgCharProb2:    slice[25],
-		NumPosAlts2:     slice[26],
-		PosRepetition2:  slice[27],
-		CharClasses2:    slice[28],
-		HasNegation2:    slice[29],
-		WildcardPrefix3: slice[30],
-		Wildcards3:      slice[31],
-		RangeOp3:        slice[32],
-		SmallCardAttr3:  slice[33],
-		ConcreteChars3:  slice[34],
-		AvgCharProb3:    slice[35],
-		NumPosAlts3:     slice[36],
-		PosRepetition3:  slice[37],
-		CharClasses3:    slice[38],
-		HasNegation3:    slice[39],
-		GlobCond:        slice[40],
-		Meet:            slice[41],
-		Union:           slice[42],
-		Within:          slice[43],
-		AdhocSubcorpus:  slice[44],
-		Containing:      slice[45],
-		CorpusSize:      slice[46],
-		AlignedPart:     slice[47],
-		Bias:            slice[48],
+		WildcardPrefix0:    slice[0],
+		Wildcards0:         slice[1],
+		RangeOp0:           slice[2],
+		SmallCardAttr0:     slice[3],
+		ConcreteChars0:     slice[4],
+		AvgCharProb0:       slice[5],
+		NumPosAlts0:        slice[6],
+		PosRepetition0:     slice[7],
+		CharClasses0:       slice[8],
+		HasNegation0:       slice[9],
+		WildcardPrefix1:    slice[10],
+		Wildcards1:         slice[11],
+		RangeOp1:           slice[12],
+		SmallCardAttr1:     slice[13],
+		ConcreteChars1:     slice[14],
+		AvgCharProb1:       slice[15],
+		NumPosAlts1:        slice[16],
+		PosRepetition1:     slice[17],
+		CharClasses1:       slice[18],
+		HasNegation1:       slice[19],
+		WildcardPrefix2:    slice[20],
+		Wildcards2:         slice[21],
+		RangeOp2:           slice[22],
+		SmallCardAttr2:     slice[23],
+		ConcreteChars2:     slice[24],
+		AvgCharProb2:       slice[25],
+		NumPosAlts2:        slice[26],
+		PosRepetition2:     slice[27],
+		CharClasses2:       slice[28],
+		HasNegation2:       slice[29],
+		WildcardPrefix3:    slice[30],
+		Wildcards3:         slice[31],
+		RangeOp3:           slice[32],
+		SmallCardAttr3:     slice[33],
+		ConcreteChars3:     slice[34],
+		AvgCharProb3:       slice[35],
+		NumPosAlts3:        slice[36],
+		PosRepetition3:     slice[37],
+		CharClasses3:       slice[38],
+		HasNegation3:       slice[39],
+		GlobCond:           slice[40],
+		Meet:               slice[41],
+		Union:              slice[42],
+		Within:             slice[43],
+		AdhocSubcorpus:     slice[44],
+		Containing:         slice[45],
+		CorpusSize:         slice[46],
+		NamedSubcorpusSize: slice[47],
+		AlignedPart:        slice[48],
+		Bias:               slice[49],
 	}
 }
 
@@ -257,6 +260,7 @@ type QueryEvaluation struct {
 	AdhocSubcorpus     float64    `msgpack:"adhocSubcorpus"`
 	ContainsContaining int        `msgpack:"containsContaining"`
 	CorpusSize         float64    `msgpack:"corpusSize"` // Size of the corpus being searched (e.g., number of tokens)
+	NamedSubcorpusSize float64    `msgpack:"namedSubcorpusSize"`
 	AlignedPart        int        `msgpack:"alignedPart"`
 }
 
@@ -287,6 +291,7 @@ func (eval QueryEvaluation) Show() string {
 	ans.WriteString(fmt.Sprintf("AdhocSubcorpus: %.2f\n", eval.AdhocSubcorpus))
 	ans.WriteString(fmt.Sprintf("ContainsContaining: %d\n", eval.ContainsContaining))
 	ans.WriteString(fmt.Sprintf("CorpusSize: %0.2f\n", eval.CorpusSize))
+	ans.WriteString(fmt.Sprintf("NamedSubcorpusSize: %0.2f\n", eval.NamedSubcorpusSize))
 	ans.WriteString(fmt.Sprintf("AlignedPart: %d\n", eval.AlignedPart))
 
 	return ans.String()
@@ -371,6 +376,7 @@ func (eval QueryEvaluation) Cost(model ModelParams) float64 {
 	total += model.AdhocSubcorpus * float64(eval.AdhocSubcorpus)
 	total += model.Containing * float64(eval.ContainsContaining)
 	total += model.CorpusSize * math.Log(eval.CorpusSize)
+	total += model.NamedSubcorpusSize * math.Log(eval.NamedSubcorpusSize)
 	total += model.Bias
 
 	return total

@@ -62,10 +62,11 @@ func findKneeDistance(items []feats.QueryEvaluation) (threshold float64, kneeIdx
 // ------------------------------------
 
 type QueryStatsRecord struct {
-	Corpus     string  `json:"corpus"`
-	CorpusSize int64   `json:"corpusSize"`
-	TimeProc   float64 `json:"timeProc"`
-	Query      string  `json:"query"`
+	Corpus        string  `json:"corpus"`
+	CorpusSize    int64   `json:"corpusSize"`
+	SubcorpusSize int64   `json:"subcorpusSize"`
+	TimeProc      float64 `json:"timeProc"`
+	Query         string  `json:"query"`
 }
 
 func (rec QueryStatsRecord) GetCQL() string {
@@ -81,10 +82,22 @@ func (rec QueryStatsRecord) GetCQL() string {
 
 // ----------------------------
 
+type LearningDataStats struct {
+	NumProcessed       int     `msgpack:"numProcessed"`
+	NumFailed          int     `msgpack:"numFailed"`
+	DeduplicationRatio float64 `msgpack:"deduplicationRatio"`
+}
+
+func (stats LearningDataStats) AsComment() string {
+	return fmt.Sprintf("source data - total items: %d, failed imports: %d, deduplicated ratio: %.2f", stats.NumProcessed, stats.NumFailed, stats.DeduplicationRatio)
+}
+
 // ----------------------------
 
+// MLModel is a generalization of a Machine Learning model used to extract knowledge
+// about CQL queries.
 type MLModel interface {
-	Train(data []feats.QueryEvaluation, slowQueriesTime float64) error
+	Train(data []feats.QueryEvaluation, slowQueriesTime float64, comment string) error
 	Predict(feats.QueryEvaluation) predict.Prediction
 	SetClassThreshold(v float64)
 	SaveToFile(string) error
@@ -96,6 +109,8 @@ type Predictor struct {
 	mlModel MLModel
 
 	Evaluations []feats.QueryEvaluation
+
+	LearningDataStats LearningDataStats
 
 	// slowQueryPercentile specifies which percentile of queries (by time)
 	// is considered as "slow times".
@@ -165,15 +180,21 @@ func (model *Predictor) BalanceSample() []feats.QueryEvaluation {
 
 func (model *Predictor) ProcessEntry(entry QueryStatsRecord) error {
 	if entry.CorpusSize == 0 {
-		return fmt.Errorf("zero processing time or corpus size")
+		return fmt.Errorf("zero corpus size")
 	}
-	if entry.TimeProc == 0 {
-		entry.TimeProc = 0.01
+	if entry.TimeProc <= 0 {
+		return fmt.Errorf("invalid processing time %.2f", entry.TimeProc)
 	}
 
 	// Parse the CQL query and create evaluation with corpus size
 	corpInfo := model.corpora[entry.Corpus]
-	eval, err := feats.NewQueryEvaluation(entry.GetCQL(), float64(entry.CorpusSize), entry.TimeProc, feats.GetCharProbabilityProvider(corpInfo.Lang))
+	eval, err := feats.NewQueryEvaluation(
+		entry.GetCQL(),
+		float64(entry.CorpusSize),
+		float64(entry.SubcorpusSize),
+		entry.TimeProc,
+		feats.GetCharProbabilityProvider(corpInfo.Lang),
+	)
 	if err != nil {
 		errMsg := err.Error()
 		if utf8.RuneCountInString(errMsg) > 80 {
@@ -189,6 +210,11 @@ func (model *Predictor) ProcessEntry(entry QueryStatsRecord) error {
 	model.Evaluations = append(model.Evaluations, eval)
 
 	return nil
+}
+
+func (model *Predictor) SetStats(numProcessed, numFailed int) {
+	model.LearningDataStats.NumProcessed = numProcessed
+	model.LearningDataStats.NumFailed = numFailed
 }
 
 func (model *Predictor) PrecisionAndRecall() PrecAndRecall {
@@ -305,6 +331,7 @@ func (model *Predictor) Deduplicate() {
 		model.Evaluations[i] = u[0]
 		i++
 	}
+	model.LearningDataStats.DeduplicationRatio = float64(len(uniq)) / float64(model.LearningDataStats.NumProcessed)
 	log.Info().Int("newSize", len(model.Evaluations)).Msg("deduplicated queries")
 }
 
@@ -322,7 +349,7 @@ func (model *Predictor) CreateAndTestModel(
 		Int("trainingDataSize", len(model.Evaluations)).
 		Msg("Training Random Forest")
 
-	if err := model.mlModel.Train(model.Evaluations, model.binMidpoint); err != nil {
+	if err := model.mlModel.Train(model.Evaluations, model.binMidpoint, model.LearningDataStats.AsComment()); err != nil {
 		return fmt.Errorf("RF training failed: %w", err)
 	}
 

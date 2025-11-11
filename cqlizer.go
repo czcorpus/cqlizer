@@ -175,7 +175,7 @@ func runActionREPL(rfPath string) {
 
 		// Treat as CQL query
 		charProbs := feats.GetCharProbabilityProvider(lang)
-		queryEval, err := feats.NewQueryEvaluation(input, corpusSize, 0, charProbs)
+		queryEval, err := feats.NewQueryEvaluation(input, corpusSize, 0, 0, charProbs)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error parsing CQL: %v\n", err)
 			continue

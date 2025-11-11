@@ -18,6 +18,7 @@ package feats
 
 import (
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/czcorpus/cqlizer/cql"
@@ -32,18 +33,26 @@ type CorpusProps struct {
 	Lang string `json:"lang"`
 }
 
+func logScaled(v float64) float64 {
+	if v >= 1 {
+		return math.Log(v)
+	}
+	return 0
+}
+
 // NewQueryEvaluation creates a QueryEvaluation from a CQL query string and corpus size
-func NewQueryEvaluation(cqlQuery string, corpusSize, procTime float64, charProbs charProbabilityProvider) (QueryEvaluation, error) {
+func NewQueryEvaluation(cqlQuery string, corpusSize, namedSubcorpusSize, procTime float64, charProbs charProbabilityProvider) (QueryEvaluation, error) {
 	query, err := cql.ParseCQL("", cqlQuery)
 	if err != nil {
 		return QueryEvaluation{}, err
 	}
 
 	eval := QueryEvaluation{
-		OrigQuery:  cqlQuery,
-		ProcTime:   procTime,
-		Positions:  make([]Position, 0, MaxPositions),
-		CorpusSize: math.Log(corpusSize),
+		OrigQuery:          cqlQuery,
+		ProcTime:           procTime,
+		Positions:          make([]Position, 0, MaxPositions),
+		CorpusSize:         logScaled(corpusSize),
+		NamedSubcorpusSize: logScaled(namedSubcorpusSize),
 	}
 
 	// Extract features from the parsed query
@@ -246,14 +255,7 @@ func isSmallCardinalityAttr(attVal *cql.AttVal) bool {
 	// List of known small cardinality attributes
 	// tag, pos are typical linguistic attributes with limited value sets
 	smallCardAttrs := []string{"tag", "pos", "postag", "xpos", "upos", "deprel"}
-
-	for _, attr := range smallCardAttrs {
-		if attrName == attr {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(smallCardAttrs, attrName)
 }
 
 // ExtractFeatures converts QueryEvaluation to feature vector (same as Huber)
@@ -262,7 +264,7 @@ func ExtractFeatures(eval QueryEvaluation) []float64 {
 	idx := 0
 
 	// Extract features for up to 4 positions
-	for i := 0; i < MaxPositions; i++ {
+	for i := range MaxPositions {
 		if i < len(eval.Positions) {
 			pos := eval.Positions[i]
 			// Position-specific features (normalized by concrete chars)
@@ -288,9 +290,10 @@ func ExtractFeatures(eval QueryEvaluation) []float64 {
 	features[43] = float64(eval.ContainsWithin)
 	features[44] = eval.AdhocSubcorpus
 	features[45] = float64(eval.ContainsContaining)
-	features[46] = math.Log(eval.CorpusSize)
-	features[47] = float64(eval.AlignedPart)
-	features[48] = 1.0 // Bias term
+	features[46] = logScaled(eval.CorpusSize)
+	features[47] = logScaled(eval.NamedSubcorpusSize)
+	features[48] = float64(eval.AlignedPart)
+	features[49] = 1.0 // Bias term
 
 	return features
 }

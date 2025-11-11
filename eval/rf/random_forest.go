@@ -41,7 +41,8 @@ func (m *Model) SetClassThreshold(v float64) {
 }
 
 // Train trains the random forest on query evaluations and actual times
-func (m *Model) Train(data []feats.QueryEvaluation, slowQueriesThresholdTime float64) error {
+// note: the `comment` argument will be stored with the model for easier model review
+func (m *Model) Train(data []feats.QueryEvaluation, slowQueriesThresholdTime float64, comment string) error {
 	if len(data) == 0 {
 		return fmt.Errorf("no training data provided")
 	}
@@ -75,6 +76,7 @@ func (m *Model) Train(data []feats.QueryEvaluation, slowQueriesThresholdTime flo
 		Class: yData,
 	}
 	m.Forest.Train(m.NumTrees)
+	m.Comment = comment
 	return nil
 }
 
