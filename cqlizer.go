@@ -42,13 +42,15 @@ import (
 )
 
 const (
-	actionMCPServer  = "mcp-server"
-	actionREPL       = "repl"
-	actionVersion    = "version"
-	actionHelp       = "help"
-	actionKlogImport = "klog-import"
-	actionFeaturize  = "featurize"
-	actionAPIServer  = "server"
+	actionMCPServer        = "mcp-server"
+	actionREPL             = "repl"
+	actionVersion          = "version"
+	actionHelp             = "help"
+	actionKlogImport       = "klog-import"
+	actionFeaturize        = "featurize"
+	actionBenchmarkMissing = "benchmark-missing"
+	actionRemoveZero       = "remove-zero"
+	actionAPIServer        = "server"
 
 	exitErrorGeneralFailure = iota
 	exitErrorImportFailed
@@ -76,9 +78,11 @@ func topLevelUsage() {
 	fmt.Fprintf(os.Stderr, "-----------------------------\n\n")
 	fmt.Fprintf(os.Stderr, "Commands:\n")
 	fmt.Fprintf(os.Stderr, "\t%s\t\t\tshow version info\n", actionVersion)
-	fmt.Fprintf(os.Stderr, "\t%s\t\tmcp-server MCP \n", actionMCPServer)
-	fmt.Fprintf(os.Stderr, "\t%s\t\t\trepl \n", actionREPL)
-	fmt.Fprintf(os.Stderr, "\t%s\t\t\tklog-import \n", actionKlogImport)
+	fmt.Fprintf(os.Stderr, "\t%s\t\t\ttransform query log into features\n", actionFeaturize)
+	fmt.Fprintf(os.Stderr, "\t%s\t\t\tlearn model based on provided features\n", actionKlogImport)
+	fmt.Fprintf(os.Stderr, "\t%s\t\t\tbenchmark queries with zero processing time (using MQuery)\n", actionBenchmarkMissing)
+	fmt.Fprintf(os.Stderr, "\t%s\t\t\tREPL model \n", actionREPL)
+	fmt.Fprintf(os.Stderr, "\t%s\t\tmcp-server MCP (experimental) \n", actionMCPServer)
 	fmt.Fprintf(os.Stderr, "\nUse `cqlizer help ACTION` for information about a specific action\n\n")
 }
 
@@ -315,6 +319,21 @@ func main() {
 		cmdFeaturize.PrintDefaults()
 	}
 
+	cmdBenchmarkMissing := flag.NewFlagSet(actionBenchmarkMissing, flag.ExitOnError)
+	benchmarkSpecCorpora := cmdBenchmarkMissing.String("corpora", "", "A list of comma-separated corpora to process, everything else ignored")
+	benchmarkBatchSize := cmdBenchmarkMissing.Int("batch-size", 0, "Max. number of items to process at once")
+	benchmarkBatchOffset := cmdBenchmarkMissing.Int("batch-offset", 0, "Where (in the sorted list of entries; zero indexed) to start with the current run.")
+	cmdBenchmarkMissing.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s benchmark-missing logfile.jsonl mquery_url\n", os.Args[0])
+		cmdBenchmarkMissing.PrintDefaults()
+	}
+
+	cmdRemoveZero := flag.NewFlagSet(actionRemoveZero, flag.ExitOnError)
+	cmdRemoveZero.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s remove-zero logfile.jsonl\n", os.Args[0])
+		cmdRemoveZero.PrintDefaults()
+	}
+
 	cmdAPIServer := flag.NewFlagSet(actionAPIServer, flag.ExitOnError)
 	cmdAPIServer.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s server [options] config.json\n", os.Args[0])
@@ -385,6 +404,28 @@ func main() {
 			cmdFeaturize.Arg(2),
 			*featurizeDebug,
 		)
+	case actionBenchmarkMissing:
+		cmdBenchmarkMissing.Parse(os.Args[2:])
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		corpora := []string{}
+		if *benchmarkSpecCorpora != "" {
+			corpora = strings.Split(*benchmarkSpecCorpora, ",")
+		}
+		runActionBenchmarkMissing(
+			ctx,
+			cmdBenchmarkMissing.Arg(0),
+			cmdBenchmarkMissing.Arg(1),
+			corpora,
+			*benchmarkBatchSize,
+			*benchmarkBatchOffset,
+		)
+	case actionRemoveZero:
+		cmdBenchmarkMissing.Parse(os.Args[2:])
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		runActionRemoveZero(ctx, cmdBenchmarkMissing.Arg(0))
+
 	case actionAPIServer:
 		cmdAPIServer.Parse(os.Args[2:])
 		conf := setup(cmdAPIServer.Arg(0))

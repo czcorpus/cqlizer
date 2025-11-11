@@ -67,6 +67,11 @@ type QueryStatsRecord struct {
 	SubcorpusSize int64   `json:"subcorpusSize"`
 	TimeProc      float64 `json:"timeProc"`
 	Query         string  `json:"query"`
+
+	// IsSynthetic specifies whether the record comes from
+	// production KonText stats log or if it is generated
+	// using a benchmarking module (= MQuery).
+	IsSynthetic bool `json:"isSynthetic,omitempty"`
 }
 
 func (rec QueryStatsRecord) GetCQL() string {
@@ -78,6 +83,10 @@ func (rec QueryStatsRecord) GetCQL() string {
 		return tmp[1]
 	}
 	return rec.Query
+}
+
+func (rec QueryStatsRecord) UniqKey() string {
+	return fmt.Sprintf("%d/%d/%s", rec.CorpusSize, rec.SubcorpusSize, rec.Query)
 }
 
 // ----------------------------
