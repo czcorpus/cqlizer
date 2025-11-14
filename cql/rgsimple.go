@@ -159,7 +159,7 @@ func (r *RgAlt) Text() string {
 		}
 		ans.WriteString(v.Text())
 	}
-	return fmt.Sprintf("#RgAlt(%s)")
+	return fmt.Sprintf("#RgAlt(%s)", ans.String())
 }
 
 func (r *RgAlt) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {

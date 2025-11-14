@@ -78,3 +78,33 @@ func TestAlignedQuery(t *testing.T) {
 	_, err := ParseCQL("#", q1)
 	assert.NoError(t, err)
 }
+
+func TestRegress001(t *testing.T) {
+	q1 := `[feats="VerbForm=Fin" & upos="VERB"]`
+	_, err := ParseCQL("#", q1)
+	assert.NoError(t, err)
+}
+
+func TestRgress002(t *testing.T) {
+	q1 := `[(lemma="(?i)demokraticko\-liberálním" | sublemma="(?i)demokraticko\-liberálním" | word="(?i)demokraticko\-liberálním")]`
+	_, err := ParseCQL("#", q1)
+	assert.NoError(t, err)
+}
+
+func TestRgress003(t *testing.T) {
+	q1 := `[lemma=".+t(o/ö)n"]`
+	_, err := ParseCQL("#", q1)
+	assert.NoError(t, err)
+}
+
+func TestRgress004(t *testing.T) {
+	q1 := `(meet [col_lemma="didaktický_test"][col_lemma="didaktický_test" & lemma="didaktický"] 0 15)`
+	_, err := ParseCQL("#", q1)
+	assert.NoError(t, err)
+}
+
+func TestRgress005(t *testing.T) {
+	q1 := `[word="ni{n,5}n"]`
+	_, err := ParseCQL("#", q1)
+	assert.NoError(t, err)
+}

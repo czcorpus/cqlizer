@@ -1,6 +1,7 @@
 package rf
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,12 +37,25 @@ func NewModel(numTrees int, votingThreshold float64) *Model {
 	}
 }
 
+func (m *Model) GetClassThreshold() float64 {
+	return m.VotingThreshold
+}
+
 func (m *Model) SetClassThreshold(v float64) {
 	m.VotingThreshold = v
 }
 
+func (m *Model) GetSlowQueriesThresholdTime() float64 {
+	return m.SlowQueriesThresholdTime
+}
+
+func (m *Model) GetInfo() string {
+	return fmt.Sprintf("RF model, num. trees: %d, slow q. threshold time: %.2fs", m.NumTrees, m.SlowQueriesThresholdTime)
+}
+
 // Train trains the random forest on query evaluations and actual times
-func (m *Model) Train(data []feats.QueryEvaluation, slowQueriesThresholdTime float64) error {
+// note: the `comment` argument will be stored with the model for easier model review
+func (m *Model) Train(ctx context.Context, data []feats.QueryEvaluation, slowQueriesThresholdTime float64, comment string) error {
 	if len(data) == 0 {
 		return fmt.Errorf("no training data provided")
 	}
@@ -55,7 +69,10 @@ func (m *Model) Train(data []feats.QueryEvaluation, slowQueriesThresholdTime flo
 	var xData [][]float64
 	var yData []int
 	numProblematic := 0
-	for _, eval := range data {
+	for i, eval := range data {
+		if i%100 == 0 && ctx != nil && ctx.Err() != nil {
+			return ctx.Err()
+		}
 		features := feats.ExtractFeatures(eval)
 		isPositive := 0
 		if eval.ProcTime >= m.SlowQueriesThresholdTime {
@@ -75,6 +92,7 @@ func (m *Model) Train(data []feats.QueryEvaluation, slowQueriesThresholdTime flo
 		Class: yData,
 	}
 	m.Forest.Train(m.NumTrees)
+	m.Comment = comment
 	return nil
 }
 

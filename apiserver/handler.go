@@ -75,7 +75,7 @@ func (api *apiServer) evaluateRawQuery(ctx *gin.Context, q string) {
 		corpusInfo.Lang = ctx.Query("lang")
 	}
 	charProb := feats.GetCharProbabilityProvider(corpusInfo.Lang)
-	queryEval, err := feats.NewQueryEvaluation(q, float64(corpusInfo.Size), 3, charProb)
+	queryEval, err := feats.NewQueryEvaluation(q, float64(corpusInfo.Size), 0, 3, charProb)
 	if err != nil {
 		uniresp.RespondWithErrorJSON(ctx, err, http.StatusInternalServerError)
 		return

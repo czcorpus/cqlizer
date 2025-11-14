@@ -56,6 +56,12 @@ type Conf struct {
 	IndexDataPath            string                       `json:"indexDataPath"`
 	RFEnsemble               []RFEnsembleConf             `json:"rfEnsemble"`
 	CorporaProps             map[string]feats.CorpusProps `json:"corporaProps"`
+
+	// SyntheticTimeCorrection - for stats records generated via benchmarking,
+	// it may be needed to increase the times as MQuery will probably perform a bit better
+	// and if performed during low traffic hours, this difference can be even bigger.
+	SyntheticTimeCorrection float64 `json:"syntheticTimeCorrection"`
+	MQueryBenchmarkingURL   string  `json:"mqueryBenchmarkingUrl"`
 }
 
 func LoadConfig(path string) *Conf {
@@ -95,5 +101,10 @@ func ValidateAndDefaults(conf *Conf) {
 	}
 	if _, err := time.LoadLocation(conf.TimeZone); err != nil {
 		log.Fatal().Err(err).Msg("invalid time zone")
+	}
+
+	if conf.SyntheticTimeCorrection == 0 {
+		log.Warn().Msg("SyntheticRecordsTimeCorrection is not set - we must set it to 1")
+		conf.SyntheticTimeCorrection = 1
 	}
 }
