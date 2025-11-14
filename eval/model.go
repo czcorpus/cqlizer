@@ -8,12 +8,14 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strings"
-	"sync"
 	"unicode/utf8"
 
+	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/eval/feats"
 	"github.com/czcorpus/cqlizer/eval/predict"
+	"github.com/czcorpus/cqlizer/eval/zero"
 	"github.com/rs/zerolog/log"
+	"github.com/schollz/progressbar/v3"
 )
 
 type PrecAndRecall struct {
@@ -106,10 +108,19 @@ func (stats LearningDataStats) AsComment() string {
 // MLModel is a generalization of a Machine Learning model used to extract knowledge
 // about CQL queries.
 type MLModel interface {
-	Train(data []feats.QueryEvaluation, slowQueriesTime float64, comment string) error
+	Train(ctx context.Context, data []feats.QueryEvaluation, slowQueriesTime float64, comment string) error
 	Predict(feats.QueryEvaluation) predict.Prediction
 	SetClassThreshold(v float64)
+	GetClassThreshold() float64
+	GetSlowQueriesThresholdTime() float64
 	SaveToFile(string) error
+	GetInfo() string
+}
+
+// ----------------------------
+
+type misclassifiedQueryReporter interface {
+	AddMisclassifiedQuery(q feats.QueryEvaluation, mlOut, threshold, slowProcTime float64)
 }
 
 // ----------------------------
@@ -135,12 +146,22 @@ type Predictor struct {
 	binMidpoint float64
 
 	corpora map[string]feats.CorpusProps
+
+	syntheticTimeCorrection float64
 }
 
-func NewPredictor(mlModel MLModel, corporaProps map[string]feats.CorpusProps) *Predictor {
+func NewPredictor(
+	mlModel MLModel,
+	conf *cnf.Conf,
+) *Predictor {
+	if mlModel == nil {
+		mlModel = &zero.ZeroModel{}
+	}
 	return &Predictor{
-		corpora: corporaProps,
-		mlModel: mlModel,
+		corpora:                 conf.CorporaProps,
+		mlModel:                 mlModel,
+		syntheticTimeCorrection: conf.SyntheticTimeCorrection,
+		binMidpoint:             mlModel.GetSlowQueriesThresholdTime(),
 	}
 }
 
@@ -179,7 +200,7 @@ func (model *Predictor) BalanceSample() []feats.QueryEvaluation {
 	for i := 0; i < numPositive*2; i++ {
 		balEval[i] = model.Evaluations[rand.IntN(model.midpointIdx)]
 	}
-	for i := 0; i < numPositive; i++ {
+	for i := range numPositive {
 		balEval[i+numPositive*2] = model.Evaluations[model.midpointIdx+i]
 	}
 	oldEvals := model.Evaluations
@@ -189,10 +210,20 @@ func (model *Predictor) BalanceSample() []feats.QueryEvaluation {
 
 func (model *Predictor) ProcessEntry(entry QueryStatsRecord) error {
 	if entry.CorpusSize == 0 {
-		return fmt.Errorf("zero corpus size")
+		cProps, ok := model.corpora[entry.Corpus]
+		if ok {
+			entry.CorpusSize = int64(cProps.Size)
+			log.Warn().Msg("fixed missing corpus size")
+
+		} else {
+			return fmt.Errorf("zero corpus size, unknown corpus %s - cannot fix", entry.Corpus)
+		}
 	}
 	if entry.TimeProc <= 0 {
 		return fmt.Errorf("invalid processing time %.2f", entry.TimeProc)
+	}
+	if entry.IsSynthetic {
+		entry.TimeProc *= model.syntheticTimeCorrection
 	}
 
 	// Parse the CQL query and create evaluation with corpus size
@@ -226,7 +257,7 @@ func (model *Predictor) SetStats(numProcessed, numFailed int) {
 	model.LearningDataStats.NumFailed = numFailed
 }
 
-func (model *Predictor) PrecisionAndRecall() PrecAndRecall {
+func (model *Predictor) PrecisionAndRecall(misclassQueries misclassifiedQueryReporter) PrecAndRecall {
 
 	numTruePositives := 0
 	numRelevant := 0
@@ -234,11 +265,15 @@ func (model *Predictor) PrecisionAndRecall() PrecAndRecall {
 
 	for i := 0; i < len(model.Evaluations); i++ {
 		trulySlow := model.Evaluations[i].ProcTime >= model.binMidpoint
-		prediction := model.mlModel.Predict(model.Evaluations[i]).PredictedClass
+		prediction := model.mlModel.Predict(model.Evaluations[i])
+		if trulySlow != (prediction.PredictedClass == 1) && misclassQueries != nil {
+			misclassQueries.AddMisclassifiedQuery(
+				model.Evaluations[i], prediction.SlowQueryVote(), model.mlModel.GetClassThreshold(), model.mlModel.GetSlowQueriesThresholdTime())
+		}
 		if trulySlow {
 			numRelevant++
 		}
-		if prediction == 1 {
+		if prediction.PredictedClass == 1 {
 			numRetrieved++
 			if trulySlow {
 				numTruePositives++
@@ -344,11 +379,13 @@ func (model *Predictor) Deduplicate() {
 	log.Info().Int("newSize", len(model.Evaluations)).Msg("deduplicated queries")
 }
 
-// CreateAndTestModel trains a ML model
+// CreateAndTestModel trains a ML model and saves it to a file
+// specified by the `outputPath`. It also takes a python script
 func (model *Predictor) CreateAndTestModel(
 	ctx context.Context,
 	testData []feats.QueryEvaluation,
 	outputPath string,
+	reporter *Reporter,
 ) error {
 	if len(model.Evaluations) == 0 {
 		return fmt.Errorf("no training data available")
@@ -358,7 +395,7 @@ func (model *Predictor) CreateAndTestModel(
 		Int("trainingDataSize", len(model.Evaluations)).
 		Msg("Training Random Forest")
 
-	if err := model.mlModel.Train(model.Evaluations, model.binMidpoint, model.LearningDataStats.AsComment()); err != nil {
+	if err := model.mlModel.Train(ctx, model.Evaluations, model.binMidpoint, model.LearningDataStats.AsComment()); err != nil {
 		return fmt.Errorf("RF training failed: %w", err)
 	}
 
@@ -387,15 +424,23 @@ func (model *Predictor) CreateAndTestModel(
 		Int("evalDataSize", len(model.Evaluations)).
 		Msg("calculating precision and recall using full data")
 
-	//for th := 0.7; th <= 0.991; th += 0.01 {
-	var wg sync.WaitGroup
-	chunks := []float64{0.6, 0.7, 0.8, 0.9}
-	wg.Add(len(chunks))
+	bar := progressbar.Default(int64(math.Ceil((1-0.5)/0.01)), "testing the model")
+	var csv strings.Builder
+	csv.WriteString("vote;precision;recall;f-beta\n")
 	for v := 0.5; v < 1; v += 0.01 {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
 		model.mlModel.SetClassThreshold(v)
-		precall := model.PrecisionAndRecall()
-		fmt.Println(precall.CSV(v))
+		precall := model.PrecisionAndRecall(reporter)
+		csv.WriteString(precall.CSV(v) + "\n")
+		bar.Add(1)
 	}
-
+	if err := reporter.PlotRFAccuracy(csv.String(), model.mlModel.GetInfo(), outputPath); err != nil {
+		return fmt.Errorf("failed to generate accuracy chart: %w", err)
+	}
+	reporter.SaveMisclassifiedQueries()
 	return nil
 }

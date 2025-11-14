@@ -2,3 +2,5 @@ cqlizer
 conf.json
 data/
 testdata/testing.sqlite
+
+cql_features*

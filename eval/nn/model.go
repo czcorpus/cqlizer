@@ -1,6 +1,7 @@
 package nn
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,6 +19,12 @@ type FeatureStats struct {
 	Max float64
 }
 
+var (
+	networkLayout = []int{32, 10, 1}
+	numEpochs     = 1000
+	learningRate  = 0.001
+)
+
 type jsonizedModel struct {
 	NeuralNet                *deep.Dump     `json:"neuralNet"`
 	DataRanges               []FeatureStats `json:"dataRanges"`
@@ -32,13 +39,25 @@ type Model struct {
 	ClassThreshold           float64
 }
 
+func (m *Model) GetClassThreshold() float64 {
+	return m.ClassThreshold
+}
+
 func (m *Model) SetClassThreshold(v float64) {
 	m.ClassThreshold = v
 }
 
+func (m *Model) GetSlowQueriesThresholdTime() float64 {
+	return m.SlowQueriesThresholdTime
+}
+
+func (m *Model) GetInfo() string {
+	return fmt.Sprintf("NN model, layout: #%v, epochs: %d, slow q. threshold time: %.2fs", networkLayout, numEpochs, m.SlowQueriesThresholdTime)
+}
+
 // Train
 // TODO: comment is not stored
-func (m *Model) Train(data []feats.QueryEvaluation, slowQueriesTime float64, comment string) error {
+func (m *Model) Train(ctx context.Context, data []feats.QueryEvaluation, slowQueriesTime float64, comment string) error {
 	if len(data) == 0 {
 		return fmt.Errorf("no training data provided")
 	}
@@ -69,24 +88,23 @@ func (m *Model) Train(data []feats.QueryEvaluation, slowQueriesTime float64, com
 		Int("dataSize", len(data)).
 		Msg("prepared training vectors")
 
-	// TODO !!!!!! we use the same training and heldout data !!!
-	trn, heldout := featData, featData //featData.Split(0.5)
-	m.DataRanges = m.getDataStats(trn)
-	fmt.Printf("STATS: >>> %#v\n", m.DataRanges)
-
-	for _, item := range trn {
+	m.DataRanges = m.getDataStats(featData)
+	for _, item := range featData {
 		m.normalizeNNFeats(item.Input)
 	}
 
-	/*
-		for _, item := range heldout {
-			m.normalizeNNFeats(item)
-		}
-	*/
+	// TODO !!!!!! we use the same training and heldout data !!!
+	trn, heldout := featData, featData //featData.Split(0.5)
+
+	fmt.Printf("STATS: >>> %#v\n", m.DataRanges)
+
+	//for _, item := range heldout {
+	//m.normalizeNNFeats(item)
+	//}
 
 	m.NeuralNet = deep.NewNeural(&deep.Config{
-		Inputs:     49,
-		Layout:     []int{15, 4, 1},
+		Inputs:     50,
+		Layout:     networkLayout,
 		Activation: deep.ActivationReLU,
 		Mode:       deep.ModeBinary,
 		Weight:     deep.NewUniform(1.0, 0.0),
@@ -94,10 +112,10 @@ func (m *Model) Train(data []feats.QueryEvaluation, slowQueriesTime float64, com
 	})
 
 	//optimizer := training.NewSGD(0.05, 0.4, 1e-5, true)
-	optimizer := training.NewAdam(0.01, 0.9, 0.999, 1e-8)
+	optimizer := training.NewAdam(learningRate, 0.9, 0.999, 1e-8)
 	// params: optimizer, verbosity (print stats at every 50th iteration)
 	trainer := training.NewTrainer(optimizer, 50)
-	trainer.Train(m.NeuralNet, trn, heldout, 1000)
+	trainer.TrainContext(ctx, m.NeuralNet, trn, heldout, numEpochs)
 	return nil
 }
 
@@ -134,7 +152,6 @@ func (m *Model) Predict(eval feats.QueryEvaluation) predict.Prediction {
 	features := feats.ExtractFeatures(eval)
 	m.normalizeNNFeats(features)
 	out := m.NeuralNet.Predict(features)
-	//fmt.Println("prediction of ", eval.OrigQuery, " = ", out)
 	var predClass int
 	if out[0] >= m.ClassThreshold {
 		predClass = 1
