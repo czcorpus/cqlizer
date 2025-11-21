@@ -2,5 +2,6 @@ cqlizer
 conf.json
 data/
 testdata/testing.sqlite
+venv/
 
 cql_features*
