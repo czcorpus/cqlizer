@@ -20,9 +20,12 @@ type FeatureStats struct {
 }
 
 var (
-	networkLayout = []int{32, 10, 1}
-	numEpochs     = 1000
-	learningRate  = 0.001
+	//networkLayout = []int{20, 14, 7, 1}
+	networkLayout = []int{50, 15, 1}
+	//networkLayout = []int{30, 10, 1}
+	numEpochs = 800
+	//learningRate  = 0.001
+	learningRate = 0.0005
 )
 
 type jsonizedModel struct {
@@ -37,6 +40,10 @@ type Model struct {
 	DataRanges               []FeatureStats
 	SlowQueriesThresholdTime float64
 	ClassThreshold           float64
+}
+
+func (m *Model) IsInferenceOnly() bool {
+	return false
 }
 
 func (m *Model) GetClassThreshold() float64 {
@@ -68,6 +75,12 @@ func (m *Model) Train(ctx context.Context, data []feats.QueryEvaluation, slowQue
 	var featData = training.Examples{}
 	//numTotal := len(dataModel.Evaluations)
 	numProblematic := 0
+	data2 := make([]feats.QueryEvaluation, len(data), len(data)*4)
+	copy(data2, data)
+	data2 = append(data2, data...)
+	data2 = append(data2, data...)
+	data2 = append(data2, data...)
+	data = data2
 	for _, eval := range data {
 		features := feats.ExtractFeatures(eval)
 		response := 0.0
@@ -94,7 +107,8 @@ func (m *Model) Train(ctx context.Context, data []feats.QueryEvaluation, slowQue
 	}
 
 	// TODO !!!!!! we use the same training and heldout data !!!
-	trn, heldout := featData, featData //featData.Split(0.5)
+	// trn, heldout := featData, featData
+	trn, heldout := featData.Split(0.5)
 
 	fmt.Printf("STATS: >>> %#v\n", m.DataRanges)
 

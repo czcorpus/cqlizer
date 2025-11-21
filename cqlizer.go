@@ -144,6 +144,11 @@ func main() {
 	klogImportModel := cmdKlogImport.String("model", "rf", "Specifies model which will be used (nn, rf)")
 	voteThreshold := cmdKlogImport.Float64("vote-threshold", 0, "RF Vote threshold for marking CQL as problematic. This affects only evaluation. If none, then range from 0.7 to 0.99 is examined")
 	klogImportMisclassOut := cmdKlogImport.String("misclassed-query-log", "", "Specify a path to store misclassified queries. If none, no logging is performed.")
+	klogImportForXBGoost := cmdKlogImport.Bool(
+		"for-xgboost",
+		false,
+		"if set then CQLizer will export a file for external XGBoost model learning",
+	)
 	cmdKlogImport.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s learn [options] config.json features_file.msgpack\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
@@ -154,9 +159,9 @@ func main() {
 	cmdEvaluateModel := cmdEvaluate.String("model", "rf", "Specifies model which will be used (nn, rf)")
 	cmdEvaluateMisclassOut := cmdEvaluate.String("misclassed-query-log", "", "Specify a path to store misclassified queries. If none, no logging is performed.")
 	cmdEvaluate.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s evaluate [options] config.json model_file \n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s evaluate [options] config.json model_file testing_data \n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		cmdKlogImport.PrintDefaults()
+		cmdEvaluate.PrintDefaults()
 	}
 
 	cmdFeaturize := flag.NewFlagSet(actionFeaturize, flag.ExitOnError)
@@ -244,6 +249,7 @@ func main() {
 			*numTrees,
 			*voteThreshold,
 			*klogImportMisclassOut,
+			*klogImportForXBGoost,
 		)
 	case actionEvaluate:
 		cmdEvaluate.Parse(os.Args[2:])

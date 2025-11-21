@@ -100,6 +100,7 @@ func (api *apiServer) evaluateRawQuery(ctx *gin.Context, q string) {
 		CorpusSize:  corpusInfo.Size,
 		Votes:       predictions,
 		IsSlowQuery: votesFor > int(math.Floor(float64(len(api.rfEnsemble))/2)),
+		AltCorpus:   corpusInfo.AltCorpus,
 	}
 
 	uniresp.WriteJSONResponse(ctx.Writer, resp)

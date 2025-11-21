@@ -29,8 +29,9 @@ const (
 )
 
 type CorpusProps struct {
-	Size int    `json:"size"`
-	Lang string `json:"lang"`
+	Size      int    `json:"size"`
+	Lang      string `json:"lang"`
+	AltCorpus string `json:"altCorpus"`
 }
 
 func logScaled(v float64) float64 {
