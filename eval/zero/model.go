@@ -13,6 +13,10 @@ type ZeroModel struct {
 	ClassThreshold           float64
 }
 
+func (zm *ZeroModel) IsInferenceOnly() bool {
+	return true
+}
+
 func (zm *ZeroModel) Train(ctx context.Context, data []feats.QueryEvaluation, slowQueriesTime float64, comment string) error {
 	return fmt.Errorf("cannot train zero model")
 }

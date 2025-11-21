@@ -115,6 +115,7 @@ type MLModel interface {
 	GetSlowQueriesThresholdTime() float64
 	SaveToFile(string) error
 	GetInfo() string
+	IsInferenceOnly() bool
 }
 
 // ----------------------------
@@ -163,6 +164,25 @@ func NewPredictor(
 		syntheticTimeCorrection: conf.SyntheticTimeCorrection,
 		binMidpoint:             mlModel.GetSlowQueriesThresholdTime(),
 	}
+}
+
+func (model *Predictor) FindAndSetDataMidpoint() {
+	slices.SortFunc(model.Evaluations, func(v1, v2 feats.QueryEvaluation) int {
+		if v1.ProcTime < v2.ProcTime {
+			return -1
+
+		} else if v1.ProcTime > v2.ProcTime {
+			return 1
+		}
+		return 0
+	})
+	for i := 0; i < len(model.Evaluations); i++ {
+		if model.Evaluations[i].ProcTime > 450 {
+			model.Evaluations[i].ProcTime = 450
+			fmt.Println("HUGE WQUERY ------------ ", model.Evaluations[i].Positions)
+		}
+	}
+	model.binMidpoint, model.midpointIdx = findKneeDistance(model.Evaluations)
 }
 
 func (model *Predictor) BalanceSample() []feats.QueryEvaluation {
@@ -406,6 +426,9 @@ func (model *Predictor) CreateAndTestModel(
 		log.Debug().Str("path", outputPath).Msg("saved model file")
 	}
 
+	if model.mlModel.IsInferenceOnly() {
+		return nil
+	}
 	// ----- testing
 	slices.SortFunc(
 		testData,

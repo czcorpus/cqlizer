@@ -29,6 +29,7 @@ import (
 	"github.com/czcorpus/cqlizer/eval"
 	"github.com/czcorpus/cqlizer/eval/nn"
 	"github.com/czcorpus/cqlizer/eval/rf"
+	"github.com/czcorpus/cqlizer/eval/xg"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 )
@@ -103,6 +104,8 @@ func Run(
 			mlModel, err = rf.LoadFromFile(rfc.ModelPath)
 		case "nn":
 			mlModel, err = nn.LoadFromFile(rfc.ModelPath)
+		case "xg":
+			mlModel, err = xg.LoadFromFile(rfc.ModelPath)
 		default:
 			err = fmt.Errorf("unkown model type '%s' for %s", rfc.ModelType, rfc.ModelPath)
 		}

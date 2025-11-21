@@ -37,6 +37,10 @@ func NewModel(numTrees int, votingThreshold float64) *Model {
 	}
 }
 
+func (m *Model) IsInferenceOnly() bool {
+	return false
+}
+
 func (m *Model) GetClassThreshold() float64 {
 	return m.VotingThreshold
 }
@@ -170,5 +174,6 @@ func LoadFromFile(filePath string) (*Model, error) {
 		return nil, fmt.Errorf("failed to load Random Forest model from file: %w", err)
 	}
 	model.Forest = &forest
+	model.NumTrees = forest.NTrees
 	return model, nil
 }

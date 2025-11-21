@@ -21,6 +21,7 @@ type evaluation struct {
 	CorpusSize  int    `json:"corpusSize"`
 	Votes       []vote `json:"votes"`
 	IsSlowQuery bool   `json:"isSlowQuery"`
+	AltCorpus   string `json:"altCorpus,omitempty"`
 }
 
 type vote struct {
