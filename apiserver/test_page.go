@@ -59,6 +59,12 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
 	}
 	urlPrefix = strings.TrimSuffix(urlPrefix, "/")
 
+	slowQueryVoteThreshold := 0.0
+	for _, mod := range api.rfEnsemble {
+		slowQueryVoteThreshold += mod.threshold
+	}
+	slowQueryVoteThreshold /= float64(len(api.rfEnsemble))
+
 	html := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -230,8 +236,42 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
             height: 24px;
             background: #e0e0e0;
             border-radius: 12px;
-            overflow: hidden;
+            overflow: visible;
             position: relative;
+        }
+
+        .threshold-marker {
+            position: absolute;
+            top: -2px;
+            height: 28px;
+            width: 3px;
+            background: #d32f2f;
+            z-index: 10;
+            box-shadow: 0 0 4px rgba(211, 47, 47, 0.5);
+        }
+
+        .threshold-marker::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -2px;
+            width: 0;
+            height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 6px solid #d32f2f;
+        }
+
+        .threshold-marker::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: -2px;
+            width: 0;
+            height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-bottom: 6px solid #d32f2f;
         }
 
         .confidence-bar-fill {
@@ -322,6 +362,8 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
 
     <script>
         const urlPrefix = '%s';
+        const slowQueryThreshold = %f;
+        const slowQueryThresholdPercent = Math.round(slowQueryThreshold * 100);
         const form = document.getElementById('cqlForm');
         const resultBox = document.getElementById('resultBox');
         const resultContent = document.getElementById('resultContent');
@@ -381,7 +423,7 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
 
                     // Build confidence bar
                     let barClass = 'low';
-                    if (avgConfidence > 0.75) {
+                    if (avgConfidence >= slowQueryThreshold) {
                         barClass = 'high';
                     } else if (avgConfidence > 0.5) {
                         barClass = 'medium';
@@ -395,6 +437,7 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
                         '<span><strong>' + confidencePercent + '%%</strong></span>' +
                         '</div>' +
                         '<div class="confidence-bar-track">' +
+                        '<div class="threshold-marker" style="left: ' + slowQueryThresholdPercent + '%%"></div>' +
                         '<div class="confidence-bar-fill ' + barClass + '" style="width: ' + confidencePercent + '%%">' +
                         (confidencePercent > 15 ? confidencePercent + '%%' : '') +
                         '</div>' +
@@ -421,7 +464,7 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
         });
     </script>
 </body>
-</html>`, corpusOptions.String(), urlPrefix)
+</html>`, corpusOptions.String(), urlPrefix, slowQueryVoteThreshold)
 
 	ctx.Header("Content-Type", "text/html; charset=utf-8")
 	ctx.String(http.StatusOK, html)
