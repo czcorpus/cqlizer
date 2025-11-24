@@ -28,6 +28,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func (api *apiServer) handleVersion(ctx *gin.Context) {
+	uniresp.WriteJSONResponse(ctx.Writer, api.version)
+}
+
 func (api *apiServer) handleEvalSimple(ctx *gin.Context) {
 	q := ctx.Query("q")
 	defaultAttr := ctx.QueryArray("defaultAttr")

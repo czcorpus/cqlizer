@@ -1,5 +1,5 @@
 // Copyright 2024 Tomas Machalek <tomas.machalek@gmail.com>
-// Copyright 2024 Institute of the Czech National Corpus,
+// Copyright 2024 Department of Linguistics,
 // Faculty of Arts, Charles University
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -63,12 +63,7 @@ var (
 //go:embed scripts/rfchart.py
 var rfChartScript string
 
-// VersionInfo provides a detailed information about the actual build
-type VersionInfo struct {
-	Version   string `json:"version"`
-	BuildDate string `json:"buildDate"`
-	GitCommit string `json:"gitCommit"`
-}
+// ---------------------------------------------
 
 func topLevelUsage() {
 	fmt.Fprintf(os.Stderr, "CQLIZER - a data-driven CQL writing helper tool\n")
@@ -101,12 +96,12 @@ func runActionMCPServer() {
 
 }
 
-func runActionVersion(ver VersionInfo) {
+func runActionVersion(ver apiserver.VersionInfo) {
 	fmt.Fprintln(os.Stderr, "CQLizer version: ", ver)
 }
 
 func main() {
-	version := VersionInfo{
+	version := apiserver.VersionInfo{
 		Version:   cleanVersionInfo(version),
 		BuildDate: cleanVersionInfo(buildDate),
 		GitCommit: cleanVersionInfo(gitCommit),
@@ -144,11 +139,7 @@ func main() {
 	klogImportModel := cmdKlogImport.String("model", "rf", "Specifies model which will be used (nn, rf)")
 	voteThreshold := cmdKlogImport.Float64("vote-threshold", 0, "RF Vote threshold for marking CQL as problematic. This affects only evaluation. If none, then range from 0.7 to 0.99 is examined")
 	klogImportMisclassOut := cmdKlogImport.String("misclassed-query-log", "", "Specify a path to store misclassified queries. If none, no logging is performed.")
-	klogImportForXBGoost := cmdKlogImport.Bool(
-		"for-xgboost",
-		false,
-		"if set then CQLizer will export a file for external XGBoost model learning",
-	)
+
 	cmdKlogImport.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s learn [options] config.json features_file.msgpack\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
@@ -249,7 +240,6 @@ func main() {
 			*numTrees,
 			*voteThreshold,
 			*klogImportMisclassOut,
-			*klogImportForXBGoost,
 		)
 	case actionEvaluate:
 		cmdEvaluate.Parse(os.Args[2:])
@@ -307,7 +297,7 @@ func main() {
 		conf := setup(cmdAPIServer.Arg(0))
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
-		apiserver.Run(ctx, conf)
+		apiserver.Run(ctx, conf, version)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown action, please use 'help' to get more information")
 	}

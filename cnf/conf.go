@@ -1,5 +1,5 @@
 // Copyright 2024 Tomas Machalek <tomas.machalek@gmail.com>
-// Copyright 2024 Institute of the Czech National Corpus,
+// Copyright 2024 Department of Linguistics,
 // Faculty of Arts, Charles University
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,7 +39,7 @@ type RFEnsembleConf struct {
 	ModelPath     string  `json:"modelPath"`
 	VoteThreshold float64 `json:"voteThreshold"`
 	ModelType     string  `json:"modelType"`
-	Disable       bool    `json:"disable"`
+	Disabled      bool    `json:"disabled"`
 }
 
 type Conf struct {
@@ -53,7 +53,6 @@ type Conf struct {
 	ServerWriteTimeoutSecs   int                          `json:"serverWriteTimeoutSecs"`
 	CorsAllowedOrigins       []string                     `json:"corsAllowedOrigins"`
 	TimeZone                 string                       `json:"timeZone"`
-	IndexDataPath            string                       `json:"indexDataPath"`
 	RFEnsemble               []RFEnsembleConf             `json:"rfEnsemble"`
 	CorporaProps             map[string]feats.CorpusProps `json:"corporaProps"`
 

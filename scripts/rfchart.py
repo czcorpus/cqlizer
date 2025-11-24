@@ -41,7 +41,7 @@ for idx, (y_data, col_name) in enumerate(zip(y_datasets, y_columns)):
 plt.xlabel(x_column, fontsize=12)
 plt.ylabel("Values", fontsize=12)
 plt.title(title, fontsize=14)
-plt.legend(fontsize=10, loc='lower left')
+plt.legend(fontsize=10, loc="lower left")
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig(output_file, dpi=300, bbox_inches="tight")
