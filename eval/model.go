@@ -1,3 +1,19 @@
+// Copyright 2025 Tomas Machalek <tomas.machalek@gmail.com>
+// Copyright 2025 Department of Linguistics,
+// Faculty of Arts, Charles University
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package eval
 
 import (
@@ -108,14 +124,26 @@ func (stats LearningDataStats) AsComment() string {
 // MLModel is a generalization of a Machine Learning model used to extract knowledge
 // about CQL queries.
 type MLModel interface {
+
+	// Train trains the model based on input data. In case the model
+	// supports only inference (e.g. our XGBoost), this should just prepare
+	// data to a format required by actual program performing the learning.
 	Train(ctx context.Context, data []feats.QueryEvaluation, slowQueriesTime float64, comment string) error
+
 	Predict(feats.QueryEvaluation) predict.Prediction
 	SetClassThreshold(v float64)
 	GetClassThreshold() float64
 	GetSlowQueriesThresholdTime() float64
 	SaveToFile(string) error
 	GetInfo() string
+
+	// IsInferenceOnly specifies whether the model also supports
 	IsInferenceOnly() bool
+
+	// CreateModelFileName should generate proper model filename based
+	// on the feature (i.e. input) file name. This should keep data and
+	// model names organized and easy to search through.
+	CreateModelFileName(featFile string) string
 }
 
 // ----------------------------
@@ -404,7 +432,7 @@ func (model *Predictor) Deduplicate() {
 func (model *Predictor) CreateAndTestModel(
 	ctx context.Context,
 	testData []feats.QueryEvaluation,
-	outputPath string,
+	featsFile string,
 	reporter *Reporter,
 ) error {
 	if len(model.Evaluations) == 0 {
@@ -414,6 +442,8 @@ func (model *Predictor) CreateAndTestModel(
 	log.Info().
 		Int("trainingDataSize", len(model.Evaluations)).
 		Msg("Training Random Forest")
+
+	outputPath := model.mlModel.CreateModelFileName(featsFile)
 
 	if err := model.mlModel.Train(ctx, model.Evaluations, model.binMidpoint, model.LearningDataStats.AsComment()); err != nil {
 		return fmt.Errorf("RF training failed: %w", err)

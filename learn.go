@@ -1,3 +1,19 @@
+// Copyright 2025 Tomas Machalek <tomas.machalek@gmail.com>
+// Copyright 2025 Department of Linguistics,
+// Faculty of Arts, Charles University
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -5,18 +21,18 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/rand/v2"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/eval"
 	"github.com/czcorpus/cqlizer/eval/nn"
 	"github.com/czcorpus/cqlizer/eval/rf"
 	"github.com/czcorpus/cqlizer/eval/xg"
+	"github.com/czcorpus/cqlizer/eval/ym"
 	"github.com/rs/zerolog/log"
 	"github.com/schollz/progressbar/v3"
 	"github.com/vmihailenco/msgpack/v5"
@@ -29,7 +45,6 @@ func runActionKlogImport(
 	numTrees int,
 	voteThreshold float64,
 	misclassLogPath string,
-	forXGBoost bool,
 ) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -40,8 +55,7 @@ func runActionKlogImport(
 		}
 		dataimport.ReadStatsFile(ctx, srcPath, model)
 	*/
-	srcPathExt := filepath.Ext(srcPath)
-	outFile := fmt.Sprintf("%s.%s.json", srcPath[:len(srcPath)-len(srcPathExt)], modelType)
+
 	f, err := os.Open(srcPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to open features file")
@@ -79,7 +93,7 @@ func runActionKlogImport(
 		MisclassQueriesOutPath: misclassLogPath,
 	}
 
-	if err := model.CreateAndTestModel(ctx, allEvals, outFile, reporter); err != nil {
+	if err := model.CreateAndTestModel(ctx, allEvals, srcPath, reporter); err != nil {
 		fmt.Fprintf(os.Stderr, "RF training failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -104,6 +118,8 @@ func runActionEvaluate(
 		mlModel, err = nn.LoadFromFile(modelPath)
 	case "xg":
 		mlModel, err = xg.LoadFromFile(modelPath)
+	case "ym":
+		mlModel = &ym.Model{}
 	default:
 		log.Fatal().Str("modelType", modelType).Msg("Unknown model")
 		return
@@ -155,10 +171,14 @@ func runActionEvaluate(
 		csv.WriteString(precall.CSV(v) + "\n")
 		bar.Add(1)
 	}
-	chartPath := fmt.Sprintf("./test-%d.png", rand.IntN(1000))
+	unixt := time.Now().Unix()
+	chartPath := fmt.Sprintf("./test-%d.png", unixt)
 	if err := reporter.PlotRFAccuracy(csv.String(), mlModel.GetInfo(), chartPath); err != nil {
 		log.Fatal().Err(err).Msgf("failed to generate accuracy chart")
 		return
+
+	} else {
+		log.Info().Str("file", chartPath).Msg("saved evaluation chart")
 	}
 	reporter.SaveMisclassifiedQueries()
 }

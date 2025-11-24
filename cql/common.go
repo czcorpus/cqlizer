@@ -1,5 +1,5 @@
 // Copyright 2024 Tomas Machalek <tomas.machalek@gmail.com>
-// Copyright 2024 Institute of the Czech National Corpus,
+// Copyright 2024 Department of Linguistics,
 // Faculty of Arts, Charles University
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

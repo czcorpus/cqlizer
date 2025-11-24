@@ -1,12 +1,31 @@
+// Copyright 2025 Tomas Machalek <tomas.machalek@gmail.com>
+// Copyright 2025 Department of Linguistics,
+// Faculty of Arts, Charles University
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package nn
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
+	"github.com/czcorpus/cqlizer/eval"
 	"github.com/czcorpus/cqlizer/eval/feats"
 	"github.com/czcorpus/cqlizer/eval/predict"
 	"github.com/patrikeh/go-deep"
@@ -35,6 +54,9 @@ type jsonizedModel struct {
 	ClassThreshold           float64        `json:"classThreshold"`
 }
 
+// Model is a neural-network based model for evaluating CQL queries.
+// It is rather experimental and does not perform as well as other
+// models here so it is not recommended for production use.
 type Model struct {
 	NeuralNet                *deep.Neural
 	DataRanges               []FeatureStats
@@ -44,6 +66,10 @@ type Model struct {
 
 func (m *Model) IsInferenceOnly() bool {
 	return false
+}
+
+func (m *Model) CreateModelFileName(featsFile string) string {
+	return eval.ExtractModelNameBaseFromFeatFile(featsFile) + ".model.nn.json"
 }
 
 func (m *Model) GetClassThreshold() float64 {
@@ -207,8 +233,18 @@ func LoadFromFile(filePath string) (*Model, error) {
 	}
 	defer file.Close()
 
+	var reader io.Reader = file
+	if strings.HasSuffix(filePath, ".gz") || strings.HasSuffix(filePath, ".gzip") {
+		gzReader, err := gzip.NewReader(file)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		defer gzReader.Close()
+		reader = gzReader
+	}
+
 	var model jsonizedModel
-	data, err := io.ReadAll(file)
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load Neural Network model from file %s: %w", filePath, err)
 	}

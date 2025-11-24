@@ -1,15 +1,52 @@
+// Copyright 2025 Tomas Machalek <tomas.machalek@gmail.com>
+// Copyright 2025 Department of Linguistics,
+// Faculty of Arts, Charles University
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package xg
 
 import (
+	"bufio"
+	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
+	"strings"
 
+	"github.com/czcorpus/cqlizer/eval"
 	"github.com/czcorpus/cqlizer/eval/feats"
 	"github.com/czcorpus/cqlizer/eval/predict"
 	"github.com/dmitryikh/leaves"
 	"github.com/vmihailenco/msgpack/v5"
 )
+
+type metadata struct {
+	Objective       string    `json:"objective"`
+	Metric          [2]string `json:"metric"`
+	ScalePosWeight  float64   `json:"scale_pos_weight"`
+	MaxDepth        int       `json:"max_depth"`
+	LearningRate    float64   `json:"learning_rate"`
+	NumLeaves       int       `json:"num_leaves"`
+	MinChildSamples int       `json:"min_child_samples"`
+	Subsample       float64   `json:"subsample"`
+	ColsampleBytree float64   `json:"colsample_bytree"`
+	RandomState     int       `json:"random_state"`
+	Verbose         int       `json:"verbose"`
+}
 
 type Model struct {
 	ClassThreshold           float64
@@ -17,10 +54,15 @@ type Model struct {
 	trainXData               [][]float64
 	trainYData               []int
 	xgboost                  *leaves.Ensemble
+	metadata                 metadata
 }
 
 func (m *Model) IsInferenceOnly() bool {
 	return true
+}
+
+func (m *Model) CreateModelFileName(featsFile string) string {
+	return eval.ExtractModelNameBaseFromFeatFile(featsFile) + ".feats.xg.msgpack"
 }
 
 func (m *Model) Train(ctx context.Context, data []feats.QueryEvaluation, slowQueriesTime float64, comment string) error {
@@ -100,15 +142,61 @@ func (m *Model) SaveToFile(filePath string) error {
 }
 
 func (m *Model) GetInfo() string {
-	return "XGBOOST MODEL"
+	return fmt.Sprintf(
+		"XGBoost model, metric: %s / %s, NL: %d, SPV: %.2f, LR: %.2f",
+		m.metadata.Metric[0],
+		m.metadata.Metric[1],
+		m.metadata.NumLeaves,
+		m.metadata.ScalePosWeight,
+		m.metadata.LearningRate,
+	)
+}
+
+func loadMetadata(modelPath string) (metadata, error) {
+	var mt metadata
+	var metadataFilePath string
+	ext := filepath.Ext(modelPath)
+	if ext == ".gz" || ext == ".gzip" {
+		modelPath = modelPath[:len(modelPath)-len(ext)]
+		ext = filepath.Ext(modelPath)
+	}
+	metadataFilePath = modelPath[:len(modelPath)-len(ext)] + ".metadata.json"
+	data, err := os.ReadFile(metadataFilePath)
+	if err != nil {
+		return mt, fmt.Errorf("failed to load XG model metadata: %w", err)
+	}
+	if err := json.Unmarshal(data, &mt); err != nil {
+		return mt, fmt.Errorf("failed to load XG model metadata: %w", err)
+	}
+	return mt, nil
 }
 
 func LoadFromFile(filePath string) (*Model, error) {
-	model, err := leaves.LGEnsembleFromFile(filePath, true)
+	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
-	return &Model{xgboost: model}, nil
+	defer file.Close()
+
+	var reader io.Reader = file
+	if strings.HasSuffix(filePath, ".gz") || strings.HasSuffix(filePath, ".gzip") {
+		gzReader, err := gzip.NewReader(file)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		defer gzReader.Close()
+		reader = gzReader
+	}
+
+	model, err := leaves.LGEnsembleFromReader(bufio.NewReader(reader), true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load XG model: %w", err)
+	}
+	metadata, err := loadMetadata(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load XG model: %w", err)
+	}
+	return &Model{xgboost: model, metadata: metadata}, nil
 }
 
 func NewModel() *Model {

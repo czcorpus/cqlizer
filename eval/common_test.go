@@ -14,13 +14,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package predict
+package eval
 
-type Prediction struct {
-	Votes          []float64
-	PredictedClass int
-}
+import (
+	"testing"
 
-func (p Prediction) SlowQueryVote() float64 {
-	return p.Votes[1]
+	"github.com/stretchr/testify/assert"
+)
+
+func TestExtractModelNameBaseFromFeatFile(t *testing.T) {
+	f := ExtractModelNameBaseFromFeatFile("cql_features.v7.144.nonzero.msgpack")
+	assert.Equal(t, "cql_features.v7.144", f)
 }

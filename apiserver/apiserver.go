@@ -30,6 +30,7 @@ import (
 	"github.com/czcorpus/cqlizer/eval/nn"
 	"github.com/czcorpus/cqlizer/eval/rf"
 	"github.com/czcorpus/cqlizer/eval/xg"
+	"github.com/czcorpus/cqlizer/eval/ym"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 )
@@ -40,6 +41,7 @@ type apiServer struct {
 	conf       *cnf.Conf
 	server     *http.Server
 	rfEnsemble []ensembleModel
+	version    VersionInfo
 }
 
 func (api *apiServer) Start(ctx context.Context) {
@@ -60,6 +62,8 @@ func (api *apiServer) Start(ctx context.Context) {
 	engine.GET("/cql", api.handleEvalCQL)
 	engine.GET("/simple/:corpusId", api.handleEvalSimple)
 	engine.GET("/simple", api.handleEvalSimple)
+
+	engine.GET("/version", api.handleVersion)
 
 	log.Info().Msgf("starting to listen at %s:%d", api.conf.ListenAddress, api.conf.ListenPort)
 	api.server = &http.Server{
@@ -85,15 +89,17 @@ func (api *apiServer) Stop(ctx context.Context) error {
 func Run(
 	ctx context.Context,
 	conf *cnf.Conf,
+	version VersionInfo,
 ) {
 
 	server := &apiServer{
 		conf:       conf,
 		rfEnsemble: make([]ensembleModel, 0, len(conf.RFEnsemble)),
+		version:    version,
 	}
 
 	for _, rfc := range conf.RFEnsemble {
-		if rfc.Disable {
+		if rfc.Disabled {
 			continue
 		}
 		var mlModel eval.MLModel
@@ -106,6 +112,8 @@ func Run(
 			mlModel, err = nn.LoadFromFile(rfc.ModelPath)
 		case "xg":
 			mlModel, err = xg.LoadFromFile(rfc.ModelPath)
+		case "ym":
+			mlModel = &ym.Model{}
 		default:
 			err = fmt.Errorf("unkown model type '%s' for %s", rfc.ModelType, rfc.ModelPath)
 		}

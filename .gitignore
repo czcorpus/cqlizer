@@ -3,5 +3,6 @@ conf.json
 data/
 testdata/testing.sqlite
 venv/
+_models/
 
 cql_features*
