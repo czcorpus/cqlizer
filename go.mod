@@ -3,8 +3,11 @@ module github.com/czcorpus/cqlizer
 go 1.24.0
 
 require (
+	github.com/chzyer/readline v1.5.1
 	github.com/czcorpus/cnc-gokit v0.20.0
 	github.com/dmitryikh/leaves v0.0.0-20230708180554-25d19a787328
+	github.com/fatih/color v1.7.0
+	github.com/gin-gonic/gin v1.10.0
 	github.com/malaschitz/randomForest v0.0.0-20251101172028-7c30b8b21d88
 	github.com/mna/pigeon v1.2.1
 	github.com/patrikeh/go-deep v0.0.0-20230427173908-a2775168ab3d
@@ -18,13 +21,6 @@ replace github.com/patrikeh/go-deep => /home/tomas/work/korpus/tools/go-deep
 
 require (
 	github.com/BurntSushi/toml v1.5.0 // indirect
-	github.com/gin-gonic/gin v1.10.0
-	github.com/natefinch/lumberjack v2.0.0+incompatible // indirect
-	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
-)
-
-require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.14.2 // indirect
 	github.com/bytedance/sonic/loader v0.4.0 // indirect
@@ -45,6 +41,7 @@ require (
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/natefinch/lumberjack v2.0.0+incompatible // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
@@ -64,5 +61,7 @@ require (
 	gonum.org/v1/gonum v0.16.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

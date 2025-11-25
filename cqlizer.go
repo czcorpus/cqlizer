@@ -130,13 +130,14 @@ func main() {
 	}
 
 	cmdREPL := flag.NewFlagSet(actionREPL, flag.ExitOnError)
+	replModel := cmdREPL.String("model", "rf", "Specifies model which will be used (xg, rf, nn)")
 	cmdREPL.Usage = func() {
 		cmdREPL.PrintDefaults()
 	}
 
 	cmdKlogImport := flag.NewFlagSet(actionLearn, flag.ExitOnError)
 	numTrees := cmdKlogImport.Int("num-trees", 100, "Number of trees for Random Forest (default: 100)")
-	klogImportModel := cmdKlogImport.String("model", "rf", "Specifies model which will be used (nn, rf)")
+	klogImportModel := cmdKlogImport.String("model", "rf", "Specifies model which will be used (xg, rf, nn)")
 	voteThreshold := cmdKlogImport.Float64("vote-threshold", 0, "RF Vote threshold for marking CQL as problematic. This affects only evaluation. If none, then range from 0.7 to 0.99 is examined")
 	klogImportMisclassOut := cmdKlogImport.String("misclassed-query-log", "", "Specify a path to store misclassified queries. If none, no logging is performed.")
 
@@ -147,7 +148,7 @@ func main() {
 	}
 
 	cmdEvaluate := flag.NewFlagSet(actionEvaluate, flag.ExitOnError)
-	cmdEvaluateModel := cmdEvaluate.String("model", "rf", "Specifies model which will be used (nn, rf)")
+	cmdEvaluateModel := cmdEvaluate.String("model", "rf", "Specifies model which will be used (xg, rf, nn)")
 	cmdEvaluateMisclassOut := cmdEvaluate.String("misclassed-query-log", "", "Specify a path to store misclassified queries. If none, no logging is performed.")
 	cmdEvaluate.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s evaluate [options] config.json model_file testing_data \n", os.Args[0])
@@ -227,8 +228,7 @@ func main() {
 			os.Exit(1)
 		}
 		modelPath := cmdREPL.Arg(0)
-		fmt.Println("MODEL: ", modelPath)
-		runActionREPL(modelPath)
+		runActionREPL(*replModel, modelPath)
 	case actionLearn:
 		cmdKlogImport.Parse(os.Args[2:])
 		conf := setup(cmdKlogImport.Arg(0))
@@ -251,7 +251,6 @@ func main() {
 			cmdEvaluate.Arg(2),
 			*cmdEvaluateMisclassOut,
 		)
-
 	case actionFeaturize:
 		cmdFeaturize.Parse(os.Args[2:])
 		conf := setup(cmdFeaturize.Arg(0))

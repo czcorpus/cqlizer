@@ -21,6 +21,13 @@ type Prediction struct {
 	PredictedClass int
 }
 
+func (p Prediction) FastOrSlow() string {
+	if p.PredictedClass == 0 {
+		return "fast"
+	}
+	return "slow"
+}
+
 func (p Prediction) SlowQueryVote() float64 {
 	return p.Votes[1]
 }

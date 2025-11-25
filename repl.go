@@ -17,85 +17,137 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 
+	"github.com/chzyer/readline"
+	"github.com/czcorpus/cqlizer/eval"
 	"github.com/czcorpus/cqlizer/eval/feats"
-	"github.com/czcorpus/cqlizer/eval/rf"
+	"github.com/czcorpus/cqlizer/eval/modutils"
+	"github.com/fatih/color"
+	"github.com/rs/zerolog/log"
 )
 
-func runActionREPL(rfPath string) {
-	var rfModel *rf.Model
-	var err error
-	if rfPath != "" {
-		rfModel, err = rf.LoadFromFile(rfPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading RF model: %v\n", err)
-			os.Exit(1)
-		}
-
-	} else {
-		fmt.Println("no RF model specified")
+func ensureConfigDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
 	}
+	configDir := filepath.Join(homeDir, ".config", "cqlizer")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return "", err
+	}
+	return configDir, nil
+}
+
+func runActionREPL(modelType, modelPath string) {
+	mlModel, err := eval.GetMLModel(modelType, modelPath)
+	if err != nil {
+		fmt.Printf("Error loading model: %v\n", err)
+		os.Exit(1)
+	}
+
+	titleColor := color.New(color.FgHiMagenta).SprintFunc()
+	greenColor := color.New(color.FgGreen).SprintFunc()
+	redColor := color.New(color.FgRed).SprintFunc()
 
 	// Default corpus size (can be overridden with 'set corpussize <value>')
 	corpusSize := 6400000000.0 // 6.4G tokens default
-
+	voteThreshold := 0.85
 	lang := "cs"
 
-	fmt.Println("CQL Query Cost Estimator")
+	mlModel.SetClassThreshold(voteThreshold)
+
+	fmt.Println("CQL Query Complexity Estimator")
 	fmt.Println("Commands:")
 	fmt.Println("  <CQL query>            - Estimate query execution time")
 	fmt.Println("  set corpussize <size>  - Set corpus size (e.g., 'set corpussize 121826797')")
-	fmt.Println("  set lang <lang>  - Set corpus language (e.g., 'set lang cs')")
+	fmt.Println("  set lang <lang>        - Set corpus language (e.g., 'set lang cs')")
+	fmt.Println("  set vote <value 0..1>  - set model vote threshold")
+	fmt.Println("  setup                  - view current settings")
 	fmt.Println("  exit                   - Exit REPL")
-	fmt.Printf("\nCurrent corpus size: %.0f tokens\n\n", corpusSize)
+	fmt.Printf("\nCurrent corpus size: %s tokens\n\n", modutils.FormatRoughSize(int64(corpusSize)))
 
-	scanner := bufio.NewScanner(os.Stdin)
+	var historyFile string
+	historyDir, err := ensureConfigDir()
+	if err != nil {
+		log.Error().Err(err).Msg("failed to determine user config directory - falling back to session-local history")
+
+	} else {
+		historyFile = filepath.Join(historyDir, "cql-history.txt")
+	}
+
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:      color.New(color.FgHiGreen).Sprintf("/cql> "),
+		HistoryFile: historyFile,
+	})
+	if err != nil {
+		fmt.Printf("Error initializing readline: %v\n", err)
+		os.Exit(1)
+	}
+	defer rl.Close()
+
 	for {
-		fmt.Print("> ")
-		if !scanner.Scan() {
-			break
-		}
-		input := strings.TrimSpace(scanner.Text())
-
-		if input == "" {
+		line, err := rl.Readline()
+		if err != nil {
+			if err == readline.ErrInterrupt || err == io.EOF {
+				fmt.Println("\nCQLizer out!")
+				break
+			}
+			fmt.Printf("Error reading input: %v\n", err)
 			continue
 		}
+		input := strings.TrimSpace(line)
 
 		if input == "exit" {
 			fmt.Println("Goodbye!")
 			break
 		}
 
-		// Handle 'set corpussize' command
-		if strings.HasPrefix(input, "set corpussize ") {
-			parts := strings.Fields(input)
-			if len(parts) == 3 {
-				var newSize float64
-				if _, err := fmt.Sscanf(parts[2], "%f", &newSize); err == nil {
-					corpusSize = newSize
-					fmt.Printf("✓ Corpus size set to %.0f tokens\n", corpusSize)
+		if strings.HasPrefix(input, "set ") {
+			parsedInput := strings.Fields(input)[1:]
+			switch parsedInput[0] {
+			case "corpussize":
+				if len(parsedInput) == 2 {
+					corpusSize, err = strconv.ParseFloat(parsedInput[1], 64)
+					if err != nil {
+						fmt.Println("Error: Invalid corpus size")
+					}
 
 				} else {
-					fmt.Fprintf(os.Stderr, "Error: Invalid corpus size\n")
+					fmt.Println("Usage: set corpussize <size>")
 				}
+			case "vote":
+				if len(parsedInput) == 2 {
+					voteThreshold, err = strconv.ParseFloat(parsedInput[1], 64)
+					if err != nil {
+						fmt.Println("failed to parse number")
+					}
+					mlModel.SetClassThreshold(voteThreshold)
 
-			} else {
-				fmt.Fprintf(os.Stderr, "Usage: set corpussize <size>\n")
+				} else {
+					fmt.Println("Usage: set vote <value 0..1>")
+				}
+			case "lang":
+				if len(parsedInput) == 2 {
+					lang = parsedInput[1]
+
+				} else {
+					fmt.Println("Usage: set lang <lang>")
+				}
+			default:
+				fmt.Println("Unknown 'set' command")
 			}
 			continue
 
-		} else if strings.HasPrefix(input, "set lang ") {
-			parts := strings.Fields(input)
-			if len(parts) == 3 {
-				lang = parts[2]
-
-			} else {
-				fmt.Fprintf(os.Stderr, "Usage: set lang <lang>\n")
-			}
+		} else if input == "setup" {
+			fmt.Printf("%s:\t%s\n", titleColor("Corpus size"), modutils.FormatRoughSize(int64(corpusSize)))
+			fmt.Printf("%s:\t\t%s\n", titleColor("Model"), modelPath)
+			fmt.Printf("%s:\t%.2f\n", titleColor("Vote threshold"), voteThreshold)
 			continue
 		}
 
@@ -103,31 +155,34 @@ func runActionREPL(rfPath string) {
 		charProbs := feats.GetCharProbabilityProvider(lang)
 		queryEval, err := feats.NewQueryEvaluation(input, corpusSize, 0, 0, charProbs)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing CQL: %v\n", err)
+			fmt.Printf("Error parsing CQL: %v\n", err)
 			continue
 		}
 
 		// Display results
-		fmt.Printf("\n--- Query Analysis ---\n")
-		fmt.Printf("Query:           %s\n", input)
-		fmt.Printf("Corpus size:     %.0f tokens\n", corpusSize)
-		fmt.Printf("Positions:       %d\n", len(queryEval.Positions))
+
+		fmt.Printf("%s:\n", titleColor("Pos. features"))
 		for i, pos := range queryEval.Positions {
-			fmt.Printf("  Position %d:    wildcards=%0.2f, range=%d, smallCard=%d, numConcreteChars=%.2f, posNumAlts: %d\n",
-				i, pos.Regexp.WildcardScore, pos.Regexp.HasRange, pos.HasSmallCardAttr, pos.Regexp.NumConcreteChars, pos.NumAlternatives)
+			fmt.Printf("  %s: wildcards=%0.2f, range=%d, smallCard=%d, numConcreteChars=%.2f, posNumAlts: %d\n",
+				titleColor(fmt.Sprintf("[%d]", i)),
+				pos.Regexp.WildcardScore, pos.Regexp.HasRange, pos.HasSmallCardAttr, pos.Regexp.NumConcreteChars, pos.NumAlternatives)
 		}
-		fmt.Printf("Global features: glob=%d, meet=%d, union=%d, within=%d, containing=%d\n",
+		fmt.Printf("%s: glob=%d, meet=%d, union=%d, within=%d, containing=%d\n",
+			titleColor("Global features"),
 			queryEval.NumGlobConditions, queryEval.ContainsMeet,
 			queryEval.ContainsUnion, queryEval.ContainsWithin, queryEval.ContainsContaining)
 
-		if rfModel != nil {
-			rfPRediction := rfModel.Predict(queryEval)
-			fmt.Printf("RF prediction: %d\n", rfPRediction.PredictedClass)
-			fmt.Printf("votes: %#v\n", rfPRediction.Votes)
-		}
-	}
+		if mlModel != nil {
+			rfPRediction := mlModel.Predict(queryEval)
+			var predResult string
+			if rfPRediction.PredictedClass == 1 {
+				predResult = redColor(rfPRediction.FastOrSlow() + " query")
 
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
+			} else {
+				predResult = greenColor(rfPRediction.FastOrSlow() + " query")
+			}
+			fmt.Printf("model prediction: %s\n", predResult)
+			fmt.Printf("vote 0: %.2f, vote 1: %.2f\n", rfPRediction.Votes[0], rfPRediction.Votes[1])
+		}
 	}
 }

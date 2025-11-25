@@ -19,10 +19,11 @@ package eval
 import (
 	"testing"
 
+	"github.com/czcorpus/cqlizer/eval/modutils"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestExtractModelNameBaseFromFeatFile(t *testing.T) {
-	f := ExtractModelNameBaseFromFeatFile("cql_features.v7.144.nonzero.msgpack")
+	f := modutils.ExtractModelNameBaseFromFeatFile("cql_features.v7.144.nonzero.msgpack")
 	assert.Equal(t, "cql_features.v7.144", f)
 }

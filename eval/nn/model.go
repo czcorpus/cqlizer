@@ -25,8 +25,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/czcorpus/cqlizer/eval"
 	"github.com/czcorpus/cqlizer/eval/feats"
+	"github.com/czcorpus/cqlizer/eval/modutils"
 	"github.com/czcorpus/cqlizer/eval/predict"
 	"github.com/patrikeh/go-deep"
 	"github.com/patrikeh/go-deep/training"
@@ -69,7 +69,7 @@ func (m *Model) IsInferenceOnly() bool {
 }
 
 func (m *Model) CreateModelFileName(featsFile string) string {
-	return eval.ExtractModelNameBaseFromFeatFile(featsFile) + ".model.nn.json"
+	return modutils.ExtractModelNameBaseFromFeatFile(featsFile) + ".model.nn.json"
 }
 
 func (m *Model) GetClassThreshold() float64 {
