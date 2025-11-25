@@ -27,10 +27,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/czcorpus/cqlizer/eval"
+	"github.com/czcorpus/cnc-gokit/fs"
 	"github.com/czcorpus/cqlizer/eval/feats"
+	"github.com/czcorpus/cqlizer/eval/modutils"
 	"github.com/czcorpus/cqlizer/eval/predict"
 	"github.com/dmitryikh/leaves"
+	"github.com/rs/zerolog/log"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -62,7 +64,7 @@ func (m *Model) IsInferenceOnly() bool {
 }
 
 func (m *Model) CreateModelFileName(featsFile string) string {
-	return eval.ExtractModelNameBaseFromFeatFile(featsFile) + ".feats.xg.msgpack"
+	return modutils.ExtractModelNameBaseFromFeatFile(featsFile) + ".feats.xg.msgpack"
 }
 
 func (m *Model) Train(ctx context.Context, data []feats.QueryEvaluation, slowQueriesTime float64, comment string) error {
@@ -161,6 +163,14 @@ func loadMetadata(modelPath string) (metadata, error) {
 		ext = filepath.Ext(modelPath)
 	}
 	metadataFilePath = modelPath[:len(modelPath)-len(ext)] + ".metadata.json"
+	isFile, err := fs.IsFile(metadataFilePath)
+	if err != nil {
+		return mt, fmt.Errorf("failed to load XG model metadata: %w", err)
+	}
+	if !isFile {
+		log.Warn().Msg("Cannot load XG model metadata - no file found. For inference, this doesn't matter.")
+		return mt, nil
+	}
 	data, err := os.ReadFile(metadataFilePath)
 	if err != nil {
 		return mt, fmt.Errorf("failed to load XG model metadata: %w", err)

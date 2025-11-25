@@ -22,7 +22,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/czcorpus/cqlizer/eval"
+	"github.com/czcorpus/cqlizer/eval/modutils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -47,7 +47,7 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
 		corpusOptions.WriteString(
 			fmt.Sprintf(
 				"<option value=\"%s\">%s (%s)</option>\n",
-				corpus.Name, corpus.Name, eval.FormatRoughSize(corpus.Size),
+				corpus.Name, corpus.Name, modutils.FormatRoughSize(corpus.Size),
 			),
 		)
 	}

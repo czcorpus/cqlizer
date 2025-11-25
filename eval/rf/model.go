@@ -25,8 +25,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/czcorpus/cqlizer/eval"
 	"github.com/czcorpus/cqlizer/eval/feats"
+	"github.com/czcorpus/cqlizer/eval/modutils"
 	"github.com/czcorpus/cqlizer/eval/predict"
 	randomforest "github.com/malaschitz/randomForest"
 	"github.com/rs/zerolog/log"
@@ -61,7 +61,7 @@ func (m *Model) IsInferenceOnly() bool {
 }
 
 func (m *Model) CreateModelFileName(featsFile string) string {
-	return eval.ExtractModelNameBaseFromFeatFile(featsFile) + ".model.rf.json"
+	return modutils.ExtractModelNameBaseFromFeatFile(featsFile) + ".model.rf.json"
 }
 
 func (m *Model) GetClassThreshold() float64 {

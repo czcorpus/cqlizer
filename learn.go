@@ -32,7 +32,6 @@ import (
 	"github.com/czcorpus/cqlizer/eval/nn"
 	"github.com/czcorpus/cqlizer/eval/rf"
 	"github.com/czcorpus/cqlizer/eval/xg"
-	"github.com/czcorpus/cqlizer/eval/ym"
 	"github.com/rs/zerolog/log"
 	"github.com/schollz/progressbar/v3"
 	"github.com/vmihailenco/msgpack/v5"
@@ -108,22 +107,7 @@ func runActionEvaluate(
 ) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	var mlModel eval.MLModel
-	var err error
-
-	switch modelType {
-	case "rf":
-		mlModel, err = rf.LoadFromFile(modelPath)
-	case "nn":
-		mlModel, err = nn.LoadFromFile(modelPath)
-	case "xg":
-		mlModel, err = xg.LoadFromFile(modelPath)
-	case "ym":
-		mlModel = &ym.Model{}
-	default:
-		log.Fatal().Str("modelType", modelType).Msg("Unknown model")
-		return
-	}
+	mlModel, err := eval.GetMLModel(modelType, modelPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to load the ML model")
 		return

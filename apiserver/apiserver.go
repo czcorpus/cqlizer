@@ -27,10 +27,6 @@ import (
 	"github.com/czcorpus/cnc-gokit/uniresp"
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/eval"
-	"github.com/czcorpus/cqlizer/eval/nn"
-	"github.com/czcorpus/cqlizer/eval/rf"
-	"github.com/czcorpus/cqlizer/eval/xg"
-	"github.com/czcorpus/cqlizer/eval/ym"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 )
@@ -102,21 +98,7 @@ func Run(
 		if rfc.Disabled {
 			continue
 		}
-		var mlModel eval.MLModel
-		var err error
-
-		switch rfc.ModelType {
-		case "rf":
-			mlModel, err = rf.LoadFromFile(rfc.ModelPath)
-		case "nn":
-			mlModel, err = nn.LoadFromFile(rfc.ModelPath)
-		case "xg":
-			mlModel, err = xg.LoadFromFile(rfc.ModelPath)
-		case "ym":
-			mlModel = &ym.Model{}
-		default:
-			err = fmt.Errorf("unkown model type '%s' for %s", rfc.ModelType, rfc.ModelPath)
-		}
+		mlModel, err := eval.GetMLModel(rfc.ModelType, rfc.ModelPath)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Error loading RF model")
 			return
