@@ -1,0 +1,1 @@
+{"objective": "binary", "metric": ["auc", "binary_logloss"], "scale_pos_weight": 2.000586166471278, "max_depth": 6, "learning_rate": 0.05, "num_leaves": 81, "min_child_samples": 20, "subsample": 0.8, "colsample_bytree": 0.8, "random_state": 42, "verbose": -1}
