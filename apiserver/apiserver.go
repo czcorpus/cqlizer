@@ -106,12 +106,15 @@ func Run(
 		mlModel.SetClassThreshold(rfc.VoteThreshold)
 
 		log.Info().
-			Float64("slowQueryTime", rfc.VoteThreshold).
-			Msg("loaded RF model")
+			Float64("voteThreshold", rfc.VoteThreshold).
+			Str("type", rfc.ModelType).
+			Str("file", rfc.ModelPath).
+			Msg("loaded model")
 		server.rfEnsemble = append(
 			server.rfEnsemble,
 			ensembleModel{
 				model:     mlModel,
+				srcPath:   rfc.ModelPath,
 				threshold: rfc.VoteThreshold,
 			},
 		)
