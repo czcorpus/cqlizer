@@ -19,6 +19,7 @@ package apiserver
 import (
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -60,8 +61,13 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
 	urlPrefix = strings.TrimSuffix(urlPrefix, "/")
 
 	slowQueryVoteThreshold := 0.0
-	for _, mod := range api.rfEnsemble {
+	var modelFiles strings.Builder
+	for i, mod := range api.rfEnsemble {
 		slowQueryVoteThreshold += mod.threshold
+		if i > 0 {
+			modelFiles.WriteString(", ")
+		}
+		modelFiles.WriteString(filepath.Base(mod.srcPath))
 	}
 	slowQueryVoteThreshold /= float64(len(api.rfEnsemble))
 
@@ -84,6 +90,7 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
             min-height: 100vh;
             padding: 20px;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
         }
@@ -180,7 +187,7 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
             padding: 15px;
             border-radius: 6px;
             font-family: 'Courier New', monospace;
-            font-size: 13px;
+            font-size: 11px;
             overflow-x: auto;
             max-height: 400px;
             overflow-y: auto;
@@ -325,6 +332,29 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
             font-size: 13px;
             color: #1565c0;
         }
+
+        .version-info {
+            padding: 10px 12px;
+            margin-bottom: 20px;
+            font-size: 11px;
+            color: #dedede;
+            font-family: 'Courier New', monospace;
+        }
+
+        .version-info .version-label {
+            font-weight: 600;
+            color: #bbb;
+            margin-right: 8px;
+        }
+
+        .version-info .version-item {
+            display: inline-block;
+            margin-right: 15px;
+        }
+
+        .version-info .version-item:last-child {
+            margin-right: 0;
+        }
     </style>
 </head>
 <body>
@@ -332,7 +362,8 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
         <h1>CQL Query Complexity Predictor</h1>
 
         <div class="info-text">
-            This tool predicts whether a CQL query will be slow or fast based on its complexity.
+            This tool predicts whether a CQL query will be slow or fast based on its complexity.<br>
+            <strong>Models ensemble:</strong> %s
         </div>
 
         <form id="cqlForm">
@@ -356,9 +387,14 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
         <div class="result-box" id="resultBox">
             <h2>Results</h2>
             <div id="predictionSummary"></div>
-            <div class="result-content" id="resultContent"></div>
+            <pre class="result-content" id="resultContent"></pre>
         </div>
     </div>
+
+    <footer class="version-info">
+        <span class="version-item"><strong class="version-label">Version:</strong>%s</span>
+        <span class="version-item"><strong class="version-label">Build:</strong>%s</span>
+    </footer>
 
     <script>
         const urlPrefix = '%s';
@@ -464,7 +500,13 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
         });
     </script>
 </body>
-</html>`, corpusOptions.String(), urlPrefix, slowQueryVoteThreshold)
+</html>`,
+		modelFiles.String(),
+		corpusOptions.String(),
+		api.version.Version,
+		api.version.BuildDate,
+		urlPrefix,
+		slowQueryVoteThreshold)
 
 	ctx.Header("Content-Type", "text/html; charset=utf-8")
 	ctx.String(http.StatusOK, html)

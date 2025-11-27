@@ -58,6 +58,7 @@ type vote struct {
 
 type ensembleModel struct {
 	model     eval.MLModel
+	srcPath   string
 	threshold float64
 }
 
