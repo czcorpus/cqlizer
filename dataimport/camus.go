@@ -42,6 +42,9 @@ func ReadStatsFile(ctx context.Context, filePath string, processor StatsFileProc
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
+	const maxCapacity = 1024 * 1024 // 1 MB
+	buf := make([]byte, maxCapacity)
+	scanner.Buffer(buf, maxCapacity)
 	lineNum := 0
 	numProc := 0
 	numFailed := 0
@@ -78,6 +81,10 @@ func ReadStatsFile(ctx context.Context, filePath string, processor StatsFileProc
 		} else {
 			numProc++
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("failed to read query log file: %w", err)
 	}
 
 	for _, item := range eval.ObligatoryExamples {
