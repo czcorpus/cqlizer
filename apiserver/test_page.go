@@ -372,6 +372,12 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
                 <select id="corpus" name="corpus" required>
                     %s
                 </select>
+                <div style="margin-top: 8px;">
+                    <label style="font-weight: normal; font-size: 12px; cursor: pointer;">
+                        <input type="checkbox" id="sortAlphabetically" style="margin-right: 5px; cursor: pointer;">
+                        Sort corpora alphabetically
+                    </label>
+                </div>
             </div>
 
             <div class="form-group">
@@ -405,6 +411,44 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
         const resultContent = document.getElementById('resultContent');
         const predictionSummary = document.getElementById('predictionSummary');
         const submitBtn = document.getElementById('submitBtn');
+        const corpusSelect = document.getElementById('corpus');
+        const sortCheckbox = document.getElementById('sortAlphabetically');
+
+        // Store original order of corpus options
+        const originalOptions = Array.from(corpusSelect.options).map(opt => ({
+            value: opt.value,
+            text: opt.text
+        }));
+
+        // Handle sorting checkbox
+        sortCheckbox.addEventListener('change', function() {
+            const selectedValue = corpusSelect.value;
+            let sortedOptions;
+
+            if (this.checked) {
+                // Sort alphabetically by corpus name
+                sortedOptions = [...originalOptions].sort((a, b) =>
+                    a.value.localeCompare(b.value)
+                );
+            } else {
+                // Restore original order (sorted by size)
+                sortedOptions = originalOptions;
+            }
+
+            // Clear and repopulate select
+            corpusSelect.innerHTML = '';
+            sortedOptions.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.value;
+                option.text = opt.text;
+                corpusSelect.appendChild(option);
+            });
+
+            // Restore selected value if it exists
+            if (selectedValue) {
+                corpusSelect.value = selectedValue;
+            }
+        });
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
