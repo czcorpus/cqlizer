@@ -87,6 +87,13 @@ Use `cqlizer help <command>` for detailed information about specific commands.
 Most actions need a proper JSON configuration file. You can use the sample configuration file `conf-sample.json` as a base.
 
 Note: `conf-sample.json` is configured with testing XGBoost model files located in the `testdata/` directory.
+
+### Server-Specific Model Training
+
+**Important**: The model is trained on data from a specific server which has its own load and performance characteristics. For proper deployment in production, it is necessary to train the model on data obtained from your own server to ensure accurate performance predictions.
+
+The most affected feature is corpus size, as e.g. on a less powerful machine than the one we used to train the sample model, there will likely be too many false negatives (and vice versa - a more powerful server will cause more false positives).
+
 ```
 
 ## Development

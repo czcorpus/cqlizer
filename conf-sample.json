@@ -1,0 +1,44 @@
+{
+  "listenAddress": "192.168.1.10",
+  "listenPort": 8080,
+  "logging": {
+    "level": "info"
+  },
+  "serverReadTimeoutSecs": 120,
+  "serverWriteTimeoutSecs": 60,
+  "syntheticRecordsTimeCorrection": 1.1,
+  "rfEnsemble": [
+    {
+      "modelType": "xg",
+      "modelPath": "./testdata/model.v3.19.xg.batch1.txt.gz",
+      "voteThreshold": 0.75
+    },
+    {
+      "modelType": "xg",
+      "modelPath": "./testdata/model.v3.19.xg.batch2.txt.gz",
+      "voteThreshold": 0.75
+    },
+    {
+      "modelType": "xg",
+      "modelPath": "./testdata/model.v3.19.xg.batch3.txt.gz",
+      "voteThreshold": 0.75
+    }
+  ],
+  "corporaProps": {
+    "my_corpus_4g": {
+      "size": 4000000000,
+      "lang": "en",
+      "altCorpus": "my_smaller_corpus"
+    },
+    "my_corpus_5g": {
+      "size": 5000000000,
+      "lang": "en",
+      "altCorpus": "my_smaller_corpus"
+    },
+    "my_corpus_6g": {
+      "size": 6000000000,
+      "lang": "en",
+      "altCorpus": "my_smaller_corpus"
+    }
+  }
+}
