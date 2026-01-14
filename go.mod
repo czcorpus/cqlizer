@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/chzyer/readline v1.5.1
 	github.com/czcorpus/cnc-gokit v0.20.0
+	github.com/czcorpus/rexplorer v0.0.8
 	github.com/dmitryikh/leaves v0.0.0-20230708180554-25d19a787328
 	github.com/fatih/color v1.7.0
 	github.com/gin-gonic/gin v1.10.0
@@ -12,6 +13,7 @@ require (
 	github.com/mna/pigeon v1.2.1
 	github.com/patrikeh/go-deep v0.0.0-20230427173908-a2775168ab3d
 	github.com/rs/zerolog v1.34.0
+	github.com/sashabaranov/go-openai v1.41.2
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/stretchr/testify v1.11.1
 	github.com/vmihailenco/msgpack/v5 v5.4.1

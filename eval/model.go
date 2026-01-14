@@ -90,6 +90,8 @@ type QueryStatsRecord struct {
 	// production KonText stats log or if it is generated
 	// using a benchmarking module (= MQuery).
 	IsSynthetic bool `json:"isSynthetic,omitempty"`
+
+	FlaggedAsSlow bool `json:"flaggedAsSlow,omitempty"`
 }
 
 func (rec QueryStatsRecord) GetCQL() string {
