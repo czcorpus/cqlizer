@@ -217,8 +217,8 @@ func (api *apiServer) handleLoadSystemPrompt(ctx *gin.Context) {
 }
 
 func (api *apiServer) handleLoadDefaultPrompt(ctx *gin.Context) {
-	// Load the default sysprompt.txt file
-	content, err := os.ReadFile("sysprompt.txt")
+	promptsDir := api.cqlTranslator.GetCustomSystemPromptsDir()
+	content, err := os.ReadFile(filepath.Join(promptsDir, "sysprompt.txt"))
 	if err != nil {
 		uniresp.RespondWithErrorJSON(ctx, fmt.Errorf("failed to load default prompt: %w", err), http.StatusInternalServerError)
 		return
