@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/czcorpus/cnc-gokit/logging"
+	"github.com/czcorpus/cqlizer/ai"
 	"github.com/czcorpus/cqlizer/eval/feats"
 	"github.com/rs/zerolog/log"
 )
@@ -55,6 +56,7 @@ type Conf struct {
 	TimeZone                 string                       `json:"timeZone"`
 	RFEnsemble               []RFEnsembleConf             `json:"rfEnsemble"`
 	CorporaProps             map[string]feats.CorpusProps `json:"corporaProps"`
+	AI                       ai.Conf                      `json:"ai"`
 
 	// SyntheticTimeCorrection - for stats records generated via benchmarking,
 	// it may be needed to increase the times as MQuery will probably perform a bit better

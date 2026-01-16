@@ -25,6 +25,7 @@ import (
 
 	"github.com/czcorpus/cnc-gokit/logging"
 	"github.com/czcorpus/cnc-gokit/uniresp"
+	"github.com/czcorpus/cqlizer/ai"
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/eval"
 	"github.com/gin-gonic/gin"
@@ -34,10 +35,11 @@ import (
 // -----
 
 type apiServer struct {
-	conf       *cnf.Conf
-	server     *http.Server
-	rfEnsemble []ensembleModel
-	version    VersionInfo
+	conf          *cnf.Conf
+	server        *http.Server
+	rfEnsemble    []ensembleModel
+	version       VersionInfo
+	cqlTranslator *ai.CQLTranslator
 }
 
 func (api *apiServer) Start(ctx context.Context) {
@@ -54,10 +56,18 @@ func (api *apiServer) Start(ctx context.Context) {
 	engine.NoRoute(uniresp.NotFoundHandler)
 
 	engine.GET("/test", api.handleTestPage)
+	engine.GET("/test-nl", api.handleNLTestPage)
 	engine.GET("/cql/:corpusId", api.handleEvalCQL)
 	engine.GET("/cql", api.handleEvalCQL)
 	engine.GET("/simple/:corpusId", api.handleEvalSimple)
 	engine.GET("/simple", api.handleEvalSimple)
+
+	engine.POST("/nl-to-cql", api.TranslateNLQueryToCQL)
+	engine.POST("/nl-to-cql/save-prompt", api.handleSaveSystemPrompt)
+	engine.GET("/nl-to-cql/load-prompt", api.handleLoadSystemPrompt)
+	engine.GET("/nl-to-cql/load-default-prompt", api.handleLoadDefaultPrompt)
+	engine.GET("/nl-to-cql/list-prompts", api.handleListPrompts)
+	engine.GET("/nl-to-cql/tools", api.handleGetTools)
 
 	engine.GET("/version", api.handleVersion)
 
@@ -85,13 +95,15 @@ func (api *apiServer) Stop(ctx context.Context) error {
 func Run(
 	ctx context.Context,
 	conf *cnf.Conf,
+	cqlTranslator *ai.CQLTranslator,
 	version VersionInfo,
 ) {
 
 	server := &apiServer{
-		conf:       conf,
-		rfEnsemble: make([]ensembleModel, 0, len(conf.RFEnsemble)),
-		version:    version,
+		conf:          conf,
+		rfEnsemble:    make([]ensembleModel, 0, len(conf.RFEnsemble)),
+		cqlTranslator: cqlTranslator,
+		version:       version,
 	}
 
 	for _, rfc := range conf.RFEnsemble {
