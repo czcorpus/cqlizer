@@ -172,13 +172,7 @@ func (api *apiServer) handleSaveSystemPrompt(ctx *gin.Context) {
 		filename = fmt.Sprintf("update.%s.txt", dateStamp)
 	}
 
-	// Save to prompts directory
 	promptsDir := api.cqlTranslator.GetCustomSystemPromptsDir()
-	if err := os.MkdirAll(promptsDir, 0755); err != nil {
-		uniresp.RespondWithErrorJSON(ctx, fmt.Errorf("failed to create prompts directory: %w", err), http.StatusInternalServerError)
-		return
-	}
-
 	filepath := filepath.Join(promptsDir, filename)
 	if err := os.WriteFile(filepath, []byte(req.Content), 0644); err != nil {
 		uniresp.RespondWithErrorJSON(ctx, fmt.Errorf("failed to save system prompt: %w", err), http.StatusInternalServerError)
@@ -200,8 +194,8 @@ func (api *apiServer) handleLoadSystemPrompt(ctx *gin.Context) {
 	var source string
 
 	if filename != "" {
-		// Load from specific file in prompts directory
-		filepath := filepath.Join("prompts", filename)
+		promptsDir := api.cqlTranslator.GetCustomSystemPromptsDir()
+		filepath := filepath.Join(promptsDir, filename)
 		content, err := os.ReadFile(filepath)
 		if err != nil {
 			uniresp.RespondWithErrorJSON(ctx, fmt.Errorf("failed to load prompt file: %w", err), http.StatusInternalServerError)
@@ -238,14 +232,7 @@ func (api *apiServer) handleLoadDefaultPrompt(ctx *gin.Context) {
 }
 
 func (api *apiServer) handleListPrompts(ctx *gin.Context) {
-	promptsDir := "prompts"
-
-	// Create directory if it doesn't exist
-	if err := os.MkdirAll(promptsDir, 0755); err != nil {
-		uniresp.RespondWithErrorJSON(ctx, fmt.Errorf("failed to access prompts directory: %w", err), http.StatusInternalServerError)
-		return
-	}
-
+	promptsDir := api.cqlTranslator.GetCustomSystemPromptsDir()
 	entries, err := os.ReadDir(promptsDir)
 	if err != nil {
 		uniresp.RespondWithErrorJSON(ctx, fmt.Errorf("failed to read prompts directory: %w", err), http.StatusInternalServerError)
