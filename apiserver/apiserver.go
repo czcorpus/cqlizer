@@ -28,6 +28,7 @@ import (
 	"github.com/czcorpus/cqlizer/ai"
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/eval"
+	"github.com/czcorpus/cqlizer/monitoring"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 )
@@ -40,6 +41,7 @@ type apiServer struct {
 	rfEnsemble    []ensembleModel
 	version       VersionInfo
 	cqlTranslator *ai.CQLTranslator
+	statusWriter  monitoring.StatusWriter
 }
 
 func (api *apiServer) Start(ctx context.Context) {
@@ -92,6 +94,30 @@ func (api *apiServer) Stop(ctx context.Context) error {
 
 // -------------------------
 
+func initStatusMonitoring(ctx context.Context, conf *monitoring.Conf, tz *time.Location) (statusWriter monitoring.StatusWriter) {
+	if conf != nil {
+		var err error
+		statusWriter, err = monitoring.NewTimescaleDBWriter(
+			ctx,
+			conf.DB,
+			tz,
+			func(err error) {
+				log.Error().Err(err).Msg("failed to process monitoring record")
+			},
+		)
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed to initialize status writer")
+			return
+		}
+		log.Warn().Str("host", conf.DB.Host).Msg("initialized status writer")
+
+	} else {
+		log.Warn().Msg("status writer not specified - NullStatusWriter will be used")
+		statusWriter = new(monitoring.NullStatusWriter)
+	}
+	return
+}
+
 func Run(
 	ctx context.Context,
 	conf *cnf.Conf,
@@ -99,11 +125,18 @@ func Run(
 	version VersionInfo,
 ) {
 
+	tz, err := time.LoadLocation(conf.TimeZone)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Error initializing time zone info")
+		return
+	}
+
 	server := &apiServer{
 		conf:          conf,
 		rfEnsemble:    make([]ensembleModel, 0, len(conf.RFEnsemble)),
 		cqlTranslator: cqlTranslator,
 		version:       version,
+		statusWriter:  initStatusMonitoring(ctx, conf.Monitoring, tz),
 	}
 
 	for _, rfc := range conf.RFEnsemble {

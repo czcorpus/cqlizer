@@ -28,6 +28,7 @@ import (
 	"github.com/czcorpus/cnc-gokit/unireq"
 	"github.com/czcorpus/cnc-gokit/uniresp"
 	"github.com/czcorpus/cqlizer/eval/feats"
+	"github.com/czcorpus/cqlizer/monitoring"
 	"github.com/gin-gonic/gin"
 )
 
@@ -57,10 +58,15 @@ func (api *apiServer) evaluateRawQuery(ctx *gin.Context, q string) {
 	//aligned := ctx.QueryArray("aligned")
 	var corpusInfo feats.CorpusProps
 	var ok bool
+	var voteReport monitoring.VoteReport
+
+	defer func() { api.statusWriter.Write(voteReport) }()
+
 	if corpname != "" {
 		corpusInfo, ok = api.conf.CorporaProps[corpname]
 
 		if !ok {
+			voteReport.IsError = true
 			uniresp.RespondWithErrorJSON(
 				ctx, fmt.Errorf("corpus not found"), http.StatusNotFound,
 			)
@@ -68,6 +74,7 @@ func (api *apiServer) evaluateRawQuery(ctx *gin.Context, q string) {
 		}
 
 		if ctx.Query("corpusSize") != "" {
+			voteReport.IsError = true
 			uniresp.RespondWithErrorJSON(
 				ctx, fmt.Errorf("cannot specify corpusSize for a concrete corpus"), http.StatusBadRequest,
 			)
@@ -77,6 +84,7 @@ func (api *apiServer) evaluateRawQuery(ctx *gin.Context, q string) {
 	} else {
 		corpusInfo.Size, ok = unireq.GetURLIntArgOrFail(ctx, "corpusSize", 1000000000)
 		if !ok {
+			voteReport.IsError = true
 			return
 		}
 		corpusInfo.Lang = ctx.Query("lang")
@@ -84,10 +92,11 @@ func (api *apiServer) evaluateRawQuery(ctx *gin.Context, q string) {
 	charProb := feats.GetCharProbabilityProvider(corpusInfo.Lang)
 	queryEval, err := feats.NewQueryEvaluation(q, float64(corpusInfo.Size), 0, 3, charProb)
 	if err != nil {
+		voteReport.IsError = true
 		uniresp.RespondWithErrorJSON(ctx, err, http.StatusInternalServerError)
 		return
 	}
-	predictions := make([]vote, 0, len(api.rfEnsemble))
+	predictions := make(voteList, 0, len(api.rfEnsemble))
 	for _, md := range api.rfEnsemble {
 		pr := md.Predict(queryEval)
 		predictions = append(
@@ -111,6 +120,13 @@ func (api *apiServer) evaluateRawQuery(ctx *gin.Context, q string) {
 	}
 
 	uniresp.WriteJSONResponse(ctx.Writer, resp)
+
+	vf, va := predictions.forAndAgainst()
+	avgCrt := predictions.avgCertainty()
+	voteReport.VotesFor = vf
+	voteReport.VotesAgainst = va
+	voteReport.AvgCertainty = avgCrt
+	voteReport.Corpus = corpname
 }
 
 type nlToCQLRequest struct {
