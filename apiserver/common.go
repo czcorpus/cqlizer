@@ -49,9 +49,34 @@ type evaluation struct {
 	AltCorpus   string `json:"altCorpus,omitempty"`
 }
 
+// ------
+
 type vote struct {
 	Votes  []float64 `json:"votes"`
 	Result int       `json:"result"`
+}
+
+// -------
+
+type voteList []vote
+
+func (vl voteList) forAndAgainst() (f int, a int) {
+	for _, v := range vl {
+		if v.Result > 0 {
+			f++
+
+		} else {
+			a++
+		}
+	}
+	return
+}
+
+func (vl voteList) avgCertainty() (ct float64) {
+	for _, v := range vl {
+		ct += v.Votes[0]
+	}
+	return ct / float64(len(vl))
 }
 
 // ------
