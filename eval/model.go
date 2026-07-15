@@ -91,6 +91,8 @@ type QueryStatsRecord struct {
 	// using a benchmarking module (= MQuery).
 	IsSynthetic bool `json:"isSynthetic,omitempty"`
 
+	// FlaggedAsSlow is obtained from KonText stored queries
+	// and it is CQLizer who writes
 	FlaggedAsSlow bool `json:"flaggedAsSlow,omitempty"`
 }
 

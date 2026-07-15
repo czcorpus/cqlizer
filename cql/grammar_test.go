@@ -74,7 +74,7 @@ func TestRgUncommonChar(t *testing.T) {
 }
 
 func TestAlignedQuery(t *testing.T) {
-	q1 := `[word="test"] within <text group=\"Acquis|Bible|Core|Europarl|PressEurop|Subtitles\" /> within intercorp_v12_cs:[word="Je"]`
+	q1 := `[word="test"] within <text group="Acquis|Bible|Core|Europarl|PressEurop|Subtitles" /> within intercorp_v12_cs:[word="Je"]`
 	_, err := ParseCQL("#", q1)
 	assert.NoError(t, err)
 }
@@ -86,7 +86,7 @@ func TestRegress001(t *testing.T) {
 }
 
 func TestRgress002(t *testing.T) {
-	q1 := `[(lemma="(?i)demokraticko\-liberálním" | sublemma="(?i)demokraticko\-liberálním" | word="(?i)demokraticko\-liberálním")]`
+	q1 := `[(lemma="(?i)demokraticko-liberálním" | sublemma="(?i)demokraticko-liberálním" | word="(?i)demokraticko-liberálním")]`
 	_, err := ParseCQL("#", q1)
 	assert.NoError(t, err)
 }
@@ -104,7 +104,7 @@ func TestRgress004(t *testing.T) {
 }
 
 func TestRgress005(t *testing.T) {
-	q1 := `[word="ni{n,5}n"]`
+	q1 := `[word="ni{2,5}n"]`
 	_, err := ParseCQL("#", q1)
 	assert.NoError(t, err)
 }

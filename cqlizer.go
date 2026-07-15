@@ -33,6 +33,8 @@ import (
 	"github.com/czcorpus/cqlizer/ai"
 	"github.com/czcorpus/cqlizer/apiserver"
 	"github.com/czcorpus/cqlizer/cnf"
+	"github.com/czcorpus/cqlizer/mcp"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -53,6 +55,15 @@ const (
 	exitErrorFailedToOpenIdex
 	exitErrorFailedToOpenQueryPersistence
 	exitErrorFailedToOpenW2VModel
+
+	defaultRegistryPath  = "/var/opt/manatee/registry"
+	defaultListenAddress = "localhost:8080"
+
+	// logPathStderr is a LOG_PATH sentinel value requesting logging
+	// to stderr instead of the default log file. An unset/empty
+	// LOG_PATH means "use the default log file path", so we need a
+	// distinct value to explicitly request stderr.
+	logPathStderr = "stderr"
 )
 
 var (
@@ -97,8 +108,58 @@ func cleanVersionInfo(v string) string {
 	return strings.TrimLeft(strings.Trim(v, "'"), "v")
 }
 
-func runActionMCPServer() {
+func runActionMCPServer(version apiserver.VersionInfo) {
+	logPath := os.Getenv("LOG_PATH")
+	switch logPath {
+	case logPathStderr:
+		logPath = ""
 
+	case "":
+		stateHome := os.Getenv("XDG_STATE_HOME")
+		if stateHome == "" {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "failed to determine default log path: %s\n", err)
+				os.Exit(exitErrorGeneralFailure)
+			}
+			stateHome = filepath.Join(homeDir, ".local", "state")
+		}
+		logPath = filepath.Join(stateHome, "cqlizer", "cqlizer.log")
+	}
+
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "info"
+	}
+
+	logging.SetupLogging(logging.LoggingConf{
+		Path:  logPath,
+		Level: logging.LogLevel(logLevel),
+	})
+
+	registryPath := os.Getenv("REGISTRY_PATH")
+	if registryPath == "" {
+		log.Warn().Str("default", defaultRegistryPath).Msg("no REGISTRY_PATH set, using default")
+		registryPath = defaultRegistryPath
+	}
+
+	mode := mcp.MCPMode(os.Getenv("MODE"))
+	if mode == "" {
+		mode = mcp.ModeStdio
+	}
+	if err := mode.Validate(); err != nil {
+		log.Fatal().Err(err).Msg("failed to start")
+		return
+	}
+
+	listenAddress := os.Getenv("LISTEN_ADDRESS")
+	if listenAddress == "" && mode == mcp.ModeHttp {
+		log.Warn().Str("default", defaultRegistryPath).Msg("no REGISTRY_PATH set, using default")
+		listenAddress = defaultListenAddress
+	}
+
+	corpusInfo := ai.NewCorpInfoProvider(registryPath)
+	mcp.Init(mode, listenAddress, version, corpusInfo)
 }
 
 func runActionVersion(ver apiserver.VersionInfo) {
@@ -224,7 +285,7 @@ func main() {
 		runActionVersion(version)
 	case actionMCPServer:
 		cmdMCP.Parse(os.Args[2:])
-		runActionMCPServer()
+		runActionMCPServer(version)
 	case actionREPL:
 		cmdREPL.Parse(os.Args[2:])
 		if cmdREPL.NArg() < 1 {
