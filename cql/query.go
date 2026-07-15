@@ -44,7 +44,7 @@ func (qp QueryProp) IsStructAttr() bool {
 func (qp QueryProp) IsPosattr() bool {
 	// we do not test qp.Name here as the query can
 	// be also just a regexp expecting a default attribute
-	return qp.Structure == "" && qp.Value != ""
+	return qp.Structure == "" && qp.Name != "" && qp.Value != ""
 }
 
 // Query represents root node of a CQL syntax tree.
