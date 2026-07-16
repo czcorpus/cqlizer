@@ -33,6 +33,7 @@ import (
 	"github.com/czcorpus/cqlizer/ai"
 	"github.com/czcorpus/cqlizer/apiserver"
 	"github.com/czcorpus/cqlizer/cnf"
+	"github.com/czcorpus/cqlizer/eval"
 	"github.com/czcorpus/cqlizer/mcp"
 	"github.com/rs/zerolog/log"
 )
@@ -158,8 +159,40 @@ func runActionMCPServer(version apiserver.VersionInfo) {
 		listenAddress = defaultListenAddress
 	}
 
+	cqlEvalModelConfPath := os.Getenv("CQLIZER_CONF_PATH")
+	var conf *cnf.Conf
+	if cqlEvalModelConfPath != "" {
+		conf = cnf.LoadConfig(cqlEvalModelConfPath)
+	}
+	rfEnsemble := make([]apiserver.EnsembleModel, 0, 5)
+	for _, rfc := range conf.RFEnsemble {
+		if rfc.Disabled {
+			continue
+		}
+		mlModel, err := eval.GetMLModel(rfc.ModelType, rfc.ModelPath)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Error loading RF model")
+			return
+		}
+		mlModel.SetClassThreshold(rfc.VoteThreshold)
+
+		log.Info().
+			Float64("voteThreshold", rfc.VoteThreshold).
+			Str("type", rfc.ModelType).
+			Str("file", rfc.ModelPath).
+			Msg("loaded model")
+		rfEnsemble = append(
+			rfEnsemble,
+			apiserver.EnsembleModel{
+				Model:     mlModel,
+				SrcPath:   rfc.ModelPath,
+				Threshold: rfc.VoteThreshold,
+			},
+		)
+	}
+
 	corpusInfo := ai.NewCorpInfoProvider(registryPath)
-	mcp.Init(mode, listenAddress, version, corpusInfo)
+	mcp.Init(mode, listenAddress, version, corpusInfo, rfEnsemble, conf)
 }
 
 func runActionVersion(ver apiserver.VersionInfo) {

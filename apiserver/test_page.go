@@ -63,11 +63,11 @@ func (api *apiServer) handleTestPage(ctx *gin.Context) {
 	slowQueryVoteThreshold := 0.0
 	var modelFiles strings.Builder
 	for i, mod := range api.rfEnsemble {
-		slowQueryVoteThreshold += mod.threshold
+		slowQueryVoteThreshold += mod.Threshold
 		if i > 0 {
 			modelFiles.WriteString(", ")
 		}
-		modelFiles.WriteString(filepath.Base(mod.srcPath))
+		modelFiles.WriteString(filepath.Base(mod.SrcPath))
 	}
 	slowQueryVoteThreshold /= float64(len(api.rfEnsemble))
 

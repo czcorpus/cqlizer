@@ -38,7 +38,7 @@ import (
 type apiServer struct {
 	conf          *cnf.Conf
 	server        *http.Server
-	rfEnsemble    []ensembleModel
+	rfEnsemble    []EnsembleModel
 	version       VersionInfo
 	cqlTranslator *ai.CQLTranslator
 	statusWriter  monitoring.StatusWriter
@@ -133,7 +133,7 @@ func Run(
 
 	server := &apiServer{
 		conf:          conf,
-		rfEnsemble:    make([]ensembleModel, 0, len(conf.RFEnsemble)),
+		rfEnsemble:    make([]EnsembleModel, 0, len(conf.RFEnsemble)),
 		cqlTranslator: cqlTranslator,
 		version:       version,
 		statusWriter:  initStatusMonitoring(ctx, conf.Monitoring, tz),
@@ -157,10 +157,10 @@ func Run(
 			Msg("loaded model")
 		server.rfEnsemble = append(
 			server.rfEnsemble,
-			ensembleModel{
-				model:     mlModel,
-				srcPath:   rfc.ModelPath,
-				threshold: rfc.VoteThreshold,
+			EnsembleModel{
+				Model:     mlModel,
+				SrcPath:   rfc.ModelPath,
+				Threshold: rfc.VoteThreshold,
 			},
 		)
 	}
