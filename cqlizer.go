@@ -192,7 +192,15 @@ func runActionMCPServer(version apiserver.VersionInfo) {
 	}
 
 	corpusInfo := ai.NewCorpInfoProvider(registryPath)
-	mcp.Init(mode, listenAddress, version, corpusInfo, rfEnsemble, conf)
+	mcp.Init(
+		mode,
+		listenAddress,
+		version,
+		corpusInfo,
+		rfEnsemble,
+		os.Getenv("CORPUS_STRUCTURE_TOOL_ENABLED") == "1",
+		conf,
+	)
 }
 
 func runActionVersion(ver apiserver.VersionInfo) {
