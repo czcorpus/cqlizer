@@ -96,12 +96,12 @@ func (api *apiServer) evaluateRawQuery(ctx *gin.Context, q string) {
 		uniresp.RespondWithErrorJSON(ctx, err, http.StatusInternalServerError)
 		return
 	}
-	predictions := make(voteList, 0, len(api.rfEnsemble))
+	predictions := make(VoteList, 0, len(api.rfEnsemble))
 	for _, md := range api.rfEnsemble {
 		pr := md.Predict(queryEval)
 		predictions = append(
 			predictions,
-			vote{
+			Vote{
 				Votes:  pr.Votes,
 				Result: pr.PredictedClass,
 			},

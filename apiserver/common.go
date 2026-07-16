@@ -44,23 +44,23 @@ type service interface {
 
 type evaluation struct {
 	CorpusSize  int    `json:"corpusSize"`
-	Votes       []vote `json:"votes"`
+	Votes       []Vote `json:"votes"`
 	IsSlowQuery bool   `json:"isSlowQuery"`
 	AltCorpus   string `json:"altCorpus,omitempty"`
 }
 
 // ------
 
-type vote struct {
+type Vote struct {
 	Votes  []float64 `json:"votes"`
 	Result int       `json:"result"`
 }
 
 // -------
 
-type voteList []vote
+type VoteList []Vote
 
-func (vl voteList) forAndAgainst() (f int, a int) {
+func (vl VoteList) forAndAgainst() (f int, a int) {
 	for _, v := range vl {
 		if v.Result > 0 {
 			f++
@@ -72,7 +72,7 @@ func (vl voteList) forAndAgainst() (f int, a int) {
 	return
 }
 
-func (vl voteList) avgCertainty() (ct float64) {
+func (vl VoteList) avgCertainty() (ct float64) {
 	for _, v := range vl {
 		ct += v.Votes[0]
 	}
@@ -81,14 +81,14 @@ func (vl voteList) avgCertainty() (ct float64) {
 
 // ------
 
-type ensembleModel struct {
-	model     eval.MLModel
-	srcPath   string
-	threshold float64
+type EnsembleModel struct {
+	Model     eval.MLModel
+	SrcPath   string
+	Threshold float64
 }
 
-func (md ensembleModel) Predict(queryEval feats.QueryEvaluation) predict.Prediction {
-	return md.model.Predict(queryEval)
+func (md EnsembleModel) Predict(queryEval feats.QueryEvaluation) predict.Prediction {
+	return md.Model.Predict(queryEval)
 }
 
 // -----
