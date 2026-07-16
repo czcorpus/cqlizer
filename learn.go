@@ -29,7 +29,6 @@ import (
 
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/eval"
-	"github.com/czcorpus/cqlizer/eval/nn"
 	"github.com/czcorpus/cqlizer/eval/rf"
 	"github.com/czcorpus/cqlizer/eval/xg"
 	"github.com/rs/zerolog/log"
@@ -71,8 +70,6 @@ func runActionKlogImport(
 	switch modelType {
 	case "rf":
 		mlModel = rf.NewModel(numTrees, voteThreshold)
-	case "nn":
-		mlModel = nn.NewModel()
 	case "xg":
 		mlModel = xg.NewModel()
 	default:

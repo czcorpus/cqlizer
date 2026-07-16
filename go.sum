@@ -66,8 +66,8 @@ github.com/czcorpus/cnc-gokit v0.25.0 h1:xPKKfVnv88qgCasnlOl07Qq6lCv1IrcuFc9SzKJ
 github.com/czcorpus/cnc-gokit v0.25.0/go.mod h1:KUSUUUxiZiLhDWJPIaXLMG7yS1Jyf5BFKtErSZR6xD8=
 github.com/czcorpus/hltscl v0.2.0 h1:Rz4zNKGKHS/RchgXWnEobXTnvkHb+Cz63/JneBHroMo=
 github.com/czcorpus/hltscl v0.2.0/go.mod h1:qoi+22q0mRV5UPHNkda2PoTwZ2gaOKlt2U/7eCCzYoY=
-github.com/czcorpus/rexplorer v0.1.2 h1:E4iq7uE+9aFXTxOyM9NV9jw7gs4ks70giYlrQKg3/40=
-github.com/czcorpus/rexplorer v0.1.2/go.mod h1:AffZffXaQb9tU078uMaHXQ+7dP1gsGD32nHP1XpqWWI=
+github.com/czcorpus/rexplorer v0.1.3 h1:ZTfwkDIprNanJl8YbYFJXM6sjbXUEZ+E6ckh3Iy0Ibg=
+github.com/czcorpus/rexplorer v0.1.3/go.mod h1:AffZffXaQb9tU078uMaHXQ+7dP1gsGD32nHP1XpqWWI=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -372,7 +372,6 @@ github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
 github.com/stretchr/objx v0.5.0/go.mod h1:Yh+to48EsGEfYuaHDzXPcE3xhTkx73EhmCGUpEOglKo=
 github.com/stretchr/objx v0.5.2/go.mod h1:FRsXN1f5AsAjCGJKqEizvkpNtU+EGNCLh3NxZ/8L+MA=
-github.com/stretchr/testify v1.1.4/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=

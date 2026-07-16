@@ -95,6 +95,7 @@ func Init(
 	version apiserver.VersionInfo,
 	corpInfoProv *ai.CorpInfoProvider,
 	rfEnsemble []apiserver.EnsembleModel,
+	corpusStructToolEnabled bool,
 	conf *cnf.Conf,
 ) {
 
@@ -136,59 +137,61 @@ func Init(
 		},
 	)
 
-	srv.AddTool(
-		mcp.NewTool("get_corpus_structure",
-			mcp.WithDescription("Get all attributes and structures of a specified corpus"),
-			mcp.WithString("corpus_id", mcp.Required(), mcp.Description("An ID of a corpus to apply CQL to")),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			corpusID := request.GetString("corpus_id", "")
-			registry, err := corpInfoProv.GetRegistry(corpusID)
-			if err != nil {
-				return mcp.NewToolResultErrorFromErr("failed to find corpus", err), nil
-			}
-
-			ans := corpusInfo{
-				Name:                 string(registry.GetProperty("NAME").Value()),
-				Info:                 string(registry.GetProperty("INFO").Value()),
-				TagsetDoc:            string(registry.GetProperty("TAGSETDOC").Value()),
-				PositionalAttributes: make([]attr, 0, 20),
-				Structures:           make([]structure, 0, 20),
-			}
-			if ans.Name == "" {
-				ans.Name = "??"
-			}
-			for _, pa := range registry.PosAttrs {
-				ans.PositionalAttributes = append(
-					ans.PositionalAttributes,
-					attr{
-						Name:    pa.Name,
-						Label:   string(pa.Entries.Get("LABEL").Value()),
-						AttrDoc: string(pa.Entries.Get("ATTRDOC").Value()),
-					},
-				)
-			}
-			for _, s := range registry.Structures {
-				strct := structure{
-					Name:       s.Name,
-					Attributes: make([]attr, 0, 10),
+	if corpusStructToolEnabled {
+		srv.AddTool(
+			mcp.NewTool("get_corpus_structure",
+				mcp.WithDescription("Get all attributes and structures of a specified corpus"),
+				mcp.WithString("corpus_id", mcp.Required(), mcp.Description("An ID of a corpus to apply CQL to")),
+			),
+			func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				corpusID := request.GetString("corpus_id", "")
+				registry, err := corpInfoProv.GetRegistry(corpusID)
+				if err != nil {
+					return mcp.NewToolResultErrorFromErr("failed to find corpus", err), nil
 				}
-				for _, sa := range s.Attrs {
-					strct.Attributes = append(
-						strct.Attributes,
+
+				ans := corpusInfo{
+					Name:                 string(registry.GetProperty("NAME").Value()),
+					Info:                 string(registry.GetProperty("INFO").Value()),
+					TagsetDoc:            string(registry.GetProperty("TAGSETDOC").Value()),
+					PositionalAttributes: make([]attr, 0, 20),
+					Structures:           make([]structure, 0, 20),
+				}
+				if ans.Name == "" {
+					ans.Name = "??"
+				}
+				for _, pa := range registry.PosAttrs {
+					ans.PositionalAttributes = append(
+						ans.PositionalAttributes,
 						attr{
-							Name:    sa.Name,
-							Label:   string(sa.GetProperty("LABEL")),
-							AttrDoc: string(sa.GetProperty("ATTRDOC")),
+							Name:    pa.Name,
+							Label:   string(pa.Entries.Get("LABEL").Value()),
+							AttrDoc: string(pa.Entries.Get("ATTRDOC").Value()),
 						},
 					)
 				}
-				ans.Structures = append(ans.Structures, strct)
-			}
+				for _, s := range registry.Structures {
+					strct := structure{
+						Name:       s.Name,
+						Attributes: make([]attr, 0, 10),
+					}
+					for _, sa := range s.Attrs {
+						strct.Attributes = append(
+							strct.Attributes,
+							attr{
+								Name:    sa.Name,
+								Label:   string(sa.GetProperty("LABEL")),
+								AttrDoc: string(sa.GetProperty("ATTRDOC")),
+							},
+						)
+					}
+					ans.Structures = append(ans.Structures, strct)
+				}
 
-			return mcp.NewToolResultText(ans.AsMarkdown()), nil
-		},
-	)
+				return mcp.NewToolResultText(ans.AsMarkdown()), nil
+			},
+		)
+	}
 
 	if len(rfEnsemble) > 0 {
 		srv.AddTool(

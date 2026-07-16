@@ -6,22 +6,19 @@ require (
 	github.com/chzyer/readline v1.5.1
 	github.com/czcorpus/cnc-gokit v0.25.0
 	github.com/czcorpus/hltscl v0.2.0
-	github.com/czcorpus/rexplorer v0.1.2
+	github.com/czcorpus/rexplorer v0.1.3
 	github.com/dmitryikh/leaves v0.0.0-20230708180554-25d19a787328
 	github.com/fatih/color v1.7.0
 	github.com/gin-gonic/gin v1.11.0
 	github.com/malaschitz/randomForest v0.0.0-20251101172028-7c30b8b21d88
 	github.com/mark3labs/mcp-go v0.56.0
 	github.com/mna/pigeon v1.3.0
-	github.com/patrikeh/go-deep v0.0.0-20230427173908-a2775168ab3d
 	github.com/rs/zerolog v1.34.0
 	github.com/sashabaranov/go-openai v1.41.2
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/stretchr/testify v1.11.1
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 )
-
-replace github.com/patrikeh/go-deep => /home/tomas/work/korpus/tools/go-deep
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
