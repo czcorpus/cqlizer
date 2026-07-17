@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/czcorpus/cqlizer/cql"
 )
 
-func GetQueriesFileFingerprints(queriesFilePath string) {
+func GetQueriesFileFingerprints(queriesFilePath string, groupItems bool) {
 	// the entry looks like this [a-z]+,<QUERY>
 	// so there is a prefix we must remove
 	f, err := os.Open(queriesFilePath)
@@ -22,17 +23,28 @@ func GetQueriesFileFingerprints(queriesFilePath string) {
 	defer f.Close()
 
 	reader := bufio.NewReader(f)
+	grouped := make(map[string]string)
 	for {
 		line, err := reader.ReadString('\n')
 		line = strings.TrimRight(line, "\r\n")
 		if line != "" {
 			query := line
-			if idx := strings.Index(line, ","); idx >= 0 {
+			if strings.HasPrefix(line, "q") {
+				query = line[1:]
+
+			} else if idx := strings.Index(line, ","); idx >= 0 {
 				query = line[idx+1:]
 			}
 			fingerPrint, fpErr := GetQueryTypeFingerprint(query)
 			if fpErr != nil {
 				fmt.Fprintf(os.Stderr, "failed to get fingerprint for query %q: %s\n", query, fpErr)
+
+			} else if groupItems {
+				curr, ok := grouped[fingerPrint]
+				if !ok || len(query) < len(curr) {
+					grouped[fingerPrint] = query
+				}
+
 			} else {
 				fmt.Printf("%s\t%s\n", query, fingerPrint)
 			}
@@ -43,6 +55,20 @@ func GetQueriesFileFingerprints(queriesFilePath string) {
 				os.Exit(1)
 			}
 			break
+		}
+	}
+	if groupItems {
+		tmp := make([]string, len(grouped))
+		i := 0
+		for _, v := range grouped {
+			tmp[i] = v
+			i++
+		}
+		slices.SortFunc(tmp, func(s1, s2 string) int {
+			return len(s1) - len(s2)
+		})
+		for _, v := range tmp {
+			fmt.Println(v)
 		}
 	}
 }

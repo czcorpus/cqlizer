@@ -300,6 +300,7 @@ func main() {
 
 	cmdQueryType := flag.NewFlagSet(actionQueryTypeKey, flag.ExitOnError)
 	qtypeProcFile := cmdQueryType.Bool("proc-file", false, "if set then the whole file of queries is processed.")
+	qtypeGroupItems := cmdQueryType.Bool("group-items", false, "if set then only unique fingerprint items will be produced with reasonably short examples")
 	cmdQueryType.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s query-type-key [options]\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
@@ -430,7 +431,7 @@ func main() {
 	case actionQueryTypeKey:
 		cmdQueryType.Parse(os.Args[2:])
 		if *qtypeProcFile {
-			GetQueriesFileFingerprints(cmdQueryType.Arg(0))
+			GetQueriesFileFingerprints(cmdQueryType.Arg(0), *qtypeGroupItems)
 		} else {
 			k, err := GetQueryTypeFingerprint(cmdQueryType.Arg(0))
 			if err != nil {
