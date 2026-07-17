@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -19,26 +21,29 @@ func GetQueriesFileFingerprints(queriesFilePath string) {
 	}
 	defer f.Close()
 
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			continue
+	reader := bufio.NewReader(f)
+	for {
+		line, err := reader.ReadString('\n')
+		line = strings.TrimRight(line, "\r\n")
+		if line != "" {
+			query := line
+			if idx := strings.Index(line, ","); idx >= 0 {
+				query = line[idx+1:]
+			}
+			fingerPrint, fpErr := GetQueryTypeFingerprint(query)
+			if fpErr != nil {
+				fmt.Fprintf(os.Stderr, "failed to get fingerprint for query %q: %s\n", query, fpErr)
+			} else {
+				fmt.Printf("%s\t%s\n", query, fingerPrint)
+			}
 		}
-		query := line
-		if idx := strings.Index(line, ","); idx >= 0 {
-			query = line[idx+1:]
-		}
-		fingerPrint, err := GetQueryTypeFingerprint(query)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to get fingerprint for query %q: %s\n", query, err)
-			continue
+			if !errors.Is(err, io.EOF) {
+				fmt.Fprintf(os.Stderr, "failed to read queries file: %s\n", err)
+				os.Exit(1)
+			}
+			break
 		}
-		fmt.Printf("%s\t%s\n", query, fingerPrint)
-	}
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to read queries file: %s\n", err)
-		os.Exit(1)
 	}
 }
 
