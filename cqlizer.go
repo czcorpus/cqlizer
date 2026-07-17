@@ -49,6 +49,7 @@ const (
 	actionBenchmarkMissing = "benchmark-missing"
 	actionRemoveZero       = "remove-zero"
 	actionAPIServer        = "server"
+	actionQueryTypeKey     = "query-type-key"
 
 	exitErrorGeneralFailure = iota
 	exitErrorImportFailed
@@ -297,6 +298,14 @@ func main() {
 		cmdAPIServer.PrintDefaults()
 	}
 
+	cmdQueryType := flag.NewFlagSet(actionQueryTypeKey, flag.ExitOnError)
+	qtypeProcFile := cmdQueryType.Bool("proc-file", false, "if set then the whole file of queries is processed.")
+	cmdQueryType.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s query-type-key [options]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmdQueryType.PrintDefaults()
+	}
+
 	action := actionHelp
 	if len(os.Args) > 1 {
 		action = os.Args[1]
@@ -418,6 +427,18 @@ func main() {
 			corpusInfo,
 		)
 		apiserver.Run(ctx, conf, cqlTranslat, version)
+	case actionQueryTypeKey:
+		cmdQueryType.Parse(os.Args[2:])
+		if *qtypeProcFile {
+			GetQueriesFileFingerprints(cmdQueryType.Arg(0))
+		} else {
+			k, err := GetQueryTypeFingerprint(cmdQueryType.Arg(0))
+			if err != nil {
+				fmt.Printf("failed to evaluate query: %s\n", err)
+				os.Exit(1)
+			}
+			fmt.Println(k)
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown action, please use 'help' to get more information")
 	}
