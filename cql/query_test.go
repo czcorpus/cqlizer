@@ -79,3 +79,18 @@ func TestRegexpOnlyQuery(t *testing.T) {
 		attrs,
 	)
 }
+
+func TestNormalizedQuery(t *testing.T) {
+	q, err := ParseCQL("test1", `[word = "foo" & (tag = "N.*"   | tag="X.*") ]    [word="bar"   ]   within <s   attr="x"  />`)
+	assert.NoError(t, err)
+	assert.Equal(t, `[word="foo" & (tag="N.*" | tag="X.*")] [word="bar"] within <s attr="x" />`, q.CQL())
+
+	q, err = ParseCQL("test2", `(   union (  meet [   tag="N.*"  ] [tag  = "VB.*"]    -3    3  )   (    meet   [tag  ="A.*"] [tag="VB.*"]  -2    2))`)
+	assert.NoError(t, err)
+	assert.Equal(t, `(union (meet [tag="N.*"] [tag="VB.*"] -3 3) (meet [tag="A.*"] [tag="VB.*"] -2 2))`, q.CQL())
+
+	// parallel corpus query
+	q, err = ParseCQL("test3", `[word ="car"]    within     europarl5_de:   [word="Auto"]`)
+	assert.NoError(t, err)
+	assert.Equal(t, `[word="car"] within europarl5_de: [word="Auto"]`, q.CQL())
+}

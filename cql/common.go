@@ -23,16 +23,32 @@ import (
 
 type ASTString string
 
-func (s ASTString) Text() string {
-	return string(s)
-}
-
+// Text renders the node as literal CQL source. For ASTString (a bare
+// token - a keyword, operator, attribute name, number, ...) the text
+// content already *is* valid CQL, so it's returned unchanged.
 func (s ASTString) String() string {
 	return string(s)
 }
 
+func (s ASTString) CQL() string {
+	return string(s)
+}
+
+// ASTNode is implemented by every node of the CQL AST.
+//
+// String returns a debugging representation - for some node types this
+// is the raw matched source, for others (ones with several grammar
+// variants) it's a placeholder such as "#AttVal[...]"; it is not meant
+// to be parseable.
+//
+// CQL renders the node as valid, literal CQL source, rebuilt from the
+// node's own (possibly normalized) fields rather than echoed from the
+// original input. Requiring it here - rather than adding it ad hoc -
+// means a new AST type fails to compile until it defines both methods,
+// so it can't quietly end up without a way to regenerate CQL.
 type ASTNode interface {
-	Text() string
+	String() string
+	CQL() string
 }
 
 func fromIdxOfUntypedSlice[T any](arr any, idx int) T {

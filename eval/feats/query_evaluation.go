@@ -152,7 +152,7 @@ func extractPositionFeatures(pos *cql.OnePosition, charProbs charProbabilityProv
 
 		case *cql.RawString:
 			// Simple string - count characters
-			text := typedNode.Text()
+			text := typedNode.String()
 			if len(text) > 2 {
 				text = strings.Trim(text, `"`)
 				outPos.Regexp.NumConcreteChars = float64(len(text) - 2) // -2 for quotes
@@ -213,7 +213,7 @@ func analyzeRegExp(re *cql.RegExp, regexp *Regexp, charProbs charProbabilityProv
 			case *cql.RgChar:
 				if typedNode.IsConstant() {
 					concreteChars++
-					avgCharProb += textToProbs(typedNode.Text(), charProbs)
+					avgCharProb += textToProbs(typedNode.String(), charProbs)
 				}
 			}
 		})
@@ -234,7 +234,7 @@ func startsWithWildcard(raw *cql.RegExpRaw) bool {
 	if len(raw.Values) == 0 {
 		return false
 	}
-	return strings.HasPrefix(raw.Text(), ".+") || strings.HasPrefix(raw.Text(), ".*")
+	return strings.HasPrefix(raw.String(), ".+") || strings.HasPrefix(raw.String(), ".*")
 }
 
 // isSmallCardinalityAttr checks if an attribute has small cardinality

@@ -30,7 +30,6 @@ import (
 	"syscall"
 
 	"github.com/czcorpus/cnc-gokit/logging"
-	"github.com/czcorpus/cqlizer/ai"
 	"github.com/czcorpus/cqlizer/apiserver"
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/eval"
@@ -161,7 +160,7 @@ func runActionMCPServer(version apiserver.VersionInfo) {
 	}
 
 	cqlEvalModelConfPath := os.Getenv("CQLIZER_CONF_PATH")
-	var conf *cnf.Conf
+	conf := new(cnf.Conf)
 	if cqlEvalModelConfPath != "" {
 		conf = cnf.LoadConfig(cqlEvalModelConfPath)
 	}
@@ -192,7 +191,7 @@ func runActionMCPServer(version apiserver.VersionInfo) {
 		)
 	}
 
-	corpusInfo := ai.NewCorpInfoProvider(registryPath)
+	corpusInfo := mcp.NewCorpInfoProvider(registryPath)
 	mcp.Init(
 		mode,
 		listenAddress,
@@ -414,20 +413,7 @@ func main() {
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
 
-		sysprompt, err := os.ReadFile(conf.AI.SystemPromptFile)
-		if err != nil {
-			fmt.Printf("failed to load system prompt: %s\n", err)
-			os.Exit(1)
-		}
-		corpusInfo := ai.NewCorpInfoProvider(conf.AI.CorporaRegistryDir)
-		cqlTranslat := ai.NewCQLTRanslator(
-			conf.AI.APIURL,
-			string(sysprompt),
-			conf.AI.CustomSystemPromptsDir,
-			conf.AI.ModelName,
-			corpusInfo,
-		)
-		apiserver.Run(ctx, conf, cqlTranslat, version)
+		apiserver.Run(ctx, conf, version)
 	case actionQueryTypeKey:
 		cmdQueryType.Parse(os.Args[2:])
 		if *qtypeProcFile {
