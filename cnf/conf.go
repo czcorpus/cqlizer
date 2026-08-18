@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/czcorpus/cnc-gokit/logging"
-	"github.com/czcorpus/cqlizer/ai"
 	"github.com/czcorpus/cqlizer/eval/feats"
 	"github.com/czcorpus/cqlizer/monitoring"
 	"github.com/rs/zerolog/log"
@@ -57,7 +56,6 @@ type Conf struct {
 	TimeZone                 string                       `json:"timeZone"`
 	RFEnsemble               []RFEnsembleConf             `json:"rfEnsemble"`
 	CorporaProps             map[string]feats.CorpusProps `json:"corporaProps"`
-	AI                       ai.Conf                      `json:"ai"`
 
 	Monitoring *monitoring.Conf `json:"monitoring"`
 

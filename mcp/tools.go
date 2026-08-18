@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/czcorpus/cnc-gokit/mcptools"
-	"github.com/czcorpus/cqlizer/ai"
 	"github.com/czcorpus/cqlizer/apiserver"
 	"github.com/czcorpus/cqlizer/cnf"
 	"github.com/czcorpus/cqlizer/cql"
@@ -93,7 +92,7 @@ func Init(
 	mode MCPMode,
 	listenAddress string,
 	version apiserver.VersionInfo,
-	corpInfoProv *ai.CorpInfoProvider,
+	corpInfoProv *CorpInfoProvider,
 	rfEnsemble []apiserver.EnsembleModel,
 	corpusStructToolEnabled bool,
 	conf *cnf.Conf,

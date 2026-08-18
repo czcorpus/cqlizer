@@ -17,7 +17,6 @@
 package cql
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,9 +24,8 @@ import (
 
 func TestRegexQuery(t *testing.T) {
 	q1 := "[word=\"moto[a-z]\"]"
-	p, err := ParseCQL("#", q1)
+	_, err := ParseCQL("#", q1)
 	assert.NoError(t, err)
-	fmt.Println("p: ", p)
 }
 
 func TestRgOrQuery(t *testing.T) {

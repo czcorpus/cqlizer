@@ -17,7 +17,6 @@
 package cql
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -29,7 +28,13 @@ type RgSimple struct {
 	Values    []ASTNode
 }
 
-func (r *RgSimple) Text() string {
+func (r *RgSimple) String() string {
+	return r.origValue
+}
+
+// CQL returns the matched regexp fragment unchanged - no normalization
+// is applied within regular expressions.
+func (r *RgSimple) CQL() string {
 	return r.origValue
 }
 
@@ -38,13 +43,13 @@ func (r *RgSimple) WildcardScore() float64 {
 	r.ForEachElement(r, func(parent, item ASTNode) {
 		switch tItem := item.(type) {
 		case *RgChar:
-			if tItem.Text() == "?" {
+			if tItem.String() == "?" {
 				ans += 1
 			}
 		}
 	})
-	ans += float64(strings.Count(r.Text(), ".*")) * 20
-	ans += float64(strings.Count(r.Text(), ".+")) * 20
+	ans += float64(strings.Count(r.String(), ".*")) * 20
+	ans += float64(strings.Count(r.String(), ".+")) * 20
 	return ans
 }
 
@@ -54,8 +59,26 @@ type RgGrouped struct {
 	Values []*RegExpRaw // the stuff here is A|B|C...
 }
 
-func (r *RgGrouped) Text() string {
+func (r *RgGrouped) String() string {
 	return "#RgGrouped"
+}
+
+// CQL renders "(alt1|alt2|...)". In practice this is never reached from
+// Query.CQL() - RegExp.CQL() returns its origValue directly rather than
+// descending into RegExpRaw/RgGrouped - but it's implemented properly
+// (rather than delegating to origValue) since, unlike RgSimple, this
+// node has no origValue of its own to fall back on.
+func (r *RgGrouped) CQL() string {
+	var ans strings.Builder
+	ans.WriteString("(")
+	for i, v := range r.Values {
+		if i > 0 {
+			ans.WriteString("|")
+		}
+		ans.WriteString(v.CQL())
+	}
+	ans.WriteString(")")
+	return ans.String()
 }
 
 func (r *RgGrouped) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -65,11 +88,15 @@ func (r *RgGrouped) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RgGrouped) DFS(fn func(v ASTNode)) {
-	for _, v := range r.Values {
-		v.DFS(fn)
+func (r *RgGrouped) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(r) {
+		leave(r)
+		return
 	}
-	fn(r)
+	for _, v := range r.Values {
+		v.DFS(enter, leave)
+	}
+	leave(r)
 }
 
 // ----------------------------------------------------
@@ -78,20 +105,24 @@ type RgPosixClass struct {
 	Value ASTString
 }
 
-func (r *RgPosixClass) Text() string {
+func (r *RgPosixClass) String() string {
 	return "RgPosixClass"
 }
 
-func (r *RgPosixClass) MarshalJSON() ([]byte, error) {
-	return json.Marshal(r.Value)
+// CQL is never actually reached: the grammar's RgPosixClass rule
+// returns a plain string that's folded into an ASTString by the caller,
+// so this struct type is never instantiated by the parser. Value is
+// rendered for interface completeness in case that ever changes.
+func (r *RgPosixClass) CQL() string {
+	return string(r.Value)
 }
 
 func (r *RgPosixClass) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, r.Value)
 }
 
-func (r *RgPosixClass) DFS(fn func(v ASTNode)) {
-	fn(r.Value)
+func (r *RgPosixClass) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	dfsLeaf(enter, leave, r.Value)
 }
 
 // ----------------------------------------------------
@@ -100,26 +131,25 @@ type RgLook struct {
 	Value ASTString
 }
 
-func (r *RgLook) Text() string {
+func (r *RgLook) String() string {
 	return "#RgLook"
 }
 
-func (r *RgLook) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion RgLook
-	}{
-		RuleName:  "RgLook",
-		Expansion: *r,
-	})
+// CQL is lossy: the parser action for RgLook (lookahead/lookbehind
+// assertions) discards the matched operator and inner regexp instead of
+// storing them (see the TODO in the grammar), leaving Value empty. This
+// is unreached from Query.CQL() in practice since RegExp.CQL() returns
+// origValue directly rather than descending this far.
+func (r *RgLook) CQL() string {
+	return r.Value.CQL()
 }
 
 func (r *RgLook) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, r.Value)
 }
 
-func (r *RgLook) DFS(fn func(v ASTNode)) {
-	fn(r.Value)
+func (r *RgLook) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	dfsLeaf(enter, leave, r.Value)
 }
 
 // ----------------------------------------------------
@@ -149,15 +179,30 @@ func (r *RgAlt) Score() float64 {
 	return ans
 }
 
-func (r *RgAlt) Text() string {
+func (r *RgAlt) String() string {
 	var ans strings.Builder
 	for i, v := range r.Values {
 		if i > 0 {
 			ans.WriteString(", ")
 		}
-		ans.WriteString(v.Text())
+		ans.WriteString(v.String())
 	}
 	return fmt.Sprintf("#RgAlt(%s)", ans.String())
+}
+
+// CQL renders "[^abc]" / "[abc]" - a bracketed regexp character
+// alternative, negated if Not is set.
+func (r *RgAlt) CQL() string {
+	var ans strings.Builder
+	ans.WriteString("[")
+	if r.Not {
+		ans.WriteString("^")
+	}
+	for _, v := range r.Values {
+		ans.WriteString(v.CQL())
+	}
+	ans.WriteString("]")
+	return ans.String()
 }
 
 func (r *RgAlt) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -167,11 +212,15 @@ func (r *RgAlt) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RgAlt) DFS(fn func(v ASTNode)) {
-	for _, item := range r.Values {
-		item.DFS(fn)
+func (r *RgAlt) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(r) {
+		leave(r)
+		return
 	}
-	fn(r)
+	for _, item := range r.Values {
+		item.DFS(enter, leave)
+	}
+	leave(r)
 }
 
 // --------------------------------------------------------
@@ -231,7 +280,7 @@ func (rc *RgChar) Info() string {
 	return "#RgChar(_unknown_)"
 }
 
-func (rc *RgChar) Text() string {
+func (rc *RgChar) String() string {
 	if rc.variant1 != nil {
 		return rc.variant1.Value.String()
 
@@ -246,6 +295,25 @@ func (rc *RgChar) Text() string {
 
 	} else if rc.variant5 != nil {
 		return rc.variant5.RgQM.Value.String()
+	}
+	return ""
+}
+
+func (rc *RgChar) CQL() string {
+	if rc.variant1 != nil {
+		return rc.variant1.Value.CQL()
+
+	} else if rc.variant2 != nil {
+		return rc.variant2.RgOp.CQL()
+
+	} else if rc.variant3 != nil {
+		return rc.variant3.RgRepeat.CQL()
+
+	} else if rc.variant4 != nil {
+		return rc.variant4.RgAny.CQL()
+
+	} else if rc.variant5 != nil {
+		return rc.variant5.RgQM.CQL()
 	}
 	return ""
 }
@@ -277,22 +345,26 @@ func (r *RgChar) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RgChar) DFS(fn func(v ASTNode)) {
+func (r *RgChar) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(r) {
+		leave(r)
+		return
+	}
 	if r.variant1 != nil {
-		fn(r.variant1.Value)
+		dfsLeaf(enter, leave, r.variant1.Value)
 
 	} else if r.variant2 != nil {
-		r.variant2.RgOp.DFS(fn)
+		r.variant2.RgOp.DFS(enter, leave)
 	} else if r.variant3 != nil {
-		r.variant3.RgRepeat.DFS(fn)
+		r.variant3.RgRepeat.DFS(enter, leave)
 
 	} else if r.variant4 != nil {
-		r.variant4.RgAny.DFS(fn)
+		r.variant4.RgAny.DFS(enter, leave)
 
 	} else if r.variant5 != nil {
-		r.variant5.RgQM.DFS(fn)
+		r.variant5.RgQM.DFS(enter, leave)
 	}
-	fn(r)
+	leave(r)
 }
 
 // -----------------------------------------------------------
@@ -302,30 +374,20 @@ type RgRepeat struct {
 	Value  ASTString
 }
 
-func (rr *RgRepeat) Text() string {
+func (rr *RgRepeat) String() string {
 	return rr.Value.String()
 }
 
-func (rr *RgRepeat) MarshalJSON() ([]byte, error) {
-	return json.Marshal(
-		struct {
-			RuleName  string
-			Expansion string
-			Effect    float64
-		}{
-			RuleName:  "RgRepeat",
-			Expansion: string(rr.Value),
-			Effect:    rr.effect,
-		},
-	)
+func (rr *RgRepeat) CQL() string {
+	return rr.Value.CQL()
 }
 
 func (rr *RgRepeat) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, rr.Value)
 }
 
-func (rr *RgRepeat) DFS(fn func(ASTNode)) {
-	fn(rr.Value)
+func (rr *RgRepeat) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	dfsLeaf(enter, leave, rr.Value)
 }
 
 // -----------------------------------------------------------
@@ -335,30 +397,20 @@ type RgQM struct {
 	Value  ASTString
 }
 
-func (rr *RgQM) Text() string {
+func (rr *RgQM) String() string {
 	return rr.Value.String()
 }
 
-func (rr *RgQM) MarshalJSON() ([]byte, error) {
-	return json.Marshal(
-		struct {
-			RuleName  string
-			Expansion string
-			Effect    float64
-		}{
-			RuleName:  "RgQM",
-			Expansion: string(rr.Value),
-			Effect:    rr.effect,
-		},
-	)
+func (rr *RgQM) CQL() string {
+	return rr.Value.CQL()
 }
 
 func (rr *RgQM) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, rr.Value)
 }
 
-func (rr *RgQM) DFS(fn func(ASTNode)) {
-	fn(rr.Value)
+func (rr *RgQM) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	dfsLeaf(enter, leave, rr.Value)
 }
 
 // -----------------------------------------------------------
@@ -368,30 +420,20 @@ type RgAny struct {
 	Value  ASTString
 }
 
-func (rr *RgAny) Text() string {
+func (rr *RgAny) String() string {
 	return rr.Value.String()
 }
 
-func (rr *RgAny) MarshalJSON() ([]byte, error) {
-	return json.Marshal(
-		struct {
-			RuleName  string
-			Expansion string
-			Effect    float64
-		}{
-			RuleName:  "RgAny",
-			Expansion: string(rr.Value),
-			Effect:    rr.effect,
-		},
-	)
+func (rr *RgAny) CQL() string {
+	return rr.Value.CQL()
 }
 
 func (rr *RgAny) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, rr.Value)
 }
 
-func (rr *RgAny) DFS(fn func(ASTNode)) {
-	fn(rr.Value)
+func (rr *RgAny) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	dfsLeaf(enter, leave, rr.Value)
 }
 
 // -----------------------------------------------------------
@@ -400,21 +442,19 @@ type RgRange struct {
 	RgRangeSpec *RgRangeSpec
 }
 
-func (r *RgRange) Text() string {
+func (r *RgRange) String() string {
 	if r.RgRangeSpec != nil {
-		return r.RgRangeSpec.Text()
+		return r.RgRangeSpec.String()
 	}
 	return "RgRange{?, ?}"
 }
 
-func (r *RgRange) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion RgRange
-	}{
-		RuleName:  "RgRange",
-		Expansion: *r,
-	})
+// CQL renders "{n}" / "{n,}" / "{n,m}".
+func (r *RgRange) CQL() string {
+	if r.RgRangeSpec != nil {
+		return "{" + r.RgRangeSpec.CQL() + "}"
+	}
+	return "{}"
 }
 
 // NumericRepr returns a numeric representation
@@ -443,9 +483,13 @@ func (r *RgRange) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	r.RgRangeSpec.ForEachElement(r, fn)
 }
 
-func (r *RgRange) DFS(fn func(v ASTNode)) {
-	r.RgRangeSpec.DFS(fn)
-	fn(r)
+func (r *RgRange) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(r) {
+		leave(r)
+		return
+	}
+	r.RgRangeSpec.DFS(enter, leave)
+	leave(r)
 }
 
 // -------------------------------------------------------------
@@ -456,18 +500,18 @@ type RgRangeSpec struct {
 	Number2   ASTString
 }
 
-func (r *RgRangeSpec) Text() string {
+func (r *RgRangeSpec) String() string {
 	return r.origValue
 }
 
-func (r *RgRangeSpec) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion RgRangeSpec
-	}{
-		RuleName:  "RgRangeSpec",
-		Expansion: *r,
-	})
+// CQL renders "n,m" / "n,". origValue is only set when the grammar's
+// COMMA-bearing alternative matched (see grammar.peg); the bare-NUMBER
+// alternative leaves it empty, which is when Number1 alone is rendered.
+func (r *RgRangeSpec) CQL() string {
+	if r.origValue != "" {
+		return r.origValue
+	}
+	return r.Number1.CQL()
 }
 
 func (r *RgRangeSpec) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -476,10 +520,14 @@ func (r *RgRangeSpec) ForEachElement(parent ASTNode, fn func(parent, v ASTNode))
 	fn(parent, r.Number2)
 }
 
-func (r *RgRangeSpec) DFS(fn func(v ASTNode)) {
-	fn(r.Number1)
-	fn(r.Number2)
-	fn(r)
+func (r *RgRangeSpec) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(r) {
+		leave(r)
+		return
+	}
+	dfsLeaf(enter, leave, r.Number1)
+	dfsLeaf(enter, leave, r.Number2)
+	leave(r)
 }
 
 // -------------------------------------------------------------
@@ -488,20 +536,20 @@ type AnyLetter struct {
 	Value ASTString
 }
 
-func (a *AnyLetter) Text() string {
+func (a *AnyLetter) String() string {
 	return string(a.Value)
 }
 
-func (a *AnyLetter) MarshalJSON() ([]byte, error) {
-	return json.Marshal(a.Value)
+func (a *AnyLetter) CQL() string {
+	return string(a.Value)
 }
 
 func (a *AnyLetter) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, a.Value)
 }
 
-func (a *AnyLetter) DFS(fn func(v ASTNode)) {
-	fn(a.Value)
+func (a *AnyLetter) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	dfsLeaf(enter, leave, a.Value)
 }
 
 // -------------------------------------------------------------
@@ -510,26 +558,20 @@ type RgOp struct {
 	Value ASTString
 }
 
-func (r *RgOp) Text() string {
+func (r *RgOp) String() string {
 	return string(r.Value)
 }
 
-func (r *RgOp) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion RgOp
-	}{
-		RuleName:  "RgOp",
-		Expansion: *r,
-	})
+func (r *RgOp) CQL() string {
+	return string(r.Value)
 }
 
 func (r *RgOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, r.Value)
 }
 
-func (r *RgOp) DFS(fn func(v ASTNode)) {
-	fn(r.Value)
+func (r *RgOp) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	dfsLeaf(enter, leave, r.Value)
 }
 
 // ----------------------------------------------------------------
@@ -555,14 +597,14 @@ type RgAltVal struct {
 
 func (rc *RgAltVal) SrchScore() float64 {
 	if rc.variant1 != nil {
-		textLen := float64(len(rc.variant1.RgChar.Text()))
+		textLen := float64(len(rc.variant1.RgChar.String()))
 		if rc.variant1.RgChar.IsUnicodeClass() {
 			textLen *= 20
 		}
 		return textLen
 	}
 	if rc.variant2 != nil {
-		return float64(len(rc.variant2.Value.Text()))
+		return float64(len(rc.variant2.Value.String()))
 	}
 	if rc.variant3 != nil {
 		return float64(len(rc.variant3.From)) * 10 // TODO this is just a rough estimate
@@ -570,8 +612,23 @@ func (rc *RgAltVal) SrchScore() float64 {
 	return 0
 }
 
-func (rc *RgAltVal) Text() string {
+func (rc *RgAltVal) String() string {
 	return "#RgAltVal"
+}
+
+// CQL renders a single char, a literal "-", or a "from-to" range,
+// depending on which grammar alternative matched.
+func (rc *RgAltVal) CQL() string {
+	if rc.variant1 != nil {
+		return rc.variant1.RgChar.CQL()
+	}
+	if rc.variant2 != nil {
+		return rc.variant2.Value.CQL()
+	}
+	if rc.variant3 != nil {
+		return rc.variant3.From.CQL() + "-" + rc.variant3.To.CQL()
+	}
+	return ""
 }
 
 func (r *RgAltVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -588,18 +645,22 @@ func (r *RgAltVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RgAltVal) DFS(fn func(v ASTNode)) {
+func (r *RgAltVal) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(r) {
+		leave(r)
+		return
+	}
 	if r.variant1 != nil {
-		r.variant1.RgChar.DFS(fn)
+		r.variant1.RgChar.DFS(enter, leave)
 
 	} else if r.variant2 != nil {
-		fn(r.variant2.Value)
+		dfsLeaf(enter, leave, r.variant2.Value)
 
 	} else if r.variant3 != nil {
-		fn(r.variant3.From)
-		fn(r.variant3.To)
+		dfsLeaf(enter, leave, r.variant3.From)
+		dfsLeaf(enter, leave, r.variant3.To)
 	}
-	fn(r)
+	leave(r)
 }
 
 func (r *RgSimple) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -618,18 +679,22 @@ func (r *RgSimple) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RgSimple) DFS(fn func(v ASTNode)) {
+func (r *RgSimple) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(r) {
+		leave(r)
+		return
+	}
 	for _, item := range r.Values {
 		switch tItem := item.(type) {
 		case *RgRange:
-			tItem.DFS(fn)
+			tItem.DFS(enter, leave)
 		case *RgChar:
-			tItem.DFS(fn)
+			tItem.DFS(enter, leave)
 		case *RgAlt:
-			tItem.DFS(fn)
+			tItem.DFS(enter, leave)
 		case *RgPosixClass:
-			tItem.DFS(fn)
+			tItem.DFS(enter, leave)
 		}
 	}
-	fn(r)
+	leave(r)
 }

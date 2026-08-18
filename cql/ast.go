@@ -17,7 +17,6 @@
 package cql
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -38,18 +37,30 @@ type Sequence struct {
 	Seq       []*Seq
 }
 
-func (q *Sequence) Text() string {
-	return q.origValue
+func (q *Sequence) String() string {
+	var ans strings.Builder
+	ans.WriteString("Sequence( ")
+	for i, s := range q.Seq {
+		if i > 0 {
+			ans.WriteString(", ")
+		}
+		ans.WriteString(s.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
 }
 
-func (q *Sequence) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Expansion Sequence
-		RuleName  string
-	}{
-		RuleName:  "Sequence",
-		Expansion: *q,
-	})
+// CQL renders "seq1 | seq2 | ..." - BINOR-joined alternative n-gram
+// sequences.
+func (q *Sequence) CQL() string {
+	var ans strings.Builder
+	for i, s := range q.Seq {
+		if i > 0 {
+			ans.WriteString(" | ")
+		}
+		ans.WriteString(s.CQL())
+	}
+	return ans.String()
 }
 
 func (q *Sequence) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -59,11 +70,15 @@ func (q *Sequence) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (q *Sequence) DFS(fn func(v ASTNode)) {
-	for _, item := range q.Seq {
-		item.DFS(fn)
+func (q *Sequence) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(q) {
+		leave(q)
+		return
 	}
-	fn(q)
+	for _, item := range q.Seq {
+		item.DFS(enter, leave)
+	}
+	leave(q)
 }
 
 // --------------------------------------------------------------------
@@ -92,16 +107,48 @@ func (s *Seq) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (s *Seq) DFS(fn func(v ASTNode)) {
-	fn(s.Not)
-	for _, item := range s.Repetition {
-		item.DFS(fn)
+func (s *Seq) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(s) {
+		leave(s)
+		return
 	}
-	fn(s)
+	dfsLeaf(enter, leave, s.Not)
+	for _, item := range s.Repetition {
+		item.DFS(enter, leave)
+	}
+	leave(s)
 }
 
-func (s *Seq) Text() string {
-	return string(s.origValue)
+func (s *Seq) String() string {
+	var ans strings.Builder
+	ans.WriteString("Seq( ")
+	if s.Not != "" {
+		ans.WriteString(s.Not.String())
+	}
+	for i, r := range s.Repetition {
+		if i > 0 {
+			ans.WriteString(", ")
+		}
+		ans.WriteString(r.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
+}
+
+// CQL renders "!pos1 pos2 ..." - an optional leading negation followed
+// by the space-separated positions of an n-gram.
+func (s *Seq) CQL() string {
+	var ans strings.Builder
+	if s.Not != "" {
+		ans.WriteString(s.Not.CQL())
+	}
+	for i, r := range s.Repetition {
+		if i > 0 {
+			ans.WriteString(" ")
+		}
+		ans.WriteString(r.CQL())
+	}
+	return ans.String()
 }
 
 // -----------------------------------------------------
@@ -112,16 +159,6 @@ type GlobPart struct {
 	GlobCond []*GlobCond
 }
 
-func (g *GlobPart) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Expansion GlobPart
-		RuleName  string
-	}{
-		RuleName:  "GlobPart",
-		Expansion: *g,
-	})
-}
-
 func (q *GlobPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, q)
 	for _, item := range q.GlobCond {
@@ -129,15 +166,40 @@ func (q *GlobPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (q *GlobPart) DFS(fn func(v ASTNode)) {
-	for _, item := range q.GlobCond {
-		item.DFS(fn)
+func (q *GlobPart) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(q) {
+		leave(q)
+		return
 	}
-	fn(q)
+	for _, item := range q.GlobCond {
+		item.DFS(enter, leave)
+	}
+	leave(q)
 }
 
-func (q *GlobPart) Text() string {
-	return "#GlobPart" // TODO
+func (q *GlobPart) String() string {
+	var ans strings.Builder
+	ans.WriteString("GlobPart( ")
+	for i, gc := range q.GlobCond {
+		if i > 0 {
+			ans.WriteString(", ")
+		}
+		ans.WriteString(gc.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
+}
+
+// CQL renders "cond1 & cond2 & ..." - BINAND-joined global conditions.
+func (q *GlobPart) CQL() string {
+	var ans strings.Builder
+	for i, gc := range q.GlobCond {
+		if i > 0 {
+			ans.WriteString(" & ")
+		}
+		ans.WriteString(gc.CQL())
+	}
+	return ans.String()
 }
 
 // ---------------------------------------
@@ -151,9 +213,10 @@ type WithinOrContaining struct {
 	numNegWithinParts     int
 	numContainingParts    int
 	numNegContainingParts int
-	KwWithin              ASTString
-	KwContaining          ASTString
-	WithinContainingPart  *WithinContainingPart
+	// Keyword holds whichever of "within" / "containing" actually
+	// matched - the grammar doesn't track which one separately.
+	Keyword              ASTString
+	WithinContainingPart *WithinContainingPart
 }
 
 func (w *WithinOrContaining) NumWithinParts() int {
@@ -172,36 +235,58 @@ func (w *WithinOrContaining) NumNegContainingParts() int {
 	return w.numNegContainingParts
 }
 
-func (w *WithinOrContaining) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Expansion WithinOrContaining
-		RuleName  string
-	}{
-		RuleName:  "WithinOrContaining",
-		Expansion: *w,
-	})
+func (w *WithinOrContaining) IsNegated() bool {
+	return w.not
 }
 
 func (w *WithinOrContaining) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, w)
-	fn(w, w.KwWithin)
-	fn(w, w.KwContaining)
+	fn(w, w.Keyword)
 	if w.WithinContainingPart != nil {
 		w.WithinContainingPart.ForEachElement(w, fn)
 	}
 }
 
-func (w *WithinOrContaining) DFS(fn func(v ASTNode)) {
-	fn(w.KwWithin)
-	fn(w.KwContaining)
-	if w.WithinContainingPart != nil {
-		w.WithinContainingPart.DFS(fn)
+func (w *WithinOrContaining) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(w) {
+		leave(w)
+		return
 	}
-	fn(w)
+	dfsLeaf(enter, leave, w.Keyword)
+	if w.WithinContainingPart != nil {
+		w.WithinContainingPart.DFS(enter, leave)
+	}
+	leave(w)
 }
 
-func (w *WithinOrContaining) Text() string {
-	return "#WithinOrContaining"
+func (w *WithinOrContaining) String() string {
+	var ans strings.Builder
+	ans.WriteString("WithinOrContaining")
+	if w.not {
+		ans.WriteString("[!]")
+	}
+	ans.WriteString("( ")
+	ans.WriteString(w.Keyword.String())
+	ans.WriteString(" ")
+	if w.WithinContainingPart != nil {
+		ans.WriteString(w.WithinContainingPart.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
+}
+
+// CQL renders "!within <part>" / "containing <part>" etc.
+func (w *WithinOrContaining) CQL() string {
+	var ans strings.Builder
+	if w.not {
+		ans.WriteString("!")
+	}
+	ans.WriteString(w.Keyword.CQL())
+	ans.WriteString(" ")
+	if w.WithinContainingPart != nil {
+		ans.WriteString(w.WithinContainingPart.CQL())
+	}
+	return ans.String()
 }
 
 // -----------------------------------------------------
@@ -229,32 +314,38 @@ type WithinContainingPart struct {
 	variant3 *withinContainingPartVariant3
 }
 
-func (wcp *WithinContainingPart) Text() string {
-	return "#WithinContainingPart"
+func (wcp *WithinContainingPart) String() string {
+	var ans strings.Builder
+	ans.WriteString("WithinContainingPart( ")
+	if wcp.variant1 != nil {
+		ans.WriteString(wcp.variant1.Sequence.String())
+	}
+	if wcp.variant2 != nil {
+		ans.WriteString(wcp.variant2.WithinNumber.String())
+	}
+	if wcp.variant3 != nil {
+		ans.WriteString(wcp.variant3.AlignedPart.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
 }
 
-func (wcp *WithinContainingPart) MarshalJSON() ([]byte, error) {
+// CQL renders the sequence/number/aligned-part payload of a within or
+// containing clause. Note: as with String(), a NOT before the
+// aligned-part alternative is matched by the grammar but not retained
+// on withinContainingPartVariant3, so that negation is not reproduced
+// here.
+func (wcp *WithinContainingPart) CQL() string {
 	if wcp.variant1 != nil {
-		return json.Marshal(struct {
-			Expansion withinContainingPartVariant1
-			RuleName  string
-		}{
-			Expansion: *wcp.variant1,
-			RuleName:  "WithinContainingPart",
-		})
-
-	} else if wcp.variant2 != nil {
-		return json.Marshal(struct {
-			Expansion withinContainingPartVariant2
-			RuleName  string
-		}{
-			Expansion: *wcp.variant2,
-			RuleName:  "WithinContainingPart",
-		})
-
-	} else {
-		return json.Marshal(struct{}{})
+		return wcp.variant1.Sequence.CQL()
 	}
+	if wcp.variant2 != nil {
+		return wcp.variant2.WithinNumber.CQL()
+	}
+	if wcp.variant3 != nil {
+		return wcp.variant3.AlignedPart.CQL()
+	}
+	return ""
 }
 
 func (wcp *WithinContainingPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -270,17 +361,21 @@ func (wcp *WithinContainingPart) ForEachElement(parent ASTNode, fn func(parent, 
 	}
 }
 
-func (wcp *WithinContainingPart) DFS(fn func(v ASTNode)) {
+func (wcp *WithinContainingPart) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(wcp) {
+		leave(wcp)
+		return
+	}
 	if wcp.variant1 != nil {
-		wcp.variant1.Sequence.DFS(fn)
+		wcp.variant1.Sequence.DFS(enter, leave)
 
 	} else if wcp.variant2 != nil {
-		fn(wcp.variant2.WithinNumber.Value)
+		dfsLeaf(enter, leave, wcp.variant2.WithinNumber.Value)
 
 	} else if wcp.variant3 != nil {
-		wcp.variant3.AlignedPart.DFS(fn)
+		wcp.variant3.AlignedPart.DFS(enter, leave)
 	}
-	fn(wcp)
+	leave(wcp)
 }
 
 // --------------------------------------------------
@@ -315,32 +410,72 @@ type GlobCond struct {
 	variant2 *globCondVariant2
 }
 
-func (gc *GlobCond) Text() string {
-	return "#GlobCond"
+func (gc *GlobCond) String() string {
+	var ans strings.Builder
+	ans.WriteString("GlobCond( ")
+	if gc.variant1 != nil {
+		var ans strings.Builder
+		ans.WriteString(gc.variant1.Number1.String())
+		ans.WriteString(".")
+		ans.WriteString(gc.variant1.AttName3.String())
+		if gc.variant1.Not4 != "" {
+			ans.WriteString("!")
+		}
+		ans.WriteString(gc.variant1.Eq5.String())
+		ans.WriteString(gc.variant1.Number6.String())
+		ans.WriteString(".")
+		ans.WriteString(gc.variant1.AttName8.String())
+	}
+	if gc.variant2 != nil {
+		var ans strings.Builder
+		ans.WriteString(gc.variant2.KwFreq1.String())
+		ans.WriteString("(")
+		ans.WriteString(gc.variant2.Number2.String())
+		ans.WriteString(".")
+		ans.WriteString(gc.variant2.AttName3.String())
+		ans.WriteString(")")
+		if gc.variant2.Not4 != "" {
+			ans.WriteString("!")
+		}
+		ans.WriteString(gc.variant2.Operator5.String())
+		ans.WriteString(gc.variant2.Number6.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
 }
 
-func (gc *GlobCond) MarshalJSON() ([]byte, error) {
+// CQL renders "N.attr=M.attr" or "f(N.attr)!=M" global conditions.
+func (gc *GlobCond) CQL() string {
 	if gc.variant1 != nil {
-		return json.Marshal(struct {
-			Expansion globCondVariant1
-			RuleName  string
-		}{
-			Expansion: *gc.variant1,
-			RuleName:  "GlobCond",
-		})
-
-	} else if gc.variant2 != nil {
-		return json.Marshal(struct {
-			Expansion globCondVariant2
-			RuleName  string
-		}{
-			Expansion: *gc.variant2,
-			RuleName:  "GlobCond",
-		})
-
-	} else {
-		return json.Marshal(struct{}{})
+		var ans strings.Builder
+		ans.WriteString(gc.variant1.Number1.CQL())
+		ans.WriteString(".")
+		ans.WriteString(gc.variant1.AttName3.CQL())
+		if gc.variant1.Not4 != "" {
+			ans.WriteString("!")
+		}
+		ans.WriteString(gc.variant1.Eq5.CQL())
+		ans.WriteString(gc.variant1.Number6.CQL())
+		ans.WriteString(".")
+		ans.WriteString(gc.variant1.AttName8.CQL())
+		return ans.String()
 	}
+	if gc.variant2 != nil {
+		var ans strings.Builder
+		ans.WriteString(gc.variant2.KwFreq1.CQL())
+		ans.WriteString("(")
+		ans.WriteString(gc.variant2.Number2.CQL())
+		ans.WriteString(".")
+		ans.WriteString(gc.variant2.AttName3.CQL())
+		ans.WriteString(")")
+		if gc.variant2.Not4 != "" {
+			ans.WriteString("!")
+		}
+		ans.WriteString(gc.variant2.Operator5.CQL())
+		ans.WriteString(gc.variant2.Number6.CQL())
+		return ans.String()
+	}
+	return ""
 }
 
 func (gc *GlobCond) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -363,24 +498,28 @@ func (gc *GlobCond) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (gc *GlobCond) DFS(fn func(v ASTNode)) {
+func (gc *GlobCond) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(gc) {
+		leave(gc)
+		return
+	}
 	if gc.variant1 != nil {
-		fn(gc.variant1.Number1)
-		fn(gc.variant1.AttName3)
-		fn(gc.variant1.Not4)
-		fn(gc.variant1.Eq5)
-		fn(gc.variant1.Number6)
-		fn(gc.variant1.AttName8)
+		dfsLeaf(enter, leave, gc.variant1.Number1)
+		dfsLeaf(enter, leave, gc.variant1.AttName3)
+		dfsLeaf(enter, leave, gc.variant1.Not4)
+		dfsLeaf(enter, leave, gc.variant1.Eq5)
+		dfsLeaf(enter, leave, gc.variant1.Number6)
+		dfsLeaf(enter, leave, gc.variant1.AttName8)
 
 	} else if gc.variant2 != nil {
-		fn(gc.variant2.KwFreq1)
-		fn(gc.variant2.Number2)
-		fn(gc.variant2.AttName3)
-		fn(gc.variant2.Not4)
-		fn(gc.variant2.Operator5)
-		fn(gc.variant2.Number6)
+		dfsLeaf(enter, leave, gc.variant2.KwFreq1)
+		dfsLeaf(enter, leave, gc.variant2.Number2)
+		dfsLeaf(enter, leave, gc.variant2.AttName3)
+		dfsLeaf(enter, leave, gc.variant2.Not4)
+		dfsLeaf(enter, leave, gc.variant2.Operator5)
+		dfsLeaf(enter, leave, gc.variant2.Number6)
 	}
-	fn(gc)
+	leave(gc)
 }
 
 // ----------------------------------------------------
@@ -393,23 +532,28 @@ type Structure struct {
 	AttValList *AttValList
 }
 
-func (s *Structure) Text() string {
-	return s.AttName.Text()
+func (s *Structure) String() string {
+	var ans strings.Builder
+	ans.WriteString(fmt.Sprintf("Structure[%s]( ", s.AttName.String()))
+	if s.AttValList != nil {
+		ans.WriteString(s.AttValList.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
+}
+
+// CQL renders "name" or "name attval1 & attval2 ..." - a structure's
+// attribute name followed by its (optional) attribute-value list.
+func (s *Structure) CQL() string {
+	if s.AttValList == nil {
+		return s.AttName.CQL()
+	}
+	return s.AttName.CQL() + " " + s.AttValList.CQL()
 }
 
 func (s *Structure) IsBigStructure() bool {
-	v := s.AttName.Text()
+	v := s.AttName.String()
 	return v == "s" || v == "g" || v == "p"
-}
-
-func (s *Structure) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion Structure
-	}{
-		RuleName:  "Structure",
-		Expansion: *s,
-	})
 }
 
 func (s *Structure) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -420,12 +564,16 @@ func (s *Structure) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (s *Structure) DFS(fn func(v ASTNode)) {
-	fn(s.AttName)
-	if s.AttValList != nil {
-		s.AttValList.DFS(fn)
+func (s *Structure) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(s) {
+		leave(s)
+		return
 	}
-	fn(s)
+	dfsLeaf(enter, leave, s.AttName)
+	if s.AttValList != nil {
+		s.AttValList.DFS(enter, leave)
+	}
+	leave(s)
 }
 
 // ---------------------------------------------------------
@@ -438,12 +586,30 @@ type AttValList struct {
 	AttValAnd []*AttValAnd
 }
 
-func (a *AttValList) Text() string {
-	var tmp strings.Builder
-	for _, v := range a.AttValAnd {
-		tmp.WriteString(" " + v.Text())
+func (a *AttValList) String() string {
+	var ans strings.Builder
+	ans.WriteString("AttValList(")
+	for i, v := range a.AttValAnd {
+		if i > 0 {
+			ans.WriteString(", ")
+		}
+		ans.WriteString(v.String())
 	}
-	return fmt.Sprintf("#AttValList[ %s ]", tmp.String())
+	ans.WriteString(" )")
+	return ans.String()
+}
+
+// CQL renders "attval1 & attval2 | attval3 & attval4 | ..." -
+// BINOR-joined AttValAnd groups.
+func (a *AttValList) CQL() string {
+	var ans strings.Builder
+	for i, v := range a.AttValAnd {
+		if i > 0 {
+			ans.WriteString(" | ")
+		}
+		ans.WriteString(v.CQL())
+	}
+	return ans.String()
 }
 
 func (a *AttValList) NumAttVals() int {
@@ -460,21 +626,15 @@ func (a *AttValList) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) 
 	}
 }
 
-func (a *AttValList) DFS(fn func(v ASTNode)) {
-	for _, v := range a.AttValAnd {
-		v.DFS(fn)
+func (a *AttValList) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(a) {
+		leave(a)
+		return
 	}
-	fn(a)
-}
-
-func (a *AttValList) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion AttValList
-	}{
-		RuleName:  "AttValList",
-		Expansion: *a,
-	})
+	for _, v := range a.AttValAnd {
+		v.DFS(enter, leave)
+	}
+	leave(a)
 }
 
 // -----------------------------------------------------------
@@ -488,8 +648,19 @@ type NumberedPosition struct {
 	OnePosition *OnePosition
 }
 
-func (n *NumberedPosition) Text() string {
-	return "#NumberedPosition"
+func (n *NumberedPosition) String() string {
+	var ans strings.Builder
+	ans.WriteString(fmt.Sprintf("NumberedPosition[%s]( ", n.Number.String()))
+	if n.OnePosition != nil {
+		ans.WriteString(n.OnePosition.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
+}
+
+// CQL renders "N:position" - a numbered n-gram position.
+func (n *NumberedPosition) CQL() string {
+	return n.Number.CQL() + ":" + n.OnePosition.CQL()
 }
 
 func (n *NumberedPosition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -501,13 +672,17 @@ func (n *NumberedPosition) ForEachElement(parent ASTNode, fn func(parent, v ASTN
 	}
 }
 
-func (n *NumberedPosition) DFS(fn func(v ASTNode)) {
-	fn(n.Number)
-	fn(n.Colon)
-	if n.OnePosition != nil {
-		n.OnePosition.DFS(fn)
+func (n *NumberedPosition) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(n) {
+		leave(n)
+		return
 	}
-	fn(n)
+	dfsLeaf(enter, leave, n.Number)
+	dfsLeaf(enter, leave, n.Colon)
+	if n.OnePosition != nil {
+		n.OnePosition.DFS(enter, leave)
+	}
+	leave(n)
 }
 
 // --------------------------------------------------
@@ -533,6 +708,8 @@ type onePositionVariant5 struct {
 	MuPart *MuPart
 }
 
+// -------------------------------------------------
+
 // OnePosition
 // var1: LBRACKET _ AttValList? _ RBRACKET
 // var2: RegExp
@@ -548,69 +725,61 @@ type OnePosition struct {
 	Variant5  *onePositionVariant5
 }
 
-func (op *OnePosition) Text() string {
-	return op.origValue
+func (op *OnePosition) String() string {
+	var ans strings.Builder
+	ans.WriteString("OnePosition( ")
+	switch {
+	case op.Variant1 != nil:
+		ans.WriteString("[")
+		if op.Variant1.AttValList != nil {
+			ans.WriteString(op.Variant1.AttValList.String())
+		}
+		ans.WriteString("]")
+
+	case op.Variant2 != nil:
+		ans.WriteString(op.Variant2.RegExp.String())
+
+	case op.Variant3 != nil:
+		ans.WriteString(fmt.Sprintf("~%s", op.Variant3.Number.String()))
+		ans.WriteString(op.Variant3.RegExp.String())
+
+	case op.Variant4 != nil:
+		ans.WriteString(op.Variant4.Value.String())
+
+	case op.Variant5 != nil:
+		ans.WriteString(op.Variant5.MuPart.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
 }
 
-func (op *OnePosition) MarshalJSON() ([]byte, error) {
+// CQL renders "[attvals]" / a regexp / "~N regexp" / "MU" / a mu-part,
+// depending on which grammar alternative matched. KW_MU carries no
+// fields of its own (the parser never populates onePositionVariant4),
+// so it's also the fallback when no other variant is set.
+func (op *OnePosition) CQL() string {
 	if op.Variant1 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			RawValue  string
-			Expansion *onePositionVariant1
-		}{
-			RuleName:  "OnePosition",
-			RawValue:  op.Text(),
-			Expansion: op.Variant1,
-		})
-
-	} else if op.Variant2 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			RawValue  string
-			Expansion *onePositionVariant2
-		}{
-			RuleName:  "OnePosition",
-			RawValue:  op.Text(),
-			Expansion: op.Variant2,
-		})
-
-	} else if op.Variant3 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			RawValue  string
-			Expansion *onePositionVariant3
-		}{
-			RuleName:  "OnePosition",
-			RawValue:  op.Text(),
-			Expansion: op.Variant3,
-		})
-
-	} else if op.Variant4 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			RawValue  string
-			Expansion *onePositionVariant4
-		}{
-			RuleName:  "OnePosition",
-			RawValue:  op.Text(),
-			Expansion: op.Variant4,
-		})
-
-	} else if op.Variant5 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			RawValue  string
-			Expansion *onePositionVariant5
-		}{
-			RuleName:  "OnePosition",
-			RawValue:  op.Text(),
-			Expansion: op.Variant5,
-		})
-
-	} else {
-		return json.Marshal(struct{}{})
+		if op.Variant1.AttValList != nil {
+			return "[" + op.Variant1.AttValList.CQL() + "]"
+		}
+		return "[]"
 	}
+	if op.Variant2 != nil {
+		return op.Variant2.RegExp.CQL()
+	}
+	if op.Variant3 != nil {
+		var ans strings.Builder
+		ans.WriteString("~")
+		if op.Variant3.Number != "" {
+			ans.WriteString(op.Variant3.Number.CQL())
+		}
+		ans.WriteString(op.Variant3.RegExp.CQL())
+		return ans.String()
+	}
+	if op.Variant5 != nil {
+		return op.Variant5.MuPart.CQL()
+	}
+	return "MU"
 }
 
 func (op *OnePosition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -633,24 +802,28 @@ func (op *OnePosition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)
 	}
 }
 
-func (op *OnePosition) DFS(fn func(v ASTNode)) {
+func (op *OnePosition) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(op) {
+		leave(op)
+		return
+	}
 	if op.Variant1 != nil && op.Variant1.AttValList != nil {
-		op.Variant1.AttValList.DFS(fn)
+		op.Variant1.AttValList.DFS(enter, leave)
 
 	} else if op.Variant2 != nil {
-		op.Variant2.RegExp.DFS(fn)
+		op.Variant2.RegExp.DFS(enter, leave)
 
 	} else if op.Variant3 != nil {
-		fn(op.Variant3.Number)
-		op.Variant3.RegExp.DFS(fn)
+		dfsLeaf(enter, leave, op.Variant3.Number)
+		op.Variant3.RegExp.DFS(enter, leave)
 
 	} else if op.Variant4 != nil {
-		fn(op.Variant4.Value)
+		dfsLeaf(enter, leave, op.Variant4.Value)
 
 	} else if op.Variant5 != nil {
-		op.Variant5.MuPart.DFS(fn)
+		op.Variant5.MuPart.DFS(enter, leave)
 	}
-	fn(op)
+	leave(op)
 }
 
 // -----------------------------------------------------
@@ -672,32 +845,28 @@ type Position struct {
 	variant2  *positionVariant2
 }
 
-func (p *Position) Text() string {
-	return p.origValue
+func (p *Position) String() string {
+	var ans strings.Builder
+	ans.WriteString("Position( ")
+	if p.variant1 != nil {
+		ans.WriteString(p.variant1.OnePosition.String())
+	}
+	if p.variant2 != nil {
+		ans.WriteString(p.variant2.NumberedPosition.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
 }
 
-func (p *Position) MarshalJSON() ([]byte, error) {
+// CQL renders whichever of OnePosition / NumberedPosition matched.
+func (p *Position) CQL() string {
 	if p.variant1 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			Expansion *positionVariant1
-		}{
-			RuleName:  "Position",
-			Expansion: p.variant1,
-		})
-
-	} else if p.variant2 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			Expansion *positionVariant2
-		}{
-			RuleName:  "Position",
-			Expansion: p.variant2,
-		})
-
-	} else {
-		return json.Marshal(struct{}{})
+		return p.variant1.OnePosition.CQL()
 	}
+	if p.variant2 != nil {
+		return p.variant2.NumberedPosition.CQL()
+	}
+	return ""
 }
 
 func (p *Position) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -710,14 +879,18 @@ func (p *Position) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (p *Position) DFS(fn func(v ASTNode)) {
+func (p *Position) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(p) {
+		leave(p)
+		return
+	}
 	if p.variant1 != nil {
-		p.variant1.OnePosition.DFS(fn)
+		p.variant1.OnePosition.DFS(enter, leave)
 
 	} else if p.variant2 != nil {
-		p.variant2.NumberedPosition.DFS(fn)
+		p.variant2.NumberedPosition.DFS(enter, leave)
 	}
-	fn(p)
+	leave(p)
 }
 
 // -------------------------------------------------------
@@ -727,7 +900,13 @@ type RegExp struct {
 	RegExpRaw []*RegExpRaw // these are A|B|C
 }
 
-func (r *RegExp) Text() string {
+func (r *RegExp) String() string {
+	return r.origValue
+}
+
+// CQL returns the regexp literal unchanged (quotes included) - no
+// normalization is applied within regular expressions.
+func (r *RegExp) CQL() string {
 	return r.origValue
 }
 
@@ -738,11 +917,15 @@ func (r *RegExp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RegExp) DFS(fn func(v ASTNode)) {
-	for _, v := range r.RegExpRaw {
-		v.DFS(fn)
+func (r *RegExp) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(r) {
+		leave(r)
+		return
 	}
-	fn(r)
+	for _, v := range r.RegExpRaw {
+		v.DFS(enter, leave)
+	}
+	leave(r)
 }
 
 // --------------------------------------------------------
@@ -755,24 +938,37 @@ type muPartVariant2 struct {
 	MeetOp *MeetOp
 }
 
+// MuPart represents
+// LPAREN _ op:(UnionOp / MeetOp) _ RPAREN
+// (where Variant1 is the UnionOp and Variant2 is the MeetOp)
 type MuPart struct {
 	origValue string
 	Variant1  *muPartVariant1
 	Variant2  *muPartVariant2
 }
 
-func (m *MuPart) Text() string {
-	return m.origValue
+func (m *MuPart) String() string {
+	var ans strings.Builder
+	ans.WriteString("MuPart( ")
+	if m.Variant1 != nil {
+		ans.WriteString(m.Variant1.UnionOp.String())
+	}
+	if m.Variant2 != nil {
+		ans.WriteString(m.Variant2.MeetOp.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
 }
 
-func (m *MuPart) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion MuPart
-	}{
-		RuleName:  "MuPart",
-		Expansion: *m,
-	})
+// CQL renders "(union p1 p2)" / "(meet p1 p2)".
+func (m *MuPart) CQL() string {
+	if m.Variant1 != nil {
+		return "(" + m.Variant1.UnionOp.CQL() + ")"
+	}
+	if m.Variant2 != nil {
+		return "(" + m.Variant2.MeetOp.CQL() + ")"
+	}
+	return ""
 }
 
 func (m *MuPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -785,26 +981,47 @@ func (m *MuPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (m *MuPart) DFS(fn func(v ASTNode)) {
+func (m *MuPart) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(m) {
+		leave(m)
+		return
+	}
 	if m.Variant1 != nil {
-		m.Variant1.UnionOp.DFS(fn)
+		m.Variant1.UnionOp.DFS(enter, leave)
 
 	} else if m.Variant2 != nil {
-		m.Variant2.MeetOp.DFS(fn)
+		m.Variant2.MeetOp.DFS(enter, leave)
 	}
-	fn(m)
+	leave(m)
 }
 
 // --------------------------------------------------------------
 
+// UnionOp represents
+// KW_UNION _ p1:Position _ p2:Position
 type UnionOp struct {
 	origValue string
 	Position1 *Position
 	Position2 *Position
 }
 
-func (m *UnionOp) Text() string {
-	return m.origValue
+func (m *UnionOp) String() string {
+	var ans strings.Builder
+	ans.WriteString("UnionOp( ")
+	ans.WriteString(m.Position1.String())
+	ans.WriteString(", ")
+	ans.WriteString(m.Position2.String())
+	ans.WriteString(" )")
+	return ans.String()
+}
+
+func (m *UnionOp) CQL() string {
+	var ans strings.Builder
+	ans.WriteString("union ")
+	ans.WriteString(m.Position1.CQL())
+	ans.WriteString(" ")
+	ans.WriteString(m.Position2.CQL())
+	return ans.String()
 }
 
 func (m *UnionOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -813,22 +1030,62 @@ func (m *UnionOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	m.Position2.ForEachElement(m, fn)
 }
 
-func (m *UnionOp) DFS(fn func(v ASTNode)) {
-	m.Position1.DFS(fn)
-	m.Position2.DFS(fn)
-	fn(m)
+func (m *UnionOp) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(m) {
+		leave(m)
+		return
+	}
+	m.Position1.DFS(enter, leave)
+	m.Position2.DFS(enter, leave)
+	leave(m)
 }
 
 // ---------------------------------------------------------------
 
+type MeetRange struct {
+	lft string
+	rgt string
+}
+
+func (m *MeetRange) CQL() string {
+	return fmt.Sprintf("%s %s", m.lft, m.rgt)
+}
+
+func (m *MeetRange) String() string {
+	return fmt.Sprintf("MeetRange(%s %s)", m.lft, m.rgt)
+}
+
+// --------------------------------------------------------------
+
+// MeetOp represents the rule
+// KW_MEET _ p1:Position _ p2:Position _ (Integer _ Integer)?
 type MeetOp struct {
 	origValue string
 	Position1 *Position
 	Position2 *Position
+	Range     *MeetRange
 }
 
-func (m *MeetOp) Text() string {
-	return m.origValue
+func (m *MeetOp) String() string {
+	var ans strings.Builder
+	ans.WriteString(m.Position1.String())
+	ans.WriteString(", ")
+	ans.WriteString(m.Position2.String())
+	ans.WriteString(", ")
+	ans.WriteString(m.Range.String())
+	ans.WriteString(" )")
+	return ans.String()
+}
+
+func (m *MeetOp) CQL() string {
+	var ans strings.Builder
+	ans.WriteString("meet ")
+	ans.WriteString(m.Position1.CQL())
+	ans.WriteString(" ")
+	ans.WriteString(m.Position2.CQL())
+	ans.WriteString(" ")
+	ans.WriteString(m.Range.CQL())
+	return ans.String()
 }
 
 func (m *MeetOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -837,10 +1094,14 @@ func (m *MeetOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	m.Position2.ForEachElement(m, fn)
 }
 
-func (m *MeetOp) DFS(fn func(v ASTNode)) {
-	m.Position1.DFS(fn)
-	m.Position2.DFS(fn)
-	fn(m)
+func (m *MeetOp) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(m) {
+		leave(m)
+		return
+	}
+	m.Position1.DFS(enter, leave)
+	m.Position2.DFS(enter, leave)
+	leave(m)
 }
 
 // --------------------------------------------------------------------------
@@ -863,6 +1124,10 @@ type repetitionVariant3 struct {
 	CloseStructTag *CloseStructTag
 }
 
+// Repetition represents rules
+// AtomQuery RepOpt?
+// OpenStructTag
+// CloseStructTag
 type Repetition struct {
 	origValue      string
 	isTailPosition bool
@@ -888,8 +1153,43 @@ func (r *Repetition) SubcorpusDefScore() float64 {
 	return 0
 }
 
-func (r *Repetition) Text() string {
-	return r.origValue
+func (r *Repetition) String() string {
+	var ans strings.Builder
+	ans.WriteString("Repetition( ")
+	if r.Variant1 != nil {
+		ans.WriteString(r.Variant1.AtomQuery.String())
+		if r.Variant1.RepOpt != nil {
+			ans.WriteString(" ")
+			ans.WriteString(r.Variant1.RepOpt.String())
+		}
+	}
+	if r.Variant2 != nil {
+		ans.WriteString(r.Variant2.OpenStructTag.String())
+	}
+	if r.Variant3 != nil {
+		ans.WriteString(r.Variant3.CloseStructTag.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
+}
+
+// CQL renders an atom query with its optional repetition suffix, or an
+// open/close struct tag.
+func (r *Repetition) CQL() string {
+	if r.Variant1 != nil {
+		ans := r.Variant1.AtomQuery.CQL()
+		if r.Variant1.RepOpt != nil {
+			ans += r.Variant1.RepOpt.CQL()
+		}
+		return ans
+	}
+	if r.Variant2 != nil {
+		return r.Variant2.OpenStructTag.CQL()
+	}
+	if r.Variant3 != nil {
+		return r.Variant3.CloseStructTag.CQL()
+	}
+	return ""
 }
 
 func (r *Repetition) RepetitionScore() float64 {
@@ -901,7 +1201,7 @@ func (r *Repetition) RepetitionScore() float64 {
 
 func (r *Repetition) GetRepOpt() string {
 	if r.Variant1 != nil && r.Variant1.RepOpt != nil {
-		return string(r.Variant1.RepOpt.Text())
+		return string(r.Variant1.RepOpt.String())
 	}
 	return ""
 }
@@ -929,32 +1229,6 @@ func (r *Repetition) IsTailPosition() bool {
 	return r.isTailPosition
 }
 
-func (r *Repetition) MarshalJSON() ([]byte, error) {
-	var variant any
-	if r.Variant1 != nil {
-		variant = r.Variant1
-
-	} else if r.Variant2 != nil {
-		variant = r.Variant2
-
-	} else if r.Variant3 != nil {
-		variant = r.Variant3
-
-	} else {
-		variant = struct{}{}
-	}
-	return json.Marshal(
-		struct {
-			RuleName      string
-			Expansion     any
-			IsAnyPosition bool
-		}{
-			RuleName:      "Repetition",
-			Expansion:     variant,
-			IsAnyPosition: r.IsAnyPosition(),
-		})
-}
-
 func (r *Repetition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, r)
 	if r.Variant1 != nil {
@@ -969,18 +1243,22 @@ func (r *Repetition) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) 
 	}
 }
 
-func (r *Repetition) DFS(fn func(v ASTNode)) {
+func (r *Repetition) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(r) {
+		leave(r)
+		return
+	}
 	if r.Variant1 != nil {
-		r.Variant1.AtomQuery.DFS(fn)
-		fn(r.Variant1.RepOpt)
+		r.Variant1.AtomQuery.DFS(enter, leave)
+		dfsLeaf(enter, leave, r.Variant1.RepOpt)
 
 	} else if r.Variant2 != nil {
-		r.Variant2.OpenStructTag.DFS(fn)
+		r.Variant2.OpenStructTag.DFS(enter, leave)
 
 	} else if r.Variant3 != nil {
-		r.Variant3.CloseStructTag.DFS(fn)
+		r.Variant3.CloseStructTag.DFS(enter, leave)
 	}
-	fn(r)
+	leave(r)
 }
 
 // ----------------------------------------------------------------
@@ -1009,32 +1287,51 @@ type AtomQuery struct {
 	variant2  *atomQueryVariant2
 }
 
-func (aq *AtomQuery) Text() string {
-	return aq.origValue
+func (aq *AtomQuery) String() string {
+	var ans strings.Builder
+	ans.WriteString("AtomQuery( ")
+	if aq.variant1 != nil {
+		ans.WriteString(aq.variant1.Position.String())
+	}
+	if aq.variant2 != nil {
+		ans.WriteString(aq.variant2.Sequence.String())
+		for _, v := range aq.variant2.WCBlock {
+			ans.WriteString(", ")
+			if v.Not {
+				ans.WriteString("!")
+			}
+			ans.WriteString(v.Keyword.String())
+			ans.WriteString(" ")
+			ans.WriteString(v.WithinContainingPart.String())
+		}
+	}
+	ans.WriteString(" )")
+	return ans.String()
 }
 
-func (aq *AtomQuery) MarshalJSON() ([]byte, error) {
+// CQL renders a bare position, or a parenthesized sequence with its
+// trailing within/containing blocks.
+func (aq *AtomQuery) CQL() string {
 	if aq.variant1 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			Expansion *atomQueryVariant1
-		}{
-			RuleName:  "AtomQuery",
-			Expansion: aq.variant1,
-		})
-
-	} else if aq.variant2 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			Expansion *atomQueryVariant2
-		}{
-			RuleName:  "AtomQuery",
-			Expansion: aq.variant2,
-		})
-
-	} else {
-		return json.Marshal(struct{}{})
+		return aq.variant1.Position.CQL()
 	}
+	if aq.variant2 != nil {
+		var ans strings.Builder
+		ans.WriteString("(")
+		ans.WriteString(aq.variant2.Sequence.CQL())
+		for _, wc := range aq.variant2.WCBlock {
+			ans.WriteString(" ")
+			if wc.Not {
+				ans.WriteString("!")
+			}
+			ans.WriteString(wc.Keyword.CQL())
+			ans.WriteString(" ")
+			ans.WriteString(wc.WithinContainingPart.CQL())
+		}
+		ans.WriteString(")")
+		return ans.String()
+	}
+	return ""
 }
 
 func (aq *AtomQuery) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1056,23 +1353,27 @@ func (aq *AtomQuery) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) 
 	}
 }
 
-func (aq *AtomQuery) DFS(fn func(v ASTNode)) {
+func (aq *AtomQuery) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(aq) {
+		leave(aq)
+		return
+	}
 	if aq.variant1 != nil {
-		aq.variant1.Position.DFS(fn)
+		aq.variant1.Position.DFS(enter, leave)
 
 	} else if aq.variant2 != nil {
-		aq.variant2.Sequence.DFS(fn)
+		aq.variant2.Sequence.DFS(enter, leave)
 		if aq.variant2.WCBlock != nil {
 			for _, v := range aq.variant2.WCBlock {
 				if v.Not {
-					fn(ASTString("!"))
+					dfsLeaf(enter, leave, ASTString("!"))
 				}
-				fn(v.Keyword)
-				v.WithinContainingPart.DFS(fn)
+				dfsLeaf(enter, leave, v.Keyword)
+				v.WithinContainingPart.DFS(enter, leave)
 			}
 		}
 	}
-	fn(aq)
+	leave(aq)
 }
 
 // --------------------------------------------------------------
@@ -1084,6 +1385,10 @@ type repOptVariant1 struct {
 type repOptVariant2 struct {
 	From ASTString
 	To   ASTString
+	// HasComma distinguishes "{n}" (exact count, HasComma == false) from
+	// "{n,}" (at least n, HasComma == true but To == "") - both leave To
+	// empty, so that alone can't tell them apart.
+	HasComma bool
 }
 
 type RepOpt struct {
@@ -1093,11 +1398,11 @@ type RepOpt struct {
 
 func (r *RepOpt) RepetitionScore() float64 {
 	if r.Variant1 != nil && (r.Variant1.Value == "+" || r.Variant1.Value == "*") ||
-		r.Variant2 != nil && r.Variant2.From.Text() != "" && r.Variant2.To.Text() == "" {
+		r.Variant2 != nil && r.Variant2.From.String() != "" && r.Variant2.To.String() == "" {
 		return 100
 	}
-	if r.Variant2 != nil && r.Variant2.From.Text() != "" && r.Variant2.To.Text() != "" {
-		toInt, err := strconv.Atoi(r.Variant2.To.Text())
+	if r.Variant2 != nil && r.Variant2.From.String() != "" && r.Variant2.To.String() != "" {
+		toInt, err := strconv.Atoi(r.Variant2.To.String())
 		if err != nil {
 			// TODO
 			log.Error().Err(err).Msg("failed to determine position repetition score")
@@ -1108,38 +1413,37 @@ func (r *RepOpt) RepetitionScore() float64 {
 	return 0
 }
 
-func (r *RepOpt) Text() string {
+func (r *RepOpt) String() string {
+	var ans strings.Builder
+	ans.WriteString("RepOpt( ")
 	if r.Variant1 != nil {
-		return r.Variant1.Value.Text()
+		ans.WriteString(r.Variant1.Value.String())
 
 	} else if r.Variant2 != nil {
-		return fmt.Sprintf("{%s, %s}", r.Variant2.From, r.Variant2.To)
+		ans.WriteString(fmt.Sprintf("{%s, %s}", r.Variant2.From, r.Variant2.To))
 	}
-	return ""
+	ans.WriteString(" )")
+	return ans.String()
 }
 
-func (r *RepOpt) MarshalJSON() ([]byte, error) {
+// CQL renders "*" / "+" / "?" / "{n}" / "{n,}" / "{n,m}".
+// It distinguishes an exact count ("{n}", HasComma false)
+// from "at least n" ("{n,}", HasComma true with To empty) - both leave
+// To empty, so HasComma is what tells them apart.
+func (r *RepOpt) CQL() string {
 	if r.Variant1 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			Expansion repOptVariant1
-		}{
-			RuleName:  "RepOpt",
-			Expansion: *r.Variant1,
-		})
-
-	} else if r.Variant2 != nil {
-		return json.Marshal(struct {
-			RuleName  string
-			Expansion repOptVariant2
-		}{
-			RuleName:  "RepOpt",
-			Expansion: *r.Variant2,
-		})
-
-	} else {
-		return json.Marshal(struct{}{})
+		return r.Variant1.Value.CQL()
 	}
+	if r.Variant2 != nil {
+		if !r.Variant2.HasComma {
+			return fmt.Sprintf("{%s}", r.Variant2.From.CQL())
+		}
+		if r.Variant2.To == "" {
+			return fmt.Sprintf("{%s,}", r.Variant2.From.CQL())
+		}
+		return fmt.Sprintf("{%s,%s}", r.Variant2.From.CQL(), r.Variant2.To.CQL())
+	}
+	return ""
 }
 
 func (r *RepOpt) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1153,15 +1457,19 @@ func (r *RepOpt) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RepOpt) DFS(fn func(v ASTNode)) {
+func (r *RepOpt) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(r) {
+		leave(r)
+		return
+	}
 	if r.Variant1 != nil {
-		fn(r.Variant1.Value)
+		dfsLeaf(enter, leave, r.Variant1.Value)
 
 	} else if r.Variant2 != nil {
-		fn(r.Variant2.From)
-		fn(r.Variant2.To)
+		dfsLeaf(enter, leave, r.Variant2.From)
+		dfsLeaf(enter, leave, r.Variant2.To)
 	}
-	fn(r)
+	leave(r)
 }
 
 // ----------------------------------------------------------------
@@ -1171,18 +1479,30 @@ type OpenStructTag struct {
 	Structure *Structure
 }
 
-func (ost *OpenStructTag) Text() string {
-	return ost.origValue
+func (ost *OpenStructTag) String() string {
+	var ans strings.Builder
+	ans.WriteString("OpenStructTag")
+	if ost.IsSelfClosing() {
+		ans.WriteString("[/]")
+	}
+	ans.WriteString("( ")
+	if ost.Structure != nil {
+		ans.WriteString(ost.Structure.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
 }
 
-func (ost *OpenStructTag) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion OpenStructTag
-	}{
-		RuleName:  "OpenStructTag",
-		Expansion: *ost,
-	})
+// CQL renders "<structure>" / "<structure />".
+func (ost *OpenStructTag) CQL() string {
+	if ost.IsSelfClosing() {
+		return "<" + ost.Structure.CQL() + " />"
+	}
+	return "<" + ost.Structure.CQL() + ">"
+}
+
+func (ost *OpenStructTag) IsSelfClosing() bool {
+	return strings.HasSuffix(ost.origValue, "/>")
 }
 
 func (ost *OpenStructTag) SubcorpusDefScore() float64 {
@@ -1197,9 +1517,13 @@ func (ost *OpenStructTag) ForEachElement(parent ASTNode, fn func(parent, v ASTNo
 	ost.Structure.ForEachElement(ost, fn)
 }
 
-func (ost *OpenStructTag) DFS(fn func(v ASTNode)) {
-	ost.Structure.DFS(fn)
-	fn(ost)
+func (ost *OpenStructTag) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(ost) {
+		leave(ost)
+		return
+	}
+	ost.Structure.DFS(enter, leave)
+	leave(ost)
 }
 
 // --------------------------------------------------------------
@@ -1208,18 +1532,19 @@ type CloseStructTag struct {
 	Structure *Structure
 }
 
-func (ost *CloseStructTag) Text() string {
-	return "#CloseStructTag"
+func (ost *CloseStructTag) String() string {
+	var ans strings.Builder
+	ans.WriteString("CloseStructTag( ")
+	if ost.Structure != nil {
+		ans.WriteString(ost.Structure.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
 }
 
-func (ost *CloseStructTag) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion CloseStructTag
-	}{
-		RuleName:  "CloseStructTag",
-		Expansion: *ost,
-	})
+// CQL renders "</structure>".
+func (ost *CloseStructTag) CQL() string {
+	return "</" + ost.Structure.CQL() + ">"
 }
 
 func (ost *CloseStructTag) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1227,9 +1552,13 @@ func (ost *CloseStructTag) ForEachElement(parent ASTNode, fn func(parent, v ASTN
 	ost.Structure.ForEachElement(ost, fn)
 }
 
-func (ost *CloseStructTag) DFS(fn func(v ASTNode)) {
-	ost.Structure.DFS(fn)
-	fn(ost)
+func (ost *CloseStructTag) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(ost) {
+		leave(ost)
+		return
+	}
+	ost.Structure.DFS(enter, leave)
+	leave(ost)
 }
 
 // ---------------------------------------------------------
@@ -1239,8 +1568,19 @@ type AlignedPart struct {
 	Sequence *Sequence
 }
 
-func (a *AlignedPart) Text() string {
-	return "#AlignedPart"
+func (a *AlignedPart) String() string {
+	var ans strings.Builder
+	ans.WriteString(fmt.Sprintf("AlignedPart[%s]( ", a.AttName.String()))
+	if a.Sequence != nil {
+		ans.WriteString(a.Sequence.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
+}
+
+// CQL renders "attName: sequence" - a parallel-alignment part.
+func (a *AlignedPart) CQL() string {
+	return a.AttName.CQL() + ": " + a.Sequence.CQL()
 }
 
 func (a *AlignedPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1248,8 +1588,12 @@ func (a *AlignedPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode))
 	// TODO
 }
 
-func (a *AlignedPart) DFS(fn func(v ASTNode)) {
-	fn(a)
+func (a *AlignedPart) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(a) {
+		leave(a)
+		return
+	}
+	leave(a)
 }
 
 // -----------------------------------------------------------
@@ -1261,12 +1605,29 @@ type AttValAnd struct {
 	AttVal []*AttVal
 }
 
-func (a *AttValAnd) Text() string {
+func (a *AttValAnd) String() string {
 	var ans strings.Builder
-	for _, v := range a.AttVal {
-		ans.WriteString(" " + v.Text())
+	ans.WriteString("AttValAnd( ")
+	for i, v := range a.AttVal {
+		if i > 0 {
+			ans.WriteString(", ")
+		}
+		ans.WriteString(v.String())
 	}
-	return fmt.Sprintf("#AttValAnd[%s]", ans.String())
+	ans.WriteString(" )")
+	return ans.String()
+}
+
+// CQL renders "attval1 & attval2 & ..." - BINAND-joined AttVal items.
+func (a *AttValAnd) CQL() string {
+	var ans strings.Builder
+	for i, v := range a.AttVal {
+		if i > 0 {
+			ans.WriteString(" & ")
+		}
+		ans.WriteString(v.CQL())
+	}
+	return ans.String()
 }
 
 func (a *AttValAnd) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1276,11 +1637,15 @@ func (a *AttValAnd) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (a *AttValAnd) DFS(fn func(v ASTNode)) {
-	for _, item := range a.AttVal {
-		item.DFS(fn)
+func (a *AttValAnd) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(a) {
+		leave(a)
+		return
 	}
-	fn(a)
+	for _, item := range a.AttVal {
+		item.DFS(enter, leave)
+	}
+	leave(a)
 }
 
 // --------------------------------------------------------------
@@ -1293,8 +1658,16 @@ type attValVariant1 struct {
 	RawString *RawString
 }
 
-func (av attValVariant1) Text() string {
-	return fmt.Sprintf("#attValVariant1[%s]", av.RawString.Text())
+// CQL renders "attName==rawstring" (optionally negated).
+func (av attValVariant1) CQL() string {
+	var ans strings.Builder
+	ans.WriteString(av.AttName.CQL())
+	if av.Not {
+		ans.WriteString("!")
+	}
+	ans.WriteString(av.Eeq.CQL())
+	ans.WriteString(av.RawString.CQL())
+	return ans.String()
 }
 
 // AttName (_ NOT)? _ (EQ / LEQ / GEQ / TEQ NUMBER?) _ RegExp
@@ -1305,24 +1678,25 @@ type attValVariant2 struct {
 	RegExp  *RegExp
 }
 
-func (av attValVariant2) Text() string {
-	return fmt.Sprintf("#attValVariant2[%s]", av.RegExp.Text())
+// CQL renders "attName=regexp" (optionally negated; Op holds the
+// matched operator: =, <=, >=, or ~).
+func (av attValVariant2) CQL() string {
+	var ans strings.Builder
+	ans.WriteString(av.AttName.CQL())
+	if av.Not {
+		ans.WriteString("!")
+	}
+	ans.WriteString(av.Op.CQL())
+	ans.WriteString(av.RegExp.CQL())
+	return ans.String()
 }
 
 // POSNUM NUMBER DASH NUMBER
 type attValVariant3 struct {
 }
 
-func (av attValVariant3) Text() string {
-	return "#attValVariant3[POSNUM NUMBER DASH NUMBER]"
-}
-
 // POSNUM NUMBER
 type attValVariant4 struct {
-}
-
-func (av attValVariant4) Text() string {
-	return "#attValVariant4[POSNUM NUMBER]"
 }
 
 // NOT AttVal
@@ -1330,8 +1704,9 @@ type attValVariant5 struct {
 	AttVal *AttVal
 }
 
-func (av attValVariant5) Text() string {
-	return fmt.Sprintf("#attValVariant5[%s]", av.AttVal.Text())
+// CQL renders "!attval".
+func (av attValVariant5) CQL() string {
+	return "!" + av.AttVal.CQL()
 }
 
 // LPAREN _ AttValList _ RPAREN
@@ -1339,32 +1714,21 @@ type attValVariant6 struct {
 	AttValList *AttValList
 }
 
-func (av attValVariant6) Text() string {
-	return fmt.Sprintf("#attValVariant6[%s]", av.AttValList.Text())
+// CQL renders "(attvallist)".
+func (av attValVariant6) CQL() string {
+	return "(" + av.AttValList.CQL() + ")"
 }
 
 // (KW_WS / KW_TERM) LPAREN _ (NUMBER COMMA NUMBER / RegExp COMMA RegExp COMMA RegExp) _ RPAREN
 type attValVariant7 struct {
 }
 
-func (av attValVariant7) Text() string {
-	return "#attValVariant7[(KW_WS / KW_TERM) LPAREN _ (NUMBER COMMA NUMBER / RegExp COMMA RegExp COMMA RegExp) _ RPAREN]"
-}
-
 // KW_SWAP LPAREN _ NUMBER COMMA AttValList _ RPAREN
 type attValVariant8 struct {
 }
 
-func (av attValVariant8) Text() string {
-	return "#attValVariant8[KW_SWAP LPAREN _ NUMBER COMMA AttValList _ RPAREN]"
-}
-
 // KW_CCOLL LPAREN _ NUMBER COMMA NUMBER COMMA AttValList _ RPAREN
 type attValVariant9 struct {
-}
-
-func (av attValVariant9) Text() string {
-	return "#attValVariant9[KW_CCOLL LPAREN _ NUMBER COMMA NUMBER COMMA AttValList _ RPAREN]"
 }
 
 // -----------
@@ -1403,43 +1767,70 @@ func (a *AttVal) getAttName() string {
 
 func (a *AttVal) rawValue() string {
 	if a.Variant1 != nil {
-		return a.Variant1.RawString.Text()
+		return a.Variant1.RawString.String()
 	}
 	if a.Variant2 != nil {
-		return a.Variant2.RegExp.Text()
+		return a.Variant2.RegExp.String()
 	}
 	return ""
 }
 
-func (a *AttVal) Text() string {
-	if a.Variant1 != nil {
-		return fmt.Sprintf("#AttVal[%s]", a.Variant1.Text())
+// String renders "AttVal( ... )". Variant3/4/7/8/9 carry no parsed
+// fields (see the CQL()/ForEachElement comments below), so origValue -
+// the raw matched source - is used for those instead.
+func (a *AttVal) String() string {
+	var ans strings.Builder
+	ans.WriteString("AttVal( ")
+	switch {
+	case a.Variant1 != nil:
+		ans.WriteString(a.Variant1.AttName.String())
+		if a.Variant1.Not {
+			ans.WriteString("!")
+		}
+		ans.WriteString(a.Variant1.Eeq.String())
+		ans.WriteString(a.Variant1.RawString.String())
 
-	} else if a.Variant2 != nil {
-		return fmt.Sprintf("#AttVal[%s]", a.Variant2.Text())
+	case a.Variant2 != nil:
+		ans.WriteString(a.Variant2.AttName.String())
+		if a.Variant2.Not {
+			ans.WriteString("!")
+		}
+		ans.WriteString(a.Variant2.Op.String())
+		ans.WriteString(a.Variant2.RegExp.String())
 
-	} else if a.Variant3 != nil {
-		return fmt.Sprintf("#AttVal[%s]", a.Variant3.Text())
+	case a.Variant5 != nil:
+		ans.WriteString("!")
+		ans.WriteString(a.Variant5.AttVal.String())
 
-	} else if a.Variant4 != nil {
-		return fmt.Sprintf("#AttVal[%s]", a.Variant4.Text())
+	case a.Variant6 != nil:
+		ans.WriteString(a.Variant6.AttValList.String())
 
-	} else if a.Variant5 != nil {
-		return fmt.Sprintf("#AttVal[%s]", a.Variant5.Text())
-
-	} else if a.Variant6 != nil {
-		return fmt.Sprintf("#AttVal[%s]", a.Variant6.Text())
-
-	} else if a.Variant7 != nil {
-		return fmt.Sprintf("#AttVal[%s]", a.Variant7.Text())
-
-	} else if a.Variant8 != nil {
-		return fmt.Sprintf("#AttVal[%s]", a.Variant8.Text())
-
-	} else if a.Variant9 != nil {
-		return fmt.Sprintf("#AttVal[%s]", a.Variant9.Text())
+	default:
+		ans.WriteString(a.origValue)
 	}
-	return "#AttVal[_unknown_]"
+	ans.WriteString(" )")
+	return ans.String()
+}
+
+// CQL renders whichever grammar variant matched. Variant3/4/7/8/9
+// (POSNUM ranges, ws()/term()/swap()/ccoll() calls) carry no parsed
+// fields - the grammar actions never populate them (see the TODOs in
+// ForEachElement/DFS below) - so origValue, the raw matched source, is
+// the only data available for those and is echoed unchanged.
+func (a *AttVal) CQL() string {
+	if a.Variant1 != nil {
+		return a.Variant1.CQL()
+	}
+	if a.Variant2 != nil {
+		return a.Variant2.CQL()
+	}
+	if a.Variant5 != nil {
+		return a.Variant5.CQL()
+	}
+	if a.Variant6 != nil {
+		return a.Variant6.CQL()
+	}
+	return a.origValue
 }
 
 func (a *AttVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1477,16 +1868,20 @@ func (a *AttVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (a *AttVal) DFS(fn func(v ASTNode)) {
+func (a *AttVal) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(a) {
+		leave(a)
+		return
+	}
 	if a.Variant1 != nil {
-		fn(a.Variant1.AttName)
-		fn(a.Variant1.Eeq)
-		a.Variant1.RawString.DFS(fn)
+		dfsLeaf(enter, leave, a.Variant1.AttName)
+		dfsLeaf(enter, leave, a.Variant1.Eeq)
+		a.Variant1.RawString.DFS(enter, leave)
 
 	} else if a.Variant2 != nil {
-		fn(a.Variant2.AttName)
-		fn(a.Variant2.Op)
-		a.Variant2.RegExp.DFS(fn)
+		dfsLeaf(enter, leave, a.Variant2.AttName)
+		dfsLeaf(enter, leave, a.Variant2.Op)
+		a.Variant2.RegExp.DFS(enter, leave)
 
 	} else if a.Variant3 != nil {
 		// TODO a.variant3
@@ -1495,10 +1890,10 @@ func (a *AttVal) DFS(fn func(v ASTNode)) {
 		// TODO a.variant4
 
 	} else if a.Variant5 != nil {
-		a.Variant5.AttVal.DFS(fn)
+		a.Variant5.AttVal.DFS(enter, leave)
 
 	} else if a.Variant6 != nil {
-		a.Variant6.AttValList.DFS(fn)
+		a.Variant6.AttValList.DFS(enter, leave)
 
 	} else if a.Variant7 != nil {
 		// TODO a.variant7
@@ -1509,7 +1904,7 @@ func (a *AttVal) DFS(fn func(v ASTNode)) {
 	} else if a.Variant9 != nil {
 		// TODO a.variant9
 	}
-	fn(a)
+	leave(a)
 }
 
 // ---------------------------------------------------
@@ -1518,26 +1913,21 @@ type WithinNumber struct {
 	Value ASTString
 }
 
-func (w *WithinNumber) Text() string {
-	return "#WithinNumber"
+func (w *WithinNumber) String() string {
+	return fmt.Sprintf("WithinNumber( %s )", w.Value.String())
 }
 
-func (w *WithinNumber) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion WithinNumber
-	}{
-		RuleName:  "WithinNumber",
-		Expansion: *w,
-	})
+// CQL renders the plain number.
+func (w *WithinNumber) CQL() string {
+	return w.Value.CQL()
 }
 
 func (w *WithinNumber) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, w.Value)
 }
 
-func (w *WithinNumber) DFS(fn func(v ASTNode)) {
-	fn(w.Value)
+func (w *WithinNumber) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	dfsLeaf(enter, leave, w.Value)
 }
 
 // ----------------------------------------------------------
@@ -1548,7 +1938,13 @@ type RegExpRaw struct {
 	Values []ASTNode
 }
 
-func (r *RegExpRaw) Text() string {
+func (r *RegExpRaw) String() string {
+	return r.origValue
+}
+
+// CQL returns the matched regexp fragment unchanged - no normalization
+// is applied within regular expressions.
+func (r *RegExpRaw) CQL() string {
 	return r.origValue
 }
 
@@ -1566,18 +1962,22 @@ func (r *RegExpRaw) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	}
 }
 
-func (r *RegExpRaw) DFS(fn func(v ASTNode)) {
+func (r *RegExpRaw) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(r) {
+		leave(r)
+		return
+	}
 	for _, item := range r.Values {
 		switch tItem := item.(type) {
 		case *RgLook:
-			tItem.DFS(fn)
+			tItem.DFS(enter, leave)
 		case *RgGrouped:
-			tItem.DFS(fn)
+			tItem.DFS(enter, leave)
 		case *RgSimple:
-			tItem.DFS(fn)
+			tItem.DFS(enter, leave)
 		}
 	}
-	fn(r)
+	leave(r)
 }
 
 // ------------------------------------------------------------------
@@ -1586,21 +1986,20 @@ type RawString struct {
 	SimpleString *SimpleString
 }
 
-func (r *RawString) Text() string {
+func (r *RawString) String() string {
 	if r.SimpleString != nil {
-		return fmt.Sprintf("RawString(%s)", r.SimpleString.Text())
+		return fmt.Sprintf("RawString( %s )", r.SimpleString.String())
 	}
-	return "RawString()"
+	return "RawString(  )"
 }
 
-func (r *RawString) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion RawString
-	}{
-		RuleName:  "RawString",
-		Expansion: *r,
-	})
+// CQL renders "\"content\"" - RawString itself doesn't keep the
+// surrounding quotes (unlike RegExp), so they're added back here.
+func (r *RawString) CQL() string {
+	if r.SimpleString != nil {
+		return `"` + r.SimpleString.CQL() + `"`
+	}
+	return `""`
 }
 
 func (r *RawString) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1608,9 +2007,13 @@ func (r *RawString) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	r.SimpleString.ForEachElement(r, fn)
 }
 
-func (r *RawString) DFS(fn func(v ASTNode)) {
-	r.SimpleString.DFS(fn)
-	fn(r)
+func (r *RawString) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(r) {
+		leave(r)
+		return
+	}
+	r.SimpleString.DFS(enter, leave)
+	leave(r)
 }
 
 // ------------------------------------------------------------------------
@@ -1631,7 +2034,7 @@ func (r *SimpleString) UppercaseRatio() float64 {
 	return float64(len(src)) / float64(upper)
 }
 
-func (r *SimpleString) Text() string {
+func (r *SimpleString) String() string {
 	var ans strings.Builder
 	for _, v := range r.Values {
 		ans.WriteString(string(v))
@@ -1639,20 +2042,14 @@ func (r *SimpleString) Text() string {
 	return ans.String()
 }
 
-func (r *SimpleString) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		RuleName  string
-		Expansion SimpleString
-	}{
-		RuleName:  "SimpleString",
-		Expansion: *r,
-	})
+func (r *SimpleString) CQL() string {
+	return r.String()
 }
 
 func (r *SimpleString) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
-	fn(parent, ASTString(r.Text()))
+	fn(parent, ASTString(r.String()))
 }
 
-func (r *SimpleString) DFS(fn func(v ASTNode)) {
-	fn(ASTString(r.Text()))
+func (r *SimpleString) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	dfsLeaf(enter, leave, ASTString(r.String()))
 }

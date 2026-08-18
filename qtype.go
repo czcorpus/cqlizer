@@ -79,7 +79,7 @@ func GetQueryTypeFingerprint(q string) (string, error) {
 		return "", fmt.Errorf("failed to parse query: %w", err)
 	}
 	var fingerPrint strings.Builder
-	query.DFS(func(v cql.ASTNode) {
+	query.DFS(func(v cql.ASTNode) bool { return true }, func(v cql.ASTNode) {
 		switch v.(type) {
 		case *cql.Sequence:
 			fingerPrint.WriteString(";Sequence")

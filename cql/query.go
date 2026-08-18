@@ -17,11 +17,24 @@
 package cql
 
 import (
-	"encoding/json"
 	"strings"
 
 	"github.com/czcorpus/cnc-gokit/collections"
 )
+
+// TTEnterFunc is called when DFS descends into a node. If it returns
+// false, DFS does not descend into that node's children - it goes
+// straight to calling leave on it instead.
+type TTEnterFunc func(node ASTNode) bool
+type TTLeaveFunc func(node ASTNode)
+
+// dfsLeaf visits a leaf AST node (one with no DFS method of its own,
+// e.g. an ASTString) by calling enter immediately followed by leave.
+// Its enter return value is ignored - a leaf has no children to skip.
+func dfsLeaf(enter TTEnterFunc, leave TTLeaveFunc, node ASTNode) {
+	enter(node)
+	leave(node)
+}
 
 // QueryProp is a generalized query property:
 // a) positional attribute with a value
@@ -57,22 +70,21 @@ type Query struct {
 	WithinOrContaining []*WithinOrContaining
 }
 
-func (q *Query) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Expansion Query
-		RuleName  string
-	}{
-		RuleName:  "Query",
-		Expansion: *q,
-	})
-}
-
 func (q *Query) Len() int {
 	return len(q.origValue)
 }
 
-func (q *Query) Text() string {
-	return q.origValue
+func (q *Query) String() string {
+	var ans strings.Builder
+	ans.WriteString("Query( ")
+	if q.Sequence != nil {
+		ans.WriteString(q.Sequence.String())
+	}
+	if q.GlobPart != nil {
+		ans.WriteString(q.GlobPart.String())
+	}
+	ans.WriteString(" )")
+	return ans.String()
 }
 
 func (q *Query) ForEachElement(fn func(parent, v ASTNode)) {
@@ -88,17 +100,43 @@ func (q *Query) ForEachElement(fn func(parent, v ASTNode)) {
 	}
 }
 
-func (q *Query) DFS(fn func(v ASTNode)) {
+// CQL renders the query as normalized, valid CQL source, rebuilt
+// recursively from each node's own fields rather than echoed from the
+// original input.
+func (q *Query) CQL() string {
+	if q == nil {
+		return ""
+	}
+	var ans strings.Builder
 	if q.Sequence != nil {
-		q.Sequence.DFS(fn)
+		ans.WriteString(q.Sequence.CQL())
 	}
 	if q.GlobPart != nil {
-		q.GlobPart.DFS(fn)
+		ans.WriteString(" & ")
+		ans.WriteString(q.GlobPart.CQL())
+	}
+	for _, wc := range q.WithinOrContaining {
+		ans.WriteString(" ")
+		ans.WriteString(wc.CQL())
+	}
+	return ans.String()
+}
+
+func (q *Query) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
+	if !enter(q) {
+		leave(q)
+		return
+	}
+	if q.Sequence != nil {
+		q.Sequence.DFS(enter, leave)
+	}
+	if q.GlobPart != nil {
+		q.GlobPart.DFS(enter, leave)
 	}
 	for _, item := range q.WithinOrContaining {
-		item.DFS(fn)
+		item.DFS(enter, leave)
 	}
-	fn(q)
+	leave(q)
 }
 
 func (q *Query) ExtractProps() []QueryProp {
@@ -112,7 +150,7 @@ func (q *Query) ExtractProps() []QueryProp {
 			if typedV.Variant1 != nil {
 				newItem := QueryProp{
 					Name:  typedV.Variant1.AttName.String(),
-					Value: strings.Trim(typedV.Variant1.RawString.SimpleString.Text(), "\""),
+					Value: strings.Trim(typedV.Variant1.RawString.SimpleString.String(), "\""),
 				}
 				stSrch := parents.findParentByType(typedV, &Structure{}, 0)
 				if stSrch != nil {
@@ -128,7 +166,7 @@ func (q *Query) ExtractProps() []QueryProp {
 			} else if typedV.Variant2 != nil {
 				newItem := QueryProp{
 					Name:  typedV.Variant2.AttName.String(),
-					Value: strings.Trim(typedV.Variant2.RegExp.Text(), "\""),
+					Value: strings.Trim(typedV.Variant2.RegExp.String(), "\""),
 				}
 				stSrch := parents.findParentByType(typedV, &Structure{}, 0)
 				if stSrch != nil {
@@ -149,7 +187,7 @@ func (q *Query) ExtractProps() []QueryProp {
 			if srch != nil {
 				val := make([]string, len(typedV.RegExpRaw))
 				for i, v := range typedV.RegExpRaw {
-					val[i] = v.Text()
+					val[i] = v.String()
 				}
 				ans = append(ans, QueryProp{Value: strings.Join(val, " ")})
 			}

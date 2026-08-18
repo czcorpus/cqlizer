@@ -1,6 +1,12 @@
 # CQLizer
 
-CQLizer is a data-driven CQL (Corpus Query Language) writing helper tool for linguistic corpus analysis. It uses machine learning models to predict query performance and help users write efficient CQL queries.
+CQLizer is a CQL (Corpus Query Language) parser, attribute validator and data-driven evaluator of query complexity.
+
+It can serve in the following modes:
+
+* HTTP API server
+* MCP Server
+* REPL (mostly for testing and debugging)
 
 ## Features
 

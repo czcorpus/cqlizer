@@ -66,7 +66,8 @@ WithinOrContaining <-
     n:NOT? tp:(KW_WITHIN / KW_CONTAINING) _ w:WithinContainingPart {
         ans := &WithinOrContaining{
             WithinContainingPart: typedOrPanic[*WithinContainingPart](w),
-            KwWithin: ASTString(typedOrPanic[string](tp)),
+            Keyword: ASTString(typedOrPanic[string](tp)),
+            not: n != nil,
         }
 
         if n != nil {
@@ -113,16 +114,26 @@ GlobCond <-
         }
         ans.variant1.Number1 = ASTString(typedOrPanic[string](n1))
         ans.variant1.AttName3 = ASTString(typedOrPanic[string](an3))
+        if nt4 != nil {
+            ans.variant1.Not4 = ASTString(typedOrPanic[string](nt4))
+        }
+        ans.variant1.Eq5 = ASTString(typedOrPanic[string](eq5))
         ans.variant1.Number6 = ASTString(typedOrPanic[string](n6))
         ans.variant1.AttName8 = ASTString(typedOrPanic[string](an8))
         return ans, nil
     } /
-    KW_FREQ LPAREN _ n2:NUMBER DOT an3:AttName _ RPAREN NOT? _ ( EQ / LEQ / GEQ / LSTRUCT / RSTRUCT ) _ NUMBER {
+    kf1:KW_FREQ LPAREN _ n2:NUMBER DOT an3:AttName _ RPAREN nt4:NOT? _ op5:(EQ / LEQ / GEQ / LSTRUCT / RSTRUCT) _ n6:NUMBER {
         ans := &GlobCond{
             variant2: &globCondVariant2{
+	            KwFreq1: ASTString(typedOrPanic[string](kf1)),
 	            Number2: ASTString(typedOrPanic[string](n2)),
 	            AttName3: ASTString(typedOrPanic[string](an3)),
+	            Operator5: ASTString(typedOrPanic[string](op5)),
+	            Number6: ASTString(typedOrPanic[string](n6)),
             },
+        }
+        if nt4 != nil {
+            ans.variant2.Not4 = ASTString(typedOrPanic[string](nt4))
         }
         return ans, nil
     }
@@ -167,8 +178,10 @@ Structure <-
     }
 
 NumberedPosition <-
-    NUMBER COLON op:OnePosition {
+    n:NUMBER co:COLON op:OnePosition {
         ans := &NumberedPosition{
+            Number: ASTString(typedOrPanic[string](n)),
+            Colon: ASTString(typedOrPanic[string](co)),
             OnePosition: typedOrPanic[*OnePosition](op),
         }
 
@@ -228,6 +241,9 @@ OnePosition <-
     / KW_MU {
         ans := &OnePosition{
             origValue: string(c.text),
+            Variant4: &onePositionVariant4{
+                Value: ASTString("MU"),
+            },
         }
 
         return ans, nil
@@ -265,19 +281,29 @@ Integer <-
         return string(c.text), nil
     }
 
+MeetRange <-
+    lft:Integer _ rgt:Integer {
+        ans := &MeetRange{
+            lft: typedOrPanic[string](lft),
+            rgt: typedOrPanic[string](rgt),
+        }
+        return ans, nil
+    }
+
 MeetOp <-
-    KW_MEET _ p1:Position _ p2:Position _ (Integer _ Integer)? {
+    KW_MEET _ p1:Position _ p2:Position _ rng:MeetRange? {
         ans := &MeetOp{
             origValue: string(c.text),
             Position1: typedOrPanic[*Position](p1),
             Position2: typedOrPanic[*Position](p2),
+            Range: typedOrPanic[*MeetRange](rng),
         }
         return ans, nil
     }
 
 UnionOp <-
     KW_UNION _ p1:Position _ p2:Position {
-        ans := &MeetOp{
+        ans := &UnionOp{
             origValue: string(c.text),
             Position1: typedOrPanic[*Position](p1),
             Position2: typedOrPanic[*Position](p2),
@@ -460,11 +486,13 @@ AttValAnd <-
     }
 
 AttVal <-
-    an:AttName n:(_ NOT)? _ EEQ _ rs:RawString {
+    an:AttName n:(_ NOT)? _ e:EEQ _ rs:RawString {
         ans := &AttVal{
             origValue: string(c.text),
             Variant1: &attValVariant1 {
 	            AttName: ASTString(typedOrPanic[string](an)),
+	            Not: n != nil,
+	            Eeq: ASTString(typedOrPanic[string](e)),
 	            RawString: typedOrPanic[*RawString](rs),
             },
         }
@@ -479,11 +507,24 @@ AttVal <-
                 not = true
             }
         }
+        // op is either a plain string (EQ / LEQ / GEQ each already
+        // unwrap to a string via their own action) or a []any of
+        // [TEQ text, optional NUMBER] when the TEQ NUMBER? alternative
+        // matched, since that sequence has no unwrapping action of its
+        // own.
+        var opStr string
+        switch top := op.(type) {
+        case string:
+            opStr = top
+        case []any:
+            opStr = typedOrPanic[string](top[0])
+        }
         ans := &AttVal{
             origValue: string(c.text),
             Variant2: &attValVariant2{
                 Not: not,
                 AttName: ASTString(typedOrPanic[string](an)),
+	            Op: ASTString(opStr),
 	            RegExp: typedOrPanic[*RegExp](rg),
             },
         }
@@ -586,6 +627,7 @@ RepOpt <-
             Variant2: &repOptVariant2{
                 From: ASTString(typedOrPanic[string](v1)),
                 To: ASTString(v2x),
+                HasComma: v2 != nil,
             },
         }
         return ans, nil
