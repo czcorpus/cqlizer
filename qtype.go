@@ -89,7 +89,7 @@ func GetQueriesFileFingerprintsFromJSONL(queriesFilePath string, groupItems bool
 			i++
 		}
 		slices.SortFunc(tmp, func(s1, s2 fingerprintGroupEntry) int {
-			return int(s1.freq) - int(s2.freq)
+			return int(s2.freq) - int(s1.freq)
 		})
 		for _, v := range tmp {
 			fmt.Printf("%s\t%d\n", v.query, v.freq)

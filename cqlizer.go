@@ -418,10 +418,13 @@ func main() {
 	case actionQueryTypeKey:
 		cmdQueryType.Parse(os.Args[2:])
 		if *qtypeProcFile {
-			GetQueriesFileFingerprints(cmdQueryType.Arg(0), *qtypeGroupItems)
 
-		} else if *qtypeUseJSONL {
-			GetQueriesFileFingerprintsFromJSONL(cmdQueryType.Arg(0), *qtypeGroupItems)
+			if *qtypeUseJSONL {
+				GetQueriesFileFingerprintsFromJSONL(cmdQueryType.Arg(0), *qtypeGroupItems)
+
+			} else {
+				GetQueriesFileFingerprints(cmdQueryType.Arg(0), *qtypeGroupItems)
+			}
 
 		} else {
 			k, err := GetQueryTypeFingerprint(cmdQueryType.Arg(0))
