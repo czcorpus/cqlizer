@@ -20,8 +20,8 @@ type jsonlQueryRecord struct {
 }
 
 type fingerprintGroupEntry struct {
-	query string
-	freq  int64
+	queries []string
+	freq    int64
 }
 
 // GetQueriesFileFingerprintsFromJSONL
@@ -30,7 +30,7 @@ type fingerprintGroupEntry struct {
 // It behaves like GetQueriesFileFingerprints but when groupItems is set,
 // it also prints the total frequency of all the grouped items as the
 // last (tab-separated) column.
-func GetQueriesFileFingerprintsFromJSONL(queriesFilePath string, groupItems bool) {
+func GetQueriesFileFingerprintsFromJSONL(queriesFilePath string, groupItems bool, examplesPerGroup int) {
 	f, err := os.Open(queriesFilePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to open queries file: %s\n", err)
@@ -62,11 +62,12 @@ func GetQueriesFileFingerprintsFromJSONL(queriesFilePath string, groupItems bool
 
 				} else if groupItems {
 					curr, ok := grouped[fingerPrint]
-					next := fingerprintGroupEntry{query: curr.query, freq: curr.freq + rec.Freq}
-					if !ok || len(query) < len(curr.query) {
-						next.query = query
+					if !ok {
+						curr = fingerprintGroupEntry{queries: make([]string, 0, 4)}
 					}
-					grouped[fingerPrint] = next
+					curr.queries = append(curr.queries, query)
+					curr.freq += rec.Freq
+					grouped[fingerPrint] = curr
 
 				} else {
 					fmt.Printf("%s\t%s\n", query, fingerPrint)
@@ -92,12 +93,22 @@ func GetQueriesFileFingerprintsFromJSONL(queriesFilePath string, groupItems bool
 			return int(s2.freq) - int(s1.freq)
 		})
 		for _, v := range tmp {
-			fmt.Printf("%s\t%d\n", v.query, v.freq)
+			for i := range examplesPerGroup {
+				if i >= len(v.queries) {
+					break
+				}
+				if i == 0 {
+					fmt.Printf("%s\t%d\n", v.queries[i], v.freq)
+
+				} else {
+					fmt.Printf("%s\t--\n", v.queries[i])
+				}
+			}
 		}
 	}
 }
 
-func GetQueriesFileFingerprints(queriesFilePath string, groupItems bool) {
+func GetQueriesFileFingerprints(queriesFilePath string, groupItems bool, examplesPerGroup int) {
 	// the entry looks like this [a-z]+,<QUERY>
 	// so there is a prefix we must remove
 	f, err := os.Open(queriesFilePath)
@@ -108,7 +119,7 @@ func GetQueriesFileFingerprints(queriesFilePath string, groupItems bool) {
 	defer f.Close()
 
 	reader := bufio.NewReader(f)
-	grouped := make(map[string]string)
+	grouped := make(map[string]fingerprintGroupEntry)
 	for {
 		line, err := reader.ReadString('\n')
 		line = strings.TrimRight(line, "\r\n")
@@ -126,9 +137,11 @@ func GetQueriesFileFingerprints(queriesFilePath string, groupItems bool) {
 
 			} else if groupItems {
 				curr, ok := grouped[fingerPrint]
-				if !ok || len(query) < len(curr) {
-					grouped[fingerPrint] = query
+				if !ok {
+					curr = fingerprintGroupEntry{queries: make([]string, 0, 4)}
 				}
+				curr.queries = append(curr.queries, query)
+				grouped[fingerPrint] = curr
 
 			} else {
 				fmt.Printf("%s\t%s\n", query, fingerPrint)
@@ -143,17 +156,25 @@ func GetQueriesFileFingerprints(queriesFilePath string, groupItems bool) {
 		}
 	}
 	if groupItems {
-		tmp := make([]string, len(grouped))
+		tmp := make([]fingerprintGroupEntry, len(grouped))
 		i := 0
 		for _, v := range grouped {
+			slices.SortFunc(v.queries, func(s1, s2 string) int {
+				return len(s1) - len(s2)
+			})
 			tmp[i] = v
 			i++
 		}
-		slices.SortFunc(tmp, func(s1, s2 string) int {
-			return len(s1) - len(s2)
+		slices.SortFunc(tmp, func(s1, s2 fingerprintGroupEntry) int {
+			return len(s1.queries[0]) - len(s2.queries[0])
 		})
 		for _, v := range tmp {
-			fmt.Println(v)
+			for i := range examplesPerGroup {
+				if i >= len(v.queries) {
+					break
+				}
+				fmt.Println(v.queries[i])
+			}
 		}
 	}
 }
