@@ -300,6 +300,7 @@ func main() {
 	cmdQueryType := flag.NewFlagSet(actionQueryTypeKey, flag.ExitOnError)
 	qtypeProcFile := cmdQueryType.Bool("proc-file", false, "if set then the whole file of queries is processed.")
 	qtypeGroupItems := cmdQueryType.Bool("group-items", false, "if set then only unique fingerprint items will be produced with reasonably short examples")
+	examplesPerGroup := cmdQueryType.Int("examples-per-group", 1, "if -group-items is used, then by default, each group is represented only by one example; this option can change the value")
 	qtypeUseJSONL := cmdQueryType.Bool("jsonl", false, "if set, then jsonl with 'query', 'freq', 'corpora' keys is expected")
 	cmdQueryType.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s query-type-key [options]\n", os.Args[0])
@@ -420,10 +421,10 @@ func main() {
 		if *qtypeProcFile {
 
 			if *qtypeUseJSONL {
-				GetQueriesFileFingerprintsFromJSONL(cmdQueryType.Arg(0), *qtypeGroupItems)
+				GetQueriesFileFingerprintsFromJSONL(cmdQueryType.Arg(0), *qtypeGroupItems, *examplesPerGroup)
 
 			} else {
-				GetQueriesFileFingerprints(cmdQueryType.Arg(0), *qtypeGroupItems)
+				GetQueriesFileFingerprints(cmdQueryType.Arg(0), *qtypeGroupItems, *examplesPerGroup)
 			}
 
 		} else {
