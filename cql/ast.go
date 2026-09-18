@@ -2044,6 +2044,14 @@ func (w *WithinNumber) String() string {
 	return fmt.Sprintf("WithinNumber( %s )", w.Value.String())
 }
 
+func (w *WithinNumber) AsInt() int {
+	v, err := strconv.Atoi(w.Value.String())
+	if err != nil {
+		panic(fmt.Errorf("invalid value of WithinNumber: %s", w.Value))
+	}
+	return v
+}
+
 // CQL renders the plain number.
 func (w *WithinNumber) CQL() string {
 	return w.Value.CQL()

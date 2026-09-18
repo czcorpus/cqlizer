@@ -113,13 +113,9 @@ func TestWithinContainingPartAccessors(t *testing.T) {
 	assert.Nil(t, wcp.AlignedPart())
 	assert.Equal(t, `[word="b"]`, wcp.Sequence().CQL())
 
-	// NOTE: the "within <number>" form can't be exercised via ParseCQL -
-	// WithinNumber's grammar rule (`WithinNumber <- NUMBER`) has no
-	// wrapping action, so it returns a raw string instead of a
-	// *WithinNumber, and parsing "within 5" panics inside typedOrPanic.
-	// That's a pre-existing grammar bug, tracked separately; the
-	// accessor itself is exercised via direct construction here.
-	wcp = &WithinContainingPart{variant2: &withinContainingPartVariant2{WithinNumber: &WithinNumber{Value: "5"}}}
+	q, err = ParseCQL("test", `[word="a"] within 5`)
+	assert.NoError(t, err)
+	wcp = q.WithinOrContaining[0].WithinContainingPart
 	assert.Nil(t, wcp.Sequence())
 	assert.NotNil(t, wcp.WithinNumber())
 	assert.Nil(t, wcp.AlignedPart())
@@ -156,13 +152,15 @@ func TestRgCharAccessors(t *testing.T) {
 	assert.Equal(t, ASTString("c"), lit)
 
 	assert.NotNil(t, chars[5].QM())
-	assert.NotNil(t, chars[6].Op())
-	assert.Equal(t, ASTString("^"), chars[6].Op().Value)
+	op, ok := chars[6].Op()
+	assert.True(t, ok)
+	assert.Equal(t, ASTString("^"), op)
 
 	// non-matching accessors return nil/false on the "wrong" variant
 	_, ok = chars[2].Literal()
 	assert.False(t, ok)
-	assert.Nil(t, chars[0].Op())
+	_, ok = chars[0].Op()
+	assert.False(t, ok)
 }
 
 func TestRgAltValAccessors(t *testing.T) {
@@ -187,15 +185,46 @@ func TestRgAltValAccessors(t *testing.T) {
 	assert.Equal(t, ASTString("a"), from)
 	assert.Equal(t, ASTString("z"), to)
 
-	// the grammar's dash-literal alternative (RgAltVal variant2) is
-	// shadowed in practice - a bare "-" is matched by RgChar's RG_OP
-	// branch first - so it's exercised via direct construction instead
-	// of a parsed query.
-	dash := &RgAltVal{variant2: &rgAltValVariant2{Value: "-"}}
-	lit, ok := dash.Literal()
+	// a leading "-" can't be part of a range (no preceding AnyLetter), so
+	// it takes the dash-literal alternative (RgAltVal variant2).
+	q, err = ParseCQL("test", `"[-az]"`)
+	assert.NoError(t, err)
+	alts = nodesOfType[*RgAltVal](q)
+	assert.Len(t, alts, 3)
+	lit, ok := alts[0].Literal()
 	assert.True(t, ok)
 	assert.Equal(t, ASTString("-"), lit)
-	assert.Nil(t, dash.Char())
-	_, _, ok = dash.Range()
+	assert.Nil(t, alts[0].Char())
+	_, _, ok = alts[0].Range()
 	assert.False(t, ok)
+}
+
+// TestRgOpVsAnchor pins down the RG_ANCHOR/RG_OP split: only "^" and "$"
+// are true regexp operators/anchors (RgChar.Op()); dash, comma,
+// underscore and digits are plain literal characters
+// (RgChar.Literal()), both inside and outside character classes.
+func TestRgOpVsAnchor(t *testing.T) {
+	q, err := ParseCQL("test", `"a-b,c_d1^e$f"`)
+	assert.NoError(t, err)
+	chars := nodesOfType[*RgChar](q)
+
+	wantLiterals := map[int]string{0: "a", 1: "-", 2: "b", 3: ",", 4: "c", 5: "_", 6: "d", 7: "1", 9: "e", 11: "f"}
+	for i, want := range wantLiterals {
+		lit, ok := chars[i].Literal()
+		assert.True(t, ok, "index %d", i)
+		assert.Equal(t, ASTString(want), lit)
+		assert.True(t, chars[i].IsConstant())
+	}
+
+	for _, i := range []int{8, 10} {
+		_, ok := chars[i].Op()
+		assert.True(t, ok, "index %d", i)
+		assert.False(t, chars[i].IsConstant())
+	}
+	op, ok := chars[8].Op()
+	assert.True(t, ok)
+	assert.Equal(t, ASTString("^"), op)
+	op, ok = chars[10].Op()
+	assert.True(t, ok)
+	assert.Equal(t, ASTString("$"), op)
 }

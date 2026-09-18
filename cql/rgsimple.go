@@ -230,27 +230,35 @@ type rgCharVariant1 struct {
 	IsUnicodeClass bool
 }
 
+// rgCharVariant2 is for the RG_ANCHOR rule
 type rgCharVariant2 struct {
-	RgOp *RgOp
+	Value ASTString
 }
 
+// rgCharVariant3 is for the RG_REPEAT rule
 type rgCharVariant3 struct {
 	RgRepeat *RgRepeat
 }
 
+// rgCharVariant4 is for the RG_ANY
 type rgCharVariant4 struct {
 	RgAny *RgAny
 }
 
+// rgCharVariant5 is for the RG_QM rule
 type rgCharVariant5 struct {
 	RgQM *RgQM
 }
 
 type RgChar struct {
 	variant1 *rgCharVariant1
+
 	variant2 *rgCharVariant2
+
 	variant3 *rgCharVariant3
+
 	variant4 *rgCharVariant4
+
 	variant5 *rgCharVariant5
 }
 
@@ -266,7 +274,7 @@ func (rc *RgChar) Info() string {
 		return fmt.Sprintf("#RgChar[%s]", rc.variant1.Value.String())
 
 	} else if rc.variant2 != nil {
-		return fmt.Sprintf("#RgChar[%s]", rc.variant2.RgOp.Value.String())
+		return fmt.Sprintf("#RgChar[%s]", rc.variant2.Value.String())
 
 	} else if rc.variant3 != nil {
 		return fmt.Sprintf("#RgChar[%s]", rc.variant3.RgRepeat.Value.String())
@@ -285,7 +293,7 @@ func (rc *RgChar) String() string {
 		return rc.variant1.Value.String()
 
 	} else if rc.variant2 != nil {
-		return rc.variant2.RgOp.Value.String()
+		return rc.variant2.Value.String()
 
 	} else if rc.variant3 != nil {
 		return rc.variant3.RgRepeat.Value.String()
@@ -304,7 +312,7 @@ func (rc *RgChar) CQL() string {
 		return rc.variant1.Value.CQL()
 
 	} else if rc.variant2 != nil {
-		return rc.variant2.RgOp.CQL()
+		return rc.variant2.Value.CQL()
 
 	} else if rc.variant3 != nil {
 		return rc.variant3.RgRepeat.CQL()
@@ -319,7 +327,7 @@ func (rc *RgChar) CQL() string {
 }
 
 func (rc *RgChar) IsRgOperator(v string) bool {
-	return rc.variant2 != nil && rc.variant2.RgOp.Value.String() == v
+	return rc.variant2 != nil && rc.variant2.Value.String() == v
 }
 
 func (rc *RgChar) IsConstant() bool {
@@ -335,13 +343,13 @@ func (rc *RgChar) Literal() (ASTString, bool) {
 	return "", false
 }
 
-// Op returns the matched RgOp (e.g. an anchor operator), or nil if a
-// different alternative matched.
-func (rc *RgChar) Op() *RgOp {
+// Op returns the matched anchor operator ("^" or "$") and true, or
+// ("", false) if a different alternative matched.
+func (rc *RgChar) Op() (ASTString, bool) {
 	if rc.variant2 != nil {
-		return rc.variant2.RgOp
+		return rc.variant2.Value, true
 	}
-	return nil
+	return "", false
 }
 
 // Repeat returns the matched RgRepeat quantifier, or nil if a different
@@ -377,7 +385,7 @@ func (r *RgChar) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 		fn(r, r.variant1.Value)
 
 	} else if r.variant2 != nil {
-		r.variant2.RgOp.ForEachElement(r, fn)
+		fn(r, r.variant2.Value)
 
 	} else if r.variant3 != nil {
 		r.variant3.RgRepeat.ForEachElement(r, fn)
@@ -399,7 +407,7 @@ func (r *RgChar) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
 		dfsLeaf(enter, leave, r.variant1.Value)
 
 	} else if r.variant2 != nil {
-		r.variant2.RgOp.DFS(enter, leave)
+		dfsLeaf(enter, leave, r.variant2.Value)
 	} else if r.variant3 != nil {
 		r.variant3.RgRepeat.DFS(enter, leave)
 
@@ -595,28 +603,6 @@ func (a *AnyLetter) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 
 func (a *AnyLetter) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
 	dfsLeaf(enter, leave, a.Value)
-}
-
-// -------------------------------------------------------------
-
-type RgOp struct {
-	Value ASTString
-}
-
-func (r *RgOp) String() string {
-	return string(r.Value)
-}
-
-func (r *RgOp) CQL() string {
-	return string(r.Value)
-}
-
-func (r *RgOp) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
-	fn(parent, r.Value)
-}
-
-func (r *RgOp) DFS(enter TTEnterFunc, leave TTLeaveFunc) {
-	dfsLeaf(enter, leave, r.Value)
 }
 
 // ----------------------------------------------------------------

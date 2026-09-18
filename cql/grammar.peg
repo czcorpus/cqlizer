@@ -588,7 +588,12 @@ AttVal <-
     }
 
 WithinNumber <-
-    NUMBER
+    NUMBER {
+        ans := &WithinNumber{
+            Value: ASTString(c.text),
+        }
+        return ans, nil
+    }
 
 RepOpt <-
     v:STAR {
@@ -797,6 +802,15 @@ RgAltVal <-
         return ans, nil
     }
 
+    / v:DASH {
+        ans := &RgAltVal{
+            variant2: &rgAltValVariant2{
+                Value: ASTString(typedOrPanic[string](v)),
+            },
+        }
+
+        return ans, nil
+    }
     / v:RgChar {
         ans := &RgAltVal{
             variant1: &rgAltValVariant1{
@@ -814,15 +828,6 @@ RgAltVal <-
                         Value: ASTString("|"),
                     },
                 },
-            },
-        }
-
-        return ans, nil
-    }
-    / v:DASH {
-        ans := &RgAltVal{
-            variant2: &rgAltValVariant2{
-                Value: ASTString(typedOrPanic[string](v)),
             },
         }
 
@@ -879,12 +884,19 @@ RgChar <-
 
         return ans, nil
     }
-    / RG_OP {
+    / RG_ANCHOR {
         ans := &RgChar{
             variant2: &rgCharVariant2{
-                RgOp: &RgOp{
-                    Value: ASTString(string(c.text)),
-                },
+                Value: ASTString(string(c.text)),
+            },
+        }
+
+        return ans, nil
+    }
+    / RG_OP {
+        ans := &RgChar{
+            variant1: &rgCharVariant1{
+                Value: ASTString(string(c.text)),
             },
         }
 
@@ -934,8 +946,15 @@ RG_QM <- "?"
 
 RG_ANY <- "."
 
+// RG_ANCHOR matches the two true regexp anchor/operator characters. Kept
+// separate from RG_OP so that plain literal punctuation (dash, comma,
+// underscore, space, digits) isn't misclassified as an operator - see
+// RgChar.IsConstant()/IsRgOperator() and the concrete-char counting in
+// eval/feats, which rely on that distinction.
+RG_ANCHOR <- [$^]
+
 RG_OP <-
-    [-,_^$ ]
+    [-,_ ]
     / [0-9]
 
 RG_CARET <- "^"
