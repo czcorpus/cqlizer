@@ -4883,7 +4883,7 @@ func (c *current) onAtomQuery5(seq, wcp any) (any, error) {
 		tmp := anyToSlice(item)
 		neg := tmp[1] != nil
 		tp := typedOrPanic[string](tmp[2])
-		wcBlock := &withinContainingBlock{
+		wcBlock := &WithinContainingBlock{
 			Not:                  neg,
 			Keyword:              ASTString(tp),
 			WithinContainingPart: typedOrPanic[*WithinContainingPart](tmp[4]),

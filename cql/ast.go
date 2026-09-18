@@ -348,6 +348,33 @@ func (wcp *WithinContainingPart) CQL() string {
 	return ""
 }
 
+// Sequence returns the matched sequence alternative, or nil if a
+// WithinNumber or AlignedPart matched instead.
+func (wcp *WithinContainingPart) Sequence() *Sequence {
+	if wcp.variant1 != nil {
+		return wcp.variant1.Sequence
+	}
+	return nil
+}
+
+// WithinNumber returns the matched number alternative, or nil if a
+// Sequence or AlignedPart matched instead.
+func (wcp *WithinContainingPart) WithinNumber() *WithinNumber {
+	if wcp.variant2 != nil {
+		return wcp.variant2.WithinNumber
+	}
+	return nil
+}
+
+// AlignedPart returns the matched aligned-corpus alternative, or nil if
+// a Sequence or WithinNumber matched instead.
+func (wcp *WithinContainingPart) AlignedPart() *AlignedPart {
+	if wcp.variant3 != nil {
+		return wcp.variant3.AlignedPart
+	}
+	return nil
+}
+
 func (wcp *WithinContainingPart) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, wcp)
 	if wcp.variant1 != nil {
@@ -476,6 +503,58 @@ func (gc *GlobCond) CQL() string {
 		return ans.String()
 	}
 	return ""
+}
+
+// GlobCondAttrCompare is the "N.attr op M.attr" form of a GlobCond
+// (grammar variant 1).
+type GlobCondAttrCompare struct {
+	Number1  ASTString
+	AttName1 ASTString
+	Not      bool
+	Op       ASTString
+	Number2  ASTString
+	AttName2 ASTString
+}
+
+// GlobCondFreqCompare is the "freq(N.attr) op M" form of a GlobCond
+// (grammar variant 2).
+type GlobCondFreqCompare struct {
+	Number    ASTString
+	AttName   ASTString
+	Not       bool
+	Op        ASTString
+	Threshold ASTString
+}
+
+// AttrCompare returns the "N.attr op M.attr" form of the condition. ok
+// is false if the freq(...) form matched instead.
+func (gc *GlobCond) AttrCompare() (result GlobCondAttrCompare, ok bool) {
+	if gc.variant1 == nil {
+		return GlobCondAttrCompare{}, false
+	}
+	return GlobCondAttrCompare{
+		Number1:  gc.variant1.Number1,
+		AttName1: gc.variant1.AttName3,
+		Not:      gc.variant1.Not4 != "",
+		Op:       gc.variant1.Eq5,
+		Number2:  gc.variant1.Number6,
+		AttName2: gc.variant1.AttName8,
+	}, true
+}
+
+// FreqCompare returns the "freq(N.attr) op M" form of the condition. ok
+// is false if the plain attr-compare form matched instead.
+func (gc *GlobCond) FreqCompare() (result GlobCondFreqCompare, ok bool) {
+	if gc.variant2 == nil {
+		return GlobCondFreqCompare{}, false
+	}
+	return GlobCondFreqCompare{
+		Number:    gc.variant2.Number2,
+		AttName:   gc.variant2.AttName3,
+		Not:       gc.variant2.Not4 != "",
+		Op:        gc.variant2.Operator5,
+		Threshold: gc.variant2.Number6,
+	}, true
 }
 
 func (gc *GlobCond) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -867,6 +946,24 @@ func (p *Position) CQL() string {
 		return p.variant2.NumberedPosition.CQL()
 	}
 	return ""
+}
+
+// OnePosition returns the matched bare position (e.g. "[word=\"x\"]"),
+// or nil if the NumberedPosition alternative matched instead.
+func (p *Position) OnePosition() *OnePosition {
+	if p.variant1 != nil {
+		return p.variant1.OnePosition
+	}
+	return nil
+}
+
+// NumberedPosition returns the matched "N:position" alternative, or nil
+// if a bare OnePosition matched instead.
+func (p *Position) NumberedPosition() *NumberedPosition {
+	if p.variant2 != nil {
+		return p.variant2.NumberedPosition
+	}
+	return nil
 }
 
 func (p *Position) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
@@ -1267,7 +1364,9 @@ type atomQueryVariant1 struct {
 	Position *Position
 }
 
-type withinContainingBlock struct {
+// WithinContainingBlock is a single trailing "(!within|!containing) <part>"
+// clause attached to a parenthesized sequence (see AtomQuery).
+type WithinContainingBlock struct {
 	Not                  bool
 	Keyword              ASTString // either `within` or `containing`
 	WithinContainingPart *WithinContainingPart
@@ -1275,7 +1374,7 @@ type withinContainingBlock struct {
 
 type atomQueryVariant2 struct {
 	Sequence *Sequence
-	WCBlock  []*withinContainingBlock
+	WCBlock  []*WithinContainingBlock
 }
 
 // AtomQuery
@@ -1332,6 +1431,34 @@ func (aq *AtomQuery) CQL() string {
 		return ans.String()
 	}
 	return ""
+}
+
+// Position returns the matched bare position, or nil if the
+// parenthesized-sequence alternative matched instead.
+func (aq *AtomQuery) Position() *Position {
+	if aq.variant1 != nil {
+		return aq.variant1.Position
+	}
+	return nil
+}
+
+// Sequence returns the parenthesized sequence, or nil if a bare
+// Position matched instead.
+func (aq *AtomQuery) Sequence() *Sequence {
+	if aq.variant2 != nil {
+		return aq.variant2.Sequence
+	}
+	return nil
+}
+
+// WithinContainingBlocks returns the (possibly empty) list of trailing
+// "!within|!containing <part>" clauses attached to a parenthesized
+// sequence. It returns nil if a bare Position matched instead.
+func (aq *AtomQuery) WithinContainingBlocks() []*WithinContainingBlock {
+	if aq.variant2 != nil {
+		return aq.variant2.WCBlock
+	}
+	return nil
 }
 
 func (aq *AtomQuery) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {

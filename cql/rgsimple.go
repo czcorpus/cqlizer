@@ -326,6 +326,51 @@ func (rc *RgChar) IsConstant() bool {
 	return rc.variant1 != nil
 }
 
+// Literal returns the matched literal character/unicode-class value and
+// true, or ("", false) if a different alternative matched.
+func (rc *RgChar) Literal() (ASTString, bool) {
+	if rc.variant1 != nil {
+		return rc.variant1.Value, true
+	}
+	return "", false
+}
+
+// Op returns the matched RgOp (e.g. an anchor operator), or nil if a
+// different alternative matched.
+func (rc *RgChar) Op() *RgOp {
+	if rc.variant2 != nil {
+		return rc.variant2.RgOp
+	}
+	return nil
+}
+
+// Repeat returns the matched RgRepeat quantifier, or nil if a different
+// alternative matched.
+func (rc *RgChar) Repeat() *RgRepeat {
+	if rc.variant3 != nil {
+		return rc.variant3.RgRepeat
+	}
+	return nil
+}
+
+// Any returns the matched RgAny ("."), or nil if a different
+// alternative matched.
+func (rc *RgChar) Any() *RgAny {
+	if rc.variant4 != nil {
+		return rc.variant4.RgAny
+	}
+	return nil
+}
+
+// QM returns the matched RgQM ("?") quantifier, or nil if a different
+// alternative matched.
+func (rc *RgChar) QM() *RgQM {
+	if rc.variant5 != nil {
+		return rc.variant5.RgQM
+	}
+	return nil
+}
+
 func (r *RgChar) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
 	fn(parent, r)
 	if r.variant1 != nil {
@@ -629,6 +674,33 @@ func (rc *RgAltVal) CQL() string {
 		return rc.variant3.From.CQL() + "-" + rc.variant3.To.CQL()
 	}
 	return ""
+}
+
+// Char returns the matched RgChar alternative, or nil if a different
+// alternative matched.
+func (rc *RgAltVal) Char() *RgChar {
+	if rc.variant1 != nil {
+		return rc.variant1.RgChar
+	}
+	return nil
+}
+
+// Literal returns the matched literal "-" value and true, or ("", false)
+// if a different alternative matched.
+func (rc *RgAltVal) Literal() (ASTString, bool) {
+	if rc.variant2 != nil {
+		return rc.variant2.Value, true
+	}
+	return "", false
+}
+
+// Range returns the matched "from-to" character range and true, or
+// ("", "", false) if a different alternative matched.
+func (rc *RgAltVal) Range() (from, to ASTString, ok bool) {
+	if rc.variant3 != nil {
+		return rc.variant3.From, rc.variant3.To, true
+	}
+	return "", "", false
 }
 
 func (r *RgAltVal) ForEachElement(parent ASTNode, fn func(parent, v ASTNode)) {
