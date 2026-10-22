@@ -106,3 +106,9 @@ func TestRgress005(t *testing.T) {
 	_, err := ParseCQL("#", q1)
 	assert.NoError(t, err)
 }
+
+func TestWithinNumber(t *testing.T) {
+	q1 := `[] within 5`
+	_, err := ParseCQL("#", q1)
+	assert.NoError(t, err)
+}
