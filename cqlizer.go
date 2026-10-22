@@ -91,7 +91,7 @@ func topLevelUsage() {
 	fmt.Fprintf(os.Stderr, "\t%s\t\t\tevaluate model (precision, recall, f-beta) using provided data\n", actionLearn)
 	fmt.Fprintf(os.Stderr, "\t%s\tbenchmark queries with zero processing time (using MQuery)\n", actionBenchmarkMissing)
 	fmt.Fprintf(os.Stderr, "\t%s\t\t\tREPL for CQL evaluation\n", actionREPL)
-	fmt.Fprintf(os.Stderr, "\t%s\t\tmcp-server MCP (experimental/unfinished) \n", actionMCPServer)
+	fmt.Fprintf(os.Stderr, "\t%s\t\tmcp-server MCP (beta version) \n", actionMCPServer)
 	fmt.Fprintf(os.Stderr, "\nUse `cqlizer help ACTION` for information about a specific action\n\n")
 }
 

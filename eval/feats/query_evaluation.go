@@ -32,6 +32,12 @@ type CorpusProps struct {
 	Size      int    `json:"size"`
 	Lang      string `json:"lang"`
 	AltCorpus string `json:"altCorpus"`
+
+	// Tagsets maps positional attributes to annotation schemes
+	// (see package tagsets) used for validation of attribute values.
+	// E.g. {"tag": "none", "feats": "ud:feats"}. Schemes of UD attributes
+	// are inferred automatically, so this is needed only for exceptions.
+	Tagsets map[string]string `json:"tagsets,omitempty"`
 }
 
 func logScaled(v float64) float64 {
