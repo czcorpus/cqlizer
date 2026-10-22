@@ -44,6 +44,10 @@ type QueryProp struct {
 	Structure string
 	Name      string
 	Value     string
+
+	// Literal is true for values compared via `==` (i.e. not
+	// interpreted as a regular expression)
+	Literal bool
 }
 
 func (qp QueryProp) IsStructure() bool {
@@ -149,8 +153,9 @@ func (q *Query) ExtractProps() []QueryProp {
 		case *AttVal:
 			if typedV.Variant1 != nil {
 				newItem := QueryProp{
-					Name:  typedV.Variant1.AttName.String(),
-					Value: strings.Trim(typedV.Variant1.RawString.SimpleString.String(), "\""),
+					Name:    typedV.Variant1.AttName.String(),
+					Value:   strings.Trim(typedV.Variant1.RawString.SimpleString.String(), "\""),
+					Literal: true,
 				}
 				stSrch := parents.findParentByType(typedV, &Structure{}, 0)
 				if stSrch != nil {

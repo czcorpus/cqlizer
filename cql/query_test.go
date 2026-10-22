@@ -53,6 +53,20 @@ func TestRegressionAtSign(t *testing.T) {
 	)
 }
 
+func TestQueryGetAttrsLiteral(t *testing.T) {
+	q, err := ParseCQL("test", `[upos=="NOUN" & lemma="hrad"]`)
+	assert.NoError(t, err)
+	attrs := q.ExtractProps()
+	assert.Equal(
+		t,
+		[]QueryProp{
+			{Name: "upos", Value: "NOUN", Literal: true},
+			{Name: "lemma", Value: "hrad"},
+		},
+		attrs,
+	)
+}
+
 func TestQueryGetAttrsSimpleStruct(t *testing.T) {
 	q, err := ParseCQL("test", `[word="x"] within <s>`)
 	assert.NoError(t, err)

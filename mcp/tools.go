@@ -102,7 +102,7 @@ func Init(
 
 	srv.AddTool(
 		mcp.NewTool("cql_validate",
-			mcp.WithDescription("Validate CQL syntax, check attributes support"),
+			mcp.WithDescription("Validate CQL syntax, check attributes support and validate attribute values against known tagsets (e.g. Universal Dependencies upos, feats, deprel)"),
 			mcp.WithString("corpus_id", mcp.Required(), mcp.Description("An ID of a corpus to apply CQL to")),
 			mcp.WithString("q", mcp.Required(), mcp.Description("CQL query string")),
 		),
@@ -132,9 +132,24 @@ func Init(
 				}
 			}
 
+			issues := checkTagsets(corpusID, qProps, corpusPropsOf(conf, corpusID), corpInfo)
+			if hasTagsetErrors(issues) {
+				return mcp.NewToolResultError(formatTagsetIssues(
+					"The query is syntactically valid, but some attribute values cannot match as intended:",
+					issues,
+				)), nil
+			}
+			if len(issues) > 0 {
+				return mcp.NewToolResultText(formatTagsetIssues(
+					"query OK, but please check the following:",
+					issues,
+				)), nil
+			}
 			return mcp.NewToolResultText("query OK"), nil
 		},
 	)
+
+	addTagsetTools(srv, corpInfoProv, conf)
 
 	if corpusStructToolEnabled {
 		srv.AddTool(
