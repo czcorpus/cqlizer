@@ -1,0 +1,2403 @@
+<?xml version="1.0" encoding="utf-8"?>
+<kontext>
+  <tagsets>
+    <tagset ident="cs_cnc2000" num_pos="16">
+      <position index="0">
+        <label>
+          <desc lang="cs">Slovní druh</desc>
+          <desc lang="en">Part of speech</desc>
+        </label>
+        <value ident="N">
+          <desc lang="cs">substantivum (podstatné jméno)</desc>
+          <desc lang="en">noun</desc>
+        </value>
+        <value ident="A">
+          <desc lang="cs">adjektivum (přídavné jméno)</desc>
+          <desc lang="en">adjective</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">pronomen (zájmeno)</desc>
+          <desc lang="en">pronoun</desc>
+        </value>
+        <value ident="C">
+          <desc lang="cs">numerál (číslovka, nebo číselný výraz s číslicemi)</desc>
+          <desc lang="en">numeral</desc>
+        </value>
+        <value ident="V">
+          <desc lang="cs">verbum (sloveso)</desc>
+          <desc lang="en">verb</desc>
+        </value>
+        <value ident="D">
+          <desc lang="cs">adverbium (příslovce)</desc>
+          <desc lang="en">adverb</desc>
+        </value>
+        <value ident="R">
+          <desc lang="cs">prepozice (předložka)</desc>
+          <desc lang="en">preposition</desc>
+        </value>
+        <value ident="J">
+          <desc lang="cs">konjunkce (spojka)</desc>
+          <desc lang="en">conjunction</desc>
+        </value>
+        <value ident="T">
+          <desc lang="cs">partikule (částice)</desc>
+          <desc lang="en">particle</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">interjekce (citoslovce)</desc>
+          <desc lang="en">interjection</desc>
+        </value>
+        <value ident="Z">
+          <desc lang="cs">interpunkce</desc>
+          <desc lang="en">punctuation</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">neznámý nebo neurčený slovní druh</desc>
+          <desc lang="en">unknown or undetermined part of speech</desc>
+        </value>
+      </position>
+      <position index="1">
+        <label>
+          <desc lang="cs">Detailní určení slovního druhu</desc>
+          <desc lang="en">Detailed part of speech</desc>
+        </label>
+        <value ident="!">
+          <desc lang="cs">zkratka jako adverbium</desc>
+          <desc lang="en">abbreviation as an adverb</desc>
+        </value>
+        <value ident="*">
+          <desc lang="cs">slovo "krát" (slovní druh: spojka)</desc>
+          <desc lang="en">word "krát" (part of speech: conjunction)</desc>
+        </value>
+        <value ident=",">
+          <desc lang="cs">spojka podřadicí (vč. "aby", "kdyby" ve všech tvarech)</desc>
+          <desc lang="en">conjunction subordinate (incl. "aby", "kdyby" in all forms)
+                    </desc>
+        </value>
+        <value ident=".">
+          <desc lang="cs">zkratka jako adjektivum</desc>
+          <desc lang="en">abbreviation as an adjective</desc>
+        </value>
+        <value ident="1">
+          <desc lang="cs">vztažné přivlastňovací zájmeno "jehož", "jejíž", ...</desc>
+          <desc lang="en">relative possessive pronoun "jehož", "jejíž", ...</desc>
+        </value>
+        <value ident="0">
+          <desc lang="cs">předložka s připojeným "-ň"(něj): "proň", "naň", atd.
+                        (značkováno jako zájmeno)
+                    </desc>
+          <desc lang="en">preposition with attached "-ň" (něj): "proň", "naň",
+                        etc. (tagged as a pronoun)
+                    </desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">zkratka jako číslovka</desc>
+          <desc lang="en">abbreviation as a numeral</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">slovo před pomlčkou</desc>
+          <desc lang="en">word before a hyphen</desc>
+        </value>
+        <value ident="5">
+          <desc lang="cs">zájmeno "on" ve tvarech po předložce (tj. "n-": "něj",
+                        "něho", ...)
+                    </desc>
+          <desc lang="en">pronoun "on" in forms following a preposition (i.e. "n-": "něj",
+                        "něho", ...)
+                    </desc>
+        </value>
+        <value ident="4">
+          <desc lang="cs">vztažné nebo tázací zájmeno s adjektivním skloňováním (obou typů: "jaký",
+                        "který", "čí", ...)
+                    </desc>
+          <desc lang="en">relative or interrogative pronoun with adjectival declension (both types: "jaký",
+                        "který", "čí", ...)
+                    </desc>
+        </value>
+        <value ident="7">
+          <desc lang="cs">reflexívní zájmeno "se", "si" pouze v těchto tvarech, a dále
+                        "ses", "sis"
+                    </desc>
+          <desc lang="en">reflexive pronoun "se", "si" in these forms only, plus "ses",
+                        "sis"
+                    </desc>
+        </value>
+        <value ident="6">
+          <desc lang="cs">reflexívní zájmeno "se" v dlouhých tvarech ("sebe", "sobě",
+                        "sebou")
+                    </desc>
+          <desc lang="en">reflexive pronoun "se" in long forms ("sebe", "sobě",
+                        "sebou")
+                    </desc>
+        </value>
+        <value ident="9">
+          <desc lang="cs">vztažné zájmeno "jenž", "již", ... po předložce ("n-":
+                        "něhož", "níž", ...)
+                    </desc>
+          <desc lang="en">relative pronoun "jenž", "již", ... after preposition ("n-":
+                        "něhož", "níž", ...)
+                    </desc>
+        </value>
+        <value ident="8">
+          <desc lang="cs">přivlastňovací zájmeno "svůj"</desc>
+          <desc lang="en">possessive pronoun "svůj"</desc>
+        </value>
+        <value ident=";">
+          <desc lang="cs">zkratka jako substantivum</desc>
+          <desc lang="en">abbreviation as a noun</desc>
+        </value>
+        <value ident=":">
+          <desc lang="cs">interpunkce všeobecně</desc>
+          <desc lang="en">punctuation, general</desc>
+        </value>
+        <value ident="=">
+          <desc lang="cs">číslo psané číslicemi (značkováno jako číslovka)</desc>
+          <desc lang="en">number written using digits (tagged as a numeral)</desc>
+        </value>
+        <value ident="?">
+          <desc lang="cs">číslovka "kolik"</desc>
+          <desc lang="en">numeral "kolik"</desc>
+        </value>
+        <value ident="A">
+          <desc lang="cs">adjektivum obyčejné</desc>
+          <desc lang="en">adjective, general</desc>
+        </value>
+        <value ident="@">
+          <desc lang="cs">nerozpoznaný slovní tvar (značkováno jako neznámý slovní druh)</desc>
+          <desc lang="en">unrecognized word form (tagged as unknown part of speech)</desc>
+        </value>
+        <value ident="C">
+          <desc lang="cs">adjektivum, jmenný tvar</desc>
+          <desc lang="en">adjective, nominal form</desc>
+        </value>
+        <value ident="B">
+          <desc lang="cs">sloveso, tvar přítomného nebo budoucího času</desc>
+          <desc lang="en">verb, present or future form</desc>
+        </value>
+        <value ident="E">
+          <desc lang="cs">vztažné zájmeno "což"</desc>
+          <desc lang="en">relative pronoun "což"</desc>
+        </value>
+        <value ident="D">
+          <desc lang="cs">zájmeno ukazovací ("ten", "onen", ...)</desc>
+          <desc lang="en">demonstrative pronoun ("ten", "onen", ...)</desc>
+        </value>
+        <value ident="G">
+          <desc lang="cs">přídavné jméno odvozené od slovesného tvaru přítomného přechodníku</desc>
+          <desc lang="en">adjective derived from present transgressive form of a verb</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">součást předložky, která nikdy nestojí samostatně ("nehledě", "vzhledem",
+                        ...)
+                    </desc>
+          <desc lang="en">part of a preposition that never appears isolated ("nehledě", "vzhledem",
+                        ...)
+                    </desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">citoslovce</desc>
+          <desc lang="en">interjection</desc>
+        </value>
+        <value ident="H">
+          <desc lang="cs">krátké tvary osobních zájmen ("mě", "mi", "ti", "mu",
+                        ...)
+                    </desc>
+          <desc lang="en">short forms of personal pronouns ("mě", "mi", "ti",
+                        "mu", ...)
+                    </desc>
+        </value>
+        <value ident="K">
+          <desc lang="cs">zájmeno tázací nebo vztažné "kdo", vč. tvarů s "ž" a "s"</desc>
+          <desc lang="en">interrogative or relative pronoun "kdo", incl. forms with "-ž"
+                        and "-s"
+                    </desc>
+        </value>
+        <value ident="J">
+          <desc lang="cs">vztažné zájmeno "jenž" ("již", ...), ne po předložce</desc>
+          <desc lang="en">relative pronoun "jenž"("již", ...), not after a preposition
+                    </desc>
+        </value>
+        <value ident="M">
+          <desc lang="cs">přídavné jméno odvozené od slovesného tvaru minulého přechodníku</desc>
+          <desc lang="en">adjective derived from past transgressive form of a verb</desc>
+        </value>
+        <value ident="L">
+          <desc lang="cs">zájmeno neurčité "všechen", "sám"</desc>
+          <desc lang="en">indefinite pronoun "všechen", "sám"</desc>
+        </value>
+        <value ident="O">
+          <desc lang="cs">samostatně stojící zájmeno "svůj", "nesvůj",
+                        "tentam"
+                    </desc>
+          <desc lang="en">pronoun "svůj", "nesvůj", "tentam" appearing
+                        independently
+                    </desc>
+        </value>
+        <value ident="N">
+          <desc lang="cs">substantivum, obyčejné</desc>
+          <desc lang="en">noun, general</desc>
+        </value>
+        <value ident="Q">
+          <desc lang="cs">zájmeno tázací nebo vztažné "co", "copak",
+                        "cožpak"
+                    </desc>
+          <desc lang="en">interrogative or relative pronoun "co", "copak", "cožpak"</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">osobní zájmeno (vč. tvaru "tys")</desc>
+          <desc lang="en">personal pronoun (incl. form "tys")</desc>
+        </value>
+        <value ident="S">
+          <desc lang="cs">zájmeno přivlastňovací "můj", "tvůj", "jeho" (vč.
+                        plurálu)
+                    </desc>
+          <desc lang="en">possessive pronoun "můj", "tvůj", "jeho" (incl.
+                        plural)
+                    </desc>
+        </value>
+        <value ident="R">
+          <desc lang="cs">předložka, obyčejná</desc>
+          <desc lang="en">preposition, general</desc>
+        </value>
+        <value ident="U">
+          <desc lang="cs">adjektivum přivlastňovací (na "-ův" a "-in")</desc>
+          <desc lang="en">possessive adjective (with ending "-ův" and "-in")</desc>
+        </value>
+        <value ident="T">
+          <desc lang="cs">částice</desc>
+          <desc lang="en">particle</desc>
+        </value>
+        <value ident="W">
+          <desc lang="cs">zájmena záporná ("nic", "nikdo", "nijaký", "žádný",
+                        ...)
+                    </desc>
+          <desc lang="en">negative pronoun ("nic", "nikdo", "nijaký", "žádný",
+                        ...)
+                    </desc>
+        </value>
+        <value ident="V">
+          <desc lang="cs">předložka vokalizovaná ("ve", "pode", "ku", ...)
+                    </desc>
+          <desc lang="en">vocalized preposition ("ve", "pode", "ku", ...)</desc>
+        </value>
+        <value ident="Y">
+          <desc lang="cs">zájmeno "co" spojené s předložkou ("oč", "nač", "zač")</desc>
+          <desc lang="en">pronoun "co" joined with a preposition ("oč", "nač",
+                        "zač")
+                    </desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">slovní tvar, který byl rozpoznán, ale značka ve slovníku zatím chybí</desc>
+          <desc lang="en">word form that was recognized, but its tag is missing in the dictionary</desc>
+        </value>
+        <value ident="Z">
+          <desc lang="cs">zájmeno neurčité ("nějaký", "některý", "číkoli",
+                        "cosi", ...)
+                    </desc>
+          <desc lang="en">indefinite pronoun ("nějaký", "některý", "číkoli",
+                        "cosi", ...)
+                    </desc>
+        </value>
+        <value ident="^">
+          <desc lang="cs">spojka souřadicí</desc>
+          <desc lang="en">coordinate conjunction</desc>
+        </value>
+        <value ident="a">
+          <desc lang="cs">číslovka neurčitá ("mnoho", "málo", "tolik", "několik",
+                        "kdovíkolik", ...)
+                    </desc>
+          <desc lang="en">indefinite numeral ("mnoho", "málo", "tolik", "několik",
+                        "kdovíkolik", ...)
+                    </desc>
+        </value>
+        <value ident="c">
+          <desc lang="cs">kondicionál slovesa být ("by", "bych", "bys", "bychom",
+                        "byste")
+                    </desc>
+          <desc lang="en">conditional of the verb být ("by", "bych", "bys",
+                        "bychom", "byste")
+                    </desc>
+        </value>
+        <value ident="b">
+          <desc lang="cs">příslovce, bez určení stupně a negace ("pozadu", "naplocho",
+                        ...)
+                    </desc>
+          <desc lang="en">adverb, without forming negation and degrees of comparison ("pozadu",
+                        "naplocho", ...)
+                    </desc>
+        </value>
+        <value ident="e">
+          <desc lang="cs">slovesný tvar přechodníku přítomného ("-e", "-íc", "-íce")</desc>
+          <desc lang="en">present transgressive form of a verb ("-e", "-íc", "-íce")</desc>
+        </value>
+        <value ident="d">
+          <desc lang="cs">číslovka druhová, adjektivní skloňování ("jedny", "dvojí",
+                        "desaterý", ...)
+                    </desc>
+          <desc lang="en">generic numeral with adjectival declension ("jedny", "dvojí",
+                        "desaterý", ...)
+                    </desc>
+        </value>
+        <value ident="g">
+          <desc lang="cs">příslovce, s určením stupně a negace ("velký", "zajímavý",
+                        ...)
+                    </desc>
+          <desc lang="en">adverb, with forming negation and degrees of comparison ("velký", "zajímavý",
+                        ...)
+                    </desc>
+        </value>
+        <value ident="f">
+          <desc lang="cs">infinitiv</desc>
+          <desc lang="en">infinitive</desc>
+        </value>
+        <value ident="i">
+          <desc lang="cs">způsob rozkazovací</desc>
+          <desc lang="en">imperative</desc>
+        </value>
+        <value ident="h">
+          <desc lang="cs">číslovka druhová "jedny" a "nejedny"</desc>
+          <desc lang="en">generic numeral "jedny" and "nejedny"</desc>
+        </value>
+        <value ident="k">
+          <desc lang="cs">číslovka druhová &gt;= 4, adjektivní postavení, krátký tvar ("čtvery",
+                        ...)
+                    </desc>
+          <desc lang="en">generic numeral &gt;= 4, syntactic adjective, short form ("čtvery", ...)
+                    </desc>
+        </value>
+        <value ident="j">
+          <desc lang="cs">číslovka druhová &gt;= 4, substantivní postavení ("čtvero", "desatero",
+                        ...)
+                    </desc>
+          <desc lang="en">generic numeral &gt;= 4, syntactic noun ("čtvero", "desatero",
+                        ...)
+                    </desc>
+        </value>
+        <value ident="m">
+          <desc lang="cs">slovesný tvar přechodníku minulého, příp. (zastarale) přechodník přítomný dokonavý
+                    </desc>
+          <desc lang="en">past transgressive form of a verb, alt. (archaic) present transgressive of a
+                        perfective verb
+                    </desc>
+        </value>
+        <value ident="l">
+          <desc lang="cs">číslovka základní 1-4, "půl", ...; "sto" a "tisíc" v
+                        nesubstantivním skloňování
+                    </desc>
+          <desc lang="en">cardinal numeral 1-4, "půl", ...; "sto" a "tisíc" in
+                        non-noun declension
+                    </desc>
+        </value>
+        <value ident="o">
+          <desc lang="cs">číslovka násobná neurčitá ("-krát": "mnohokrát", "tolikrát",
+                        ...)
+                    </desc>
+          <desc lang="en">multiplicative indefinite numeral ("-krát": "mnohokrát", "tolikrát",
+                        ...)
+                    </desc>
+        </value>
+        <value ident="n">
+          <desc lang="cs">číslovky základní &gt;= 5</desc>
+          <desc lang="en">cardinal numeral &gt;= 5</desc>
+        </value>
+        <value ident="q">
+          <desc lang="cs">archaický slovesný tvar minulého aktivního příčestí (zakončení "-ť")
+                    </desc>
+          <desc lang="en">archaic past active participle form of a verb (enclitic "-ť")</desc>
+        </value>
+        <value ident="p">
+          <desc lang="cs">slovesný tvar minulého aktivního příčestí (včetně přidaného "-s")</desc>
+          <desc lang="en">past active participle form of a verb (incl. enclitic "-s")</desc>
+        </value>
+        <value ident="s">
+          <desc lang="cs">slovesný tvar pasivního příčestí (vč. přidaného "-s")</desc>
+          <desc lang="en">passive participle form of a verb (incl. enclitic "-s")</desc>
+        </value>
+        <value ident="r">
+          <desc lang="cs">číslovka řadová</desc>
+          <desc lang="en">ordinal numeral</desc>
+        </value>
+        <value ident="u">
+          <desc lang="cs">číslovka tázací násobná "kolikrát"</desc>
+          <desc lang="en">interrogative numeral "kolikrát"</desc>
+        </value>
+        <value ident="t">
+          <desc lang="cs">archaický slovesný tvar přítomného a budoucího času (zakončení "-ť")
+                    </desc>
+          <desc lang="en">archaic present and future form of a verb (enclitic "-ť")</desc>
+        </value>
+        <value ident="w">
+          <desc lang="cs">číslovka neurčitá s adjektivním skloňováním ("nejeden", "tolikátý",
+                        "několikátý"...)
+                    </desc>
+          <desc lang="en">indefinite numeral with adjectival declension ("nejeden", "tolikátý",
+                        "několikátý"...)
+                    </desc>
+        </value>
+        <value ident="v">
+          <desc lang="cs">číslovka násobná ("-krát": "pětkrát", "poprvé"...)
+                    </desc>
+          <desc lang="en">multiplicative numeral ("-krát": "pětkrát", "poprvé"...)</desc>
+        </value>
+        <value ident="y">
+          <desc lang="cs">zlomek zakončený na "-ina" (značkováno jako číslovka)</desc>
+          <desc lang="en">fraction ending at "-ina" (tagged as a numeral)</desc>
+        </value>
+        <value ident="x">
+          <desc lang="cs">zkratka, neznámý nebo neurčený slovní druh</desc>
+          <desc lang="en">abbreviation, unknown or undetermined part of speech</desc>
+        </value>
+        <value ident="z">
+          <desc lang="cs">číslovka tázací řadová "kolikátý"</desc>
+          <desc lang="en">interrogative numeral "kolikátý"</desc>
+        </value>
+        <value ident="}">
+          <desc lang="cs">číslovka psaná římskými číslicemi</desc>
+          <desc lang="en">numeral written using Roman numerals</desc>
+        </value>
+        <value ident="~">
+          <desc lang="cs">zkratka jako sloveso</desc>
+          <desc lang="en">abbreviation as a verb</desc>
+        </value>
+      </position>
+      <position index="2">
+        <label>
+          <desc lang="cs">Jmenný rod</desc>
+          <desc lang="en">Gender</desc>
+        </label>
+        <value ident="M">
+          <desc lang="cs">maskulinum animatum (rod mužský životný)</desc>
+          <desc lang="en">masculine animate</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">maskulinum inanimatum (rod mužský neživotný)</desc>
+          <desc lang="en">masculine inanimate</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">femininum (ženský rod)</desc>
+          <desc lang="en">feminine</desc>
+        </value>
+        <value ident="N">
+          <desc lang="cs">neutrum (střední rod)</desc>
+          <desc lang="en">neuter</desc>
+        </value>
+        <value ident="Y">
+          <desc lang="cs">masculinum (animatum nebo inanimatum)*</desc>
+          <desc lang="en">masculine (animate or inanimate)*</desc>
+        </value>
+        <value ident="H">
+          <desc lang="cs">femininum nebo neutrum (tedy nikoli maskulinum)*</desc>
+          <desc lang="en">feminine or neuter (non-masculine)*</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolný rod (F/M/I/N)</desc>
+          <desc lang="en">any gender (F/M/I/N)</desc>
+        </value>
+        <value ident="Z">
+          <desc lang="cs">'nikoli femininum' (tj. M/I/N)*</desc>
+          <desc lang="en">'non-feminine' (i.e. M/I/N)*</desc>
+        </value>
+        <value ident="Q">
+          <desc lang="cs">femininum singuláru nebo neutrum plurálu (pouze u příčestí a jmenných adjektiv)*
+                    </desc>
+          <desc lang="en">feminine singular or neuter plural (participles and nominal adjectives only)*</desc>
+        </value>
+        <value ident="T">
+          <desc lang="cs">masculinum inanimatum nebo femininum (jen plurál u příčestí a jmenných adjektiv)*
+                    </desc>
+          <desc lang="en">masculine inanimate or feminine (participles and nominal adjectives plural only)*
+                    </desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="3">
+        <label>
+          <desc lang="cs">Číslo</desc>
+          <desc lang="en">Number</desc>
+        </label>
+        <value ident="S">
+          <desc lang="cs">singulár (jednotné číslo)</desc>
+          <desc lang="en">singular</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">plurál (množné číslo)</desc>
+          <desc lang="en">plural</desc>
+        </value>
+        <value ident="D">
+          <desc lang="cs">duál (pouze 7. pád feminin)</desc>
+          <desc lang="en">dual (feminine instrumental only)</desc>
+        </value>
+        <value ident="W">
+          <desc lang="cs">pouze v kombinaci s jmenným rodem 'Q' (singulár pro feminina, plurál pro
+                        neutra)*
+                    </desc>
+          <desc lang="en">only in combination with gender 'Q' (singular feminine, plural neuter)*
+                    </desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolné číslo (P/S/D)</desc>
+          <desc lang="en">any number(P/S/D)</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="4">
+        <label>
+          <desc lang="cs">Pád</desc>
+          <desc lang="en">Case</desc>
+        </label>
+        <value ident="1">
+          <desc lang="cs">nominativ (1. pád)</desc>
+          <desc lang="en">nominative</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">genitiv (2. pád)</desc>
+          <desc lang="en">genitive</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">dativ (3. pád)</desc>
+          <desc lang="en">dative</desc>
+        </value>
+        <value ident="4">
+          <desc lang="cs">akuzativ (4. pád)</desc>
+          <desc lang="en">accusative</desc>
+        </value>
+        <value ident="5">
+          <desc lang="cs">vokativ (5. pád)</desc>
+          <desc lang="en">vocative</desc>
+        </value>
+        <value ident="6">
+          <desc lang="cs">lokativ (6. pád)</desc>
+          <desc lang="en">locative</desc>
+        </value>
+        <value ident="7">
+          <desc lang="cs">instrumentál (7. pád)</desc>
+          <desc lang="en">instrumental</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolný pád (1/2/3/4/5/6/7)*</desc>
+          <desc lang="en">any case (1/2/3/4/5/6/7)*</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="5">
+        <label>
+          <desc lang="cs">Přivlastňovací rod</desc>
+          <desc lang="en">Possessor's gender</desc>
+        </label>
+        <value ident="M">
+          <desc lang="cs">maskulinum animatum (rod mužský životný)</desc>
+          <desc lang="en">masculine animate</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">maskulinum inanimatum (rod mužský neživotný)</desc>
+          <desc lang="en">masculine inanimate</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">femininum (ženský rod)</desc>
+          <desc lang="en">feminine</desc>
+        </value>
+        <value ident="N">
+          <desc lang="cs">neutrum (střední rod)</desc>
+          <desc lang="en">neuter</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolný rod (F/M/I/N)</desc>
+          <desc lang="en">any gender (F/M/I/N)</desc>
+        </value>
+        <value ident="Z">
+          <desc lang="cs">'nikoli femininum' (tj. M/I/N; u přivlastňovacích adjektiv)*</desc>
+          <desc lang="en">'non-feminine' (i.e. M/I/N; possessive adjectives)*</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="6">
+        <label>
+          <desc lang="cs">Přivlastňovací číslo</desc>
+          <desc lang="en">Possessor's number</desc>
+        </label>
+        <value ident="S">
+          <desc lang="cs">singulár (jednotné číslo)</desc>
+          <desc lang="en">singular</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">plurál (množné číslo)</desc>
+          <desc lang="en">plural</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="7">
+        <label>
+          <desc lang="cs">Osoba</desc>
+          <desc lang="en">Person</desc>
+        </label>
+        <value ident="1">
+          <desc lang="cs">1. osoba</desc>
+          <desc lang="en">1st person</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">2. osoba</desc>
+          <desc lang="en">2nd person</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">3. osoba</desc>
+          <desc lang="en">3rd person</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolná osoba (1/2/3)*</desc>
+          <desc lang="en">any person (1/2/3)*</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="8">
+        <label>
+          <desc lang="cs">Čas</desc>
+          <desc lang="en">Tense</desc>
+        </label>
+        <value ident="R">
+          <desc lang="cs">minulý čas</desc>
+          <desc lang="en">past</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">prézens (přítomný čas)</desc>
+          <desc lang="en">present</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">futurum (budoucí čas)</desc>
+          <desc lang="en">future</desc>
+        </value>
+        <value ident="H">
+          <desc lang="cs">minulost nebo přítomnost (P/R)*</desc>
+          <desc lang="en">past or present (P/R)*</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolný čas (F/R/P)*</desc>
+          <desc lang="en">any tense (F/R/P)*</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="9">
+        <label>
+          <desc lang="cs">Stupeň</desc>
+          <desc lang="en">Degree of comparison</desc>
+        </label>
+        <value ident="1">
+          <desc lang="cs">1. stupeň</desc>
+          <desc lang="en">positive</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">2. stupeň</desc>
+          <desc lang="en">comparative</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">3. stupeň</desc>
+          <desc lang="en">superlative</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="10">
+        <label>
+          <desc lang="cs">Negace</desc>
+          <desc lang="en">Negation</desc>
+        </label>
+        <value ident="A">
+          <desc lang="cs">afirmativ (bez negativní předpony "ne-")</desc>
+          <desc lang="en">affirmative (without negative prefix "ne-")</desc>
+        </value>
+        <value ident="N">
+          <desc lang="cs">negace (tvar s negativní předponou "ne-")</desc>
+          <desc lang="en">negated (with negative prefix "ne-")</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="11">
+        <label>
+          <desc lang="cs">Aktivum/pasivum</desc>
+          <desc lang="en">Active/passive voice</desc>
+        </label>
+        <value ident="A">
+          <desc lang="cs">aktivum nebo 'nikoli pasivum'</desc>
+          <desc lang="en">active or 'non-passive'</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">pasivum</desc>
+          <desc lang="en">passive</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="12">
+        <label>
+          <desc lang="cs">Nepoužito</desc>
+          <desc lang="en">Reserved</desc>
+        </label>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="13">
+        <label>
+          <desc lang="cs">Nepoužito</desc>
+          <desc lang="en">Reserved</desc>
+        </label>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="14">
+        <label>
+          <desc lang="cs">Varianta, stylový příznak apod.</desc>
+          <desc lang="en">Variant, style indication etc.</desc>
+        </label>
+        <value ident="1">
+          <desc lang="cs">varianta, víceméně rovnocenná ("méně častá")</desc>
+          <desc lang="en">variant, more or less equivalent ("less frequent")</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">řídká, archaická nebo knižní varianta</desc>
+          <desc lang="en">rare, archaic or bookish variant</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">velmi archaický tvar, též archaický a hovorový</desc>
+          <desc lang="en">very archaic, also archaic and colloquial</desc>
+        </value>
+        <value ident="4">
+          <desc lang="cs">velmi archaický nebo knižní tvar, pouze spisovný (ve své době)</desc>
+          <desc lang="en">very archaic or bookish, only standard (at the time)</desc>
+        </value>
+        <value ident="5">
+          <desc lang="cs">hovorový tvar, ale tolerovaný ve veřejných projevech</desc>
+          <desc lang="en">colloquial, but tolerated in public</desc>
+        </value>
+        <value ident="6">
+          <desc lang="cs">hovorový tvar (koncovka standardní obecné češtiny)</desc>
+          <desc lang="en">colloquial (standard common Czech suffix)</desc>
+        </value>
+        <value ident="7">
+          <desc lang="cs">hovorový tvar (koncovka standardní obecné češtiny), varianta k '6'</desc>
+          <desc lang="en">colloquial (standard common Czech suffix), variant to '6'</desc>
+        </value>
+        <value ident="8">
+          <desc lang="cs">zkratky</desc>
+          <desc lang="en">abbreviations</desc>
+        </value>
+        <value ident="9">
+          <desc lang="cs">speciální použití (tvary zájmen po předložkách apod.)</desc>
+          <desc lang="en">special uses (pronouns after prepositions etc.)</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se ("základní", standardní tvar)</desc>
+          <desc lang="en">not applicable ("basic", standard variant)</desc>
+        </value>
+      </position>
+      <position index="15">
+        <label>
+          <desc lang="cs">Vid</desc>
+          <desc lang="en">Aspect</desc>
+        </label>
+        <value ident="P">
+          <desc lang="cs">perfektivum (dokonavé sloveso)</desc>
+          <desc lang="en">perfective</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">imperfektivum (nedokonavé sloveso)</desc>
+          <desc lang="en">imperfective</desc>
+        </value>
+        <value ident="B">
+          <desc lang="cs">obouvidé sloveso</desc>
+          <desc lang="en">bi-aspectual</desc>
+        </value>
+      </position>
+    </tagset>
+    <tagset ident="cs_cnc2000_spk" num_pos="16">
+      <position index="0">
+        <label>
+          <desc lang="cs">Slovní druh</desc>
+          <desc lang="en">Part of speech</desc>
+        </label>
+        <value ident="N">
+          <desc lang="cs">substantivum (podstatné jméno)</desc>
+          <desc lang="en">noun</desc>
+        </value>
+        <value ident="A">
+          <desc lang="cs">adjektivum (přídavné jméno)</desc>
+          <desc lang="en">adjective</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">pronomen (zájmeno)</desc>
+          <desc lang="en">pronoun</desc>
+        </value>
+        <value ident="C">
+          <desc lang="cs">numerál (číslovka, nebo číselný výraz s číslicemi)</desc>
+          <desc lang="en">numeral</desc>
+        </value>
+        <value ident="V">
+          <desc lang="cs">verbum (sloveso)</desc>
+          <desc lang="en">verb</desc>
+        </value>
+        <value ident="D">
+          <desc lang="cs">adverbium (příslovce)</desc>
+          <desc lang="en">adverb</desc>
+        </value>
+        <value ident="R">
+          <desc lang="cs">prepozice (předložka)</desc>
+          <desc lang="en">preposition</desc>
+        </value>
+        <value ident="J">
+          <desc lang="cs">konjunkce (spojka)</desc>
+          <desc lang="en">conjunction</desc>
+        </value>
+        <value ident="T">
+          <desc lang="cs">partikule (částice)</desc>
+          <desc lang="en">particle</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">interjekce (citoslovce)</desc>
+          <desc lang="en">interjection</desc>
+        </value>
+        <value ident="Z">
+          <desc lang="cs">interpunkce</desc>
+          <desc lang="en">punctuation</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">neznámý nebo neurčený slovní druh</desc>
+          <desc lang="en">unknown or undetermined part of speech</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">fragmenty (nedořečená slova)</desc>
+          <desc lang="en">fragments</desc>
+        </value>
+        <value ident="H">
+          <desc lang="cs">neverbální zvuky (např. hezitační)</desc>
+          <desc lang="en">non-verbal sounds</desc>
+        </value>
+        <value ident="M">
+          <desc lang="cs">komentáře přepisujících</desc>
+          <desc lang="en">comments</desc>
+        </value>
+      </position>
+      <position index="1">
+        <label>
+          <desc lang="cs">Detailní určení slovního druhu</desc>
+          <desc lang="en">Detailed part of speech</desc>
+        </label>
+        <value ident="!">
+          <desc lang="cs">zkratka jako adverbium</desc>
+          <desc lang="en">abbreviation as an adverb</desc>
+        </value>
+        <value ident="*">
+          <desc lang="cs">slovo "krát" (slovní druh: spojka)</desc>
+          <desc lang="en">word "krát" (part of speech: conjunction)</desc>
+        </value>
+        <value ident=",">
+          <desc lang="cs">spojka podřadicí (vč. "aby", "kdyby" ve všech tvarech)</desc>
+          <desc lang="en">conjunction subordinate (incl. "aby", "kdyby" in all forms)
+                    </desc>
+        </value>
+        <value ident=".">
+          <desc lang="cs">zkratka jako adjektivum</desc>
+          <desc lang="en">abbreviation as an adjective</desc>
+        </value>
+        <value ident="1">
+          <desc lang="cs">vztažné přivlastňovací zájmeno "jehož", "jejíž", ...</desc>
+          <desc lang="en">relative possessive pronoun "jehož", "jejíž", ...</desc>
+        </value>
+        <value ident="0">
+          <desc lang="cs">předložka s připojeným "-ň"(něj): "proň", "naň", atd.
+                        (značkováno jako zájmeno)
+                    </desc>
+          <desc lang="en">preposition with attached "-ň" (něj): "proň", "naň",
+                        etc. (tagged as a pronoun)
+                    </desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">zkratka jako číslovka</desc>
+          <desc lang="en">abbreviation as a numeral</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">slovo před pomlčkou</desc>
+          <desc lang="en">word before a hyphen</desc>
+        </value>
+        <value ident="5">
+          <desc lang="cs">zájmeno "on" ve tvarech po předložce (tj. "n-": "něj",
+                        "něho", ...)
+                    </desc>
+          <desc lang="en">pronoun "on" in forms following a preposition (i.e. "n-": "něj",
+                        "něho", ...)
+                    </desc>
+        </value>
+        <value ident="4">
+          <desc lang="cs">vztažné nebo tázací zájmeno s adjektivním skloňováním (obou typů: "jaký",
+                        "který", "čí", ...)
+                    </desc>
+          <desc lang="en">relative or interrogative pronoun with adjectival declension (both types: "jaký",
+                        "který", "čí", ...)
+                    </desc>
+        </value>
+        <value ident="7">
+          <desc lang="cs">reflexívní zájmeno "se", "si" pouze v těchto tvarech, a dále
+                        "ses", "sis"
+                    </desc>
+          <desc lang="en">reflexive pronoun "se", "si" in these forms only, plus "ses",
+                        "sis"
+                    </desc>
+        </value>
+        <value ident="6">
+          <desc lang="cs">reflexívní zájmeno "se" v dlouhých tvarech ("sebe", "sobě",
+                        "sebou")
+                    </desc>
+          <desc lang="en">reflexive pronoun "se" in long forms ("sebe", "sobě",
+                        "sebou")
+                    </desc>
+        </value>
+        <value ident="9">
+          <desc lang="cs">vztažné zájmeno "jenž", "již", ... po předložce ("n-":
+                        "něhož", "níž", ...)
+                    </desc>
+          <desc lang="en">relative pronoun "jenž", "již", ... after preposition ("n-":
+                        "něhož", "níž", ...)
+                    </desc>
+        </value>
+        <value ident="8">
+          <desc lang="cs">přivlastňovací zájmeno "svůj"</desc>
+          <desc lang="en">possessive pronoun "svůj"</desc>
+        </value>
+        <value ident=";">
+          <desc lang="cs">zkratka jako substantivum</desc>
+          <desc lang="en">abbreviation as a noun</desc>
+        </value>
+        <value ident=":">
+          <desc lang="cs">interpunkce všeobecně</desc>
+          <desc lang="en">punctuation, general</desc>
+        </value>
+        <value ident="=">
+          <desc lang="cs">číslo psané číslicemi (značkováno jako číslovka)</desc>
+          <desc lang="en">number written using digits (tagged as a numeral)</desc>
+        </value>
+        <value ident="?">
+          <desc lang="cs">číslovka "kolik"</desc>
+          <desc lang="en">numeral "kolik"</desc>
+        </value>
+        <value ident="A">
+          <desc lang="cs">adjektivum obyčejné</desc>
+          <desc lang="en">adjective, general</desc>
+        </value>
+        <value ident="@">
+          <desc lang="cs">nerozpoznaný slovní tvar (značkováno jako neznámý slovní druh)</desc>
+          <desc lang="en">unrecognized word form (tagged as unknown part of speech)</desc>
+        </value>
+        <value ident="C">
+          <desc lang="cs">adjektivum, jmenný tvar</desc>
+          <desc lang="en">adjective, nominal form</desc>
+        </value>
+        <value ident="B">
+          <desc lang="cs">sloveso, tvar přítomného nebo budoucího času</desc>
+          <desc lang="en">verb, present or future form</desc>
+        </value>
+        <value ident="E">
+          <desc lang="cs">vztažné zájmeno "což"</desc>
+          <desc lang="en">relative pronoun "což"</desc>
+        </value>
+        <value ident="D">
+          <desc lang="cs">zájmeno ukazovací ("ten", "onen", ...)</desc>
+          <desc lang="en">demonstrative pronoun ("ten", "onen", ...)</desc>
+        </value>
+        <value ident="G">
+          <desc lang="cs">přídavné jméno odvozené od slovesného tvaru přítomného přechodníku</desc>
+          <desc lang="en">adjective derived from present transgressive form of a verb</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">součást předložky, která nikdy nestojí samostatně ("nehledě", "vzhledem",
+                        ...)
+                    </desc>
+          <desc lang="en">part of a preposition that never appears isolated ("nehledě", "vzhledem",
+                        ...)
+                    </desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">citoslovce</desc>
+          <desc lang="en">interjection</desc>
+        </value>
+        <value ident="H">
+          <desc lang="cs">krátké tvary osobních zájmen ("mě", "mi", "ti", "mu",
+                        ...)
+                    </desc>
+          <desc lang="en">short forms of personal pronouns ("mě", "mi", "ti",
+                        "mu", ...)
+                    </desc>
+        </value>
+        <value ident="K">
+          <desc lang="cs">zájmeno tázací nebo vztažné "kdo", vč. tvarů s "ž" a "s"</desc>
+          <desc lang="en">interrogative or relative pronoun "kdo", incl. forms with "-ž"
+                        and "-s"
+                    </desc>
+        </value>
+        <value ident="J">
+          <desc lang="cs">vztažné zájmeno "jenž" ("již", ...), ne po předložce</desc>
+          <desc lang="en">relative pronoun "jenž"("již", ...), not after a preposition
+                    </desc>
+        </value>
+        <value ident="M">
+          <desc lang="cs">přídavné jméno odvozené od slovesného tvaru minulého přechodníku</desc>
+          <desc lang="en">adjective derived from past transgressive form of a verb</desc>
+        </value>
+        <value ident="L">
+          <desc lang="cs">zájmeno neurčité "všechen", "sám"</desc>
+          <desc lang="en">indefinite pronoun "všechen", "sám"</desc>
+        </value>
+        <value ident="O">
+          <desc lang="cs">samostatně stojící zájmeno "svůj", "nesvůj",
+                        "tentam"
+                    </desc>
+          <desc lang="en">pronoun "svůj", "nesvůj", "tentam" appearing
+                        independently
+                    </desc>
+        </value>
+        <value ident="N">
+          <desc lang="cs">substantivum, obyčejné</desc>
+          <desc lang="en">noun, general</desc>
+        </value>
+        <value ident="Q">
+          <desc lang="cs">zájmeno tázací nebo vztažné "co", "copak",
+                        "cožpak"
+                    </desc>
+          <desc lang="en">interrogative or relative pronoun "co", "copak", "cožpak"</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">osobní zájmeno (vč. tvaru "tys")</desc>
+          <desc lang="en">personal pronoun (incl. form "tys")</desc>
+        </value>
+        <value ident="S">
+          <desc lang="cs">zájmeno přivlastňovací "můj", "tvůj", "jeho" (vč.
+                        plurálu)
+                    </desc>
+          <desc lang="en">possessive pronoun "můj", "tvůj", "jeho" (incl.
+                        plural)
+                    </desc>
+        </value>
+        <value ident="R">
+          <desc lang="cs">předložka, obyčejná</desc>
+          <desc lang="en">preposition, general</desc>
+        </value>
+        <value ident="U">
+          <desc lang="cs">adjektivum přivlastňovací (na "-ův" a "-in")</desc>
+          <desc lang="en">possessive adjective (with ending "-ův" and "-in")</desc>
+        </value>
+        <value ident="T">
+          <desc lang="cs">částice</desc>
+          <desc lang="en">particle</desc>
+        </value>
+        <value ident="W">
+          <desc lang="cs">zájmena záporná ("nic", "nikdo", "nijaký", "žádný",
+                        ...)
+                    </desc>
+          <desc lang="en">negative pronoun ("nic", "nikdo", "nijaký", "žádný",
+                        ...)
+                    </desc>
+        </value>
+        <value ident="V">
+          <desc lang="cs">předložka vokalizovaná ("ve", "pode", "ku", ...)
+                    </desc>
+          <desc lang="en">vocalized preposition ("ve", "pode", "ku", ...)</desc>
+        </value>
+        <value ident="Y">
+          <desc lang="cs">zájmeno "co" spojené s předložkou ("oč", "nač", "zač")</desc>
+          <desc lang="en">pronoun "co" joined with a preposition ("oč", "nač",
+                        "zač")
+                    </desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">slovní tvar, který byl rozpoznán, ale značka ve slovníku zatím chybí</desc>
+          <desc lang="en">word form that was recognized, but its tag is missing in the dictionary</desc>
+        </value>
+        <value ident="Z">
+          <desc lang="cs">zájmeno neurčité ("nějaký", "některý", "číkoli",
+                        "cosi", ...)
+                    </desc>
+          <desc lang="en">indefinite pronoun ("nějaký", "některý", "číkoli",
+                        "cosi", ...)
+                    </desc>
+        </value>
+        <value ident="^">
+          <desc lang="cs">spojka souřadicí</desc>
+          <desc lang="en">coordinate conjunction</desc>
+        </value>
+        <value ident="a">
+          <desc lang="cs">číslovka neurčitá ("mnoho", "málo", "tolik", "několik",
+                        "kdovíkolik", ...)
+                    </desc>
+          <desc lang="en">indefinite numeral ("mnoho", "málo", "tolik", "několik",
+                        "kdovíkolik", ...)
+                    </desc>
+        </value>
+        <value ident="c">
+          <desc lang="cs">kondicionál slovesa být ("by", "bych", "bys", "bychom",
+                        "byste")
+                    </desc>
+          <desc lang="en">conditional of the verb být ("by", "bych", "bys",
+                        "bychom", "byste")
+                    </desc>
+        </value>
+        <value ident="b">
+          <desc lang="cs">příslovce, bez určení stupně a negace ("pozadu", "naplocho",
+                        ...)
+                    </desc>
+          <desc lang="en">adverb, without forming negation and degrees of comparison ("pozadu",
+                        "naplocho", ...)
+                    </desc>
+        </value>
+        <value ident="e">
+          <desc lang="cs">slovesný tvar přechodníku přítomného ("-e", "-íc", "-íce")</desc>
+          <desc lang="en">present transgressive form of a verb ("-e", "-íc", "-íce")</desc>
+        </value>
+        <value ident="d">
+          <desc lang="cs">číslovka druhová, adjektivní skloňování ("jedny", "dvojí",
+                        "desaterý", ...)
+                    </desc>
+          <desc lang="en">generic numeral with adjectival declension ("jedny", "dvojí",
+                        "desaterý", ...)
+                    </desc>
+        </value>
+        <value ident="g">
+          <desc lang="cs">příslovce, s určením stupně a negace ("velký", "zajímavý",
+                        ...)
+                    </desc>
+          <desc lang="en">adverb, with forming negation and degrees of comparison ("velký", "zajímavý",
+                        ...)
+                    </desc>
+        </value>
+        <value ident="f">
+          <desc lang="cs">infinitiv</desc>
+          <desc lang="en">infinitive</desc>
+        </value>
+        <value ident="i">
+          <desc lang="cs">způsob rozkazovací</desc>
+          <desc lang="en">imperative</desc>
+        </value>
+        <value ident="h">
+          <desc lang="cs">číslovka druhová "jedny" a "nejedny"</desc>
+          <desc lang="en">generic numeral "jedny" and "nejedny"</desc>
+        </value>
+        <value ident="k">
+          <desc lang="cs">číslovka druhová &gt;= 4, adjektivní postavení, krátký tvar ("čtvery",
+                        ...)
+                    </desc>
+          <desc lang="en">generic numeral &gt;= 4, syntactic adjective, short form ("čtvery", ...)
+                    </desc>
+        </value>
+        <value ident="j">
+          <desc lang="cs">číslovka druhová &gt;= 4, substantivní postavení ("čtvero", "desatero",
+                        ...)
+                    </desc>
+          <desc lang="en">generic numeral &gt;= 4, syntactic noun ("čtvero", "desatero",
+                        ...)
+                    </desc>
+        </value>
+        <value ident="m">
+          <desc lang="cs">slovesný tvar přechodníku minulého, příp. (zastarale) přechodník přítomný dokonavý
+                    </desc>
+          <desc lang="en">past transgressive form of a verb, alt. (archaic) present transgressive of a
+                        perfective verb
+                    </desc>
+        </value>
+        <value ident="l">
+          <desc lang="cs">číslovka základní 1-4, "půl", ...; "sto" a "tisíc" v
+                        nesubstantivním skloňování
+                    </desc>
+          <desc lang="en">cardinal numeral 1-4, "půl", ...; "sto" a "tisíc" in
+                        non-noun declension
+                    </desc>
+        </value>
+        <value ident="o">
+          <desc lang="cs">číslovka násobná neurčitá ("-krát": "mnohokrát", "tolikrát",
+                        ...)
+                    </desc>
+          <desc lang="en">multiplicative indefinite numeral ("-krát": "mnohokrát", "tolikrát",
+                        ...)
+                    </desc>
+        </value>
+        <value ident="n">
+          <desc lang="cs">číslovky základní &gt;= 5</desc>
+          <desc lang="en">cardinal numeral &gt;= 5</desc>
+        </value>
+        <value ident="q">
+          <desc lang="cs">archaický slovesný tvar minulého aktivního příčestí (zakončení "-ť")
+                    </desc>
+          <desc lang="en">archaic past active participle form of a verb (enclitic "-ť")</desc>
+        </value>
+        <value ident="p">
+          <desc lang="cs">slovesný tvar minulého aktivního příčestí (včetně přidaného "-s")</desc>
+          <desc lang="en">past active participle form of a verb (incl. enclitic "-s")</desc>
+        </value>
+        <value ident="s">
+          <desc lang="cs">slovesný tvar pasivního příčestí (vč. přidaného "-s")</desc>
+          <desc lang="en">passive participle form of a verb (incl. enclitic "-s")</desc>
+        </value>
+        <value ident="r">
+          <desc lang="cs">číslovka řadová</desc>
+          <desc lang="en">ordinal numeral</desc>
+        </value>
+        <value ident="u">
+          <desc lang="cs">číslovka tázací násobná "kolikrát"</desc>
+          <desc lang="en">interrogative numeral "kolikrát"</desc>
+        </value>
+        <value ident="t">
+          <desc lang="cs">archaický slovesný tvar přítomného a budoucího času (zakončení "-ť")
+                    </desc>
+          <desc lang="en">archaic present and future form of a verb (enclitic "-ť")</desc>
+        </value>
+        <value ident="w">
+          <desc lang="cs">číslovka neurčitá s adjektivním skloňováním ("nejeden", "tolikátý",
+                        "několikátý"...)
+                    </desc>
+          <desc lang="en">indefinite numeral with adjectival declension ("nejeden", "tolikátý",
+                        "několikátý"...)
+                    </desc>
+        </value>
+        <value ident="v">
+          <desc lang="cs">číslovka násobná ("-krát": "pětkrát", "poprvé"...)
+                    </desc>
+          <desc lang="en">multiplicative numeral ("-krát": "pětkrát", "poprvé"...)</desc>
+        </value>
+        <value ident="y">
+          <desc lang="cs">zlomek zakončený na "-ina" (značkováno jako číslovka)</desc>
+          <desc lang="en">fraction ending at "-ina" (tagged as a numeral)</desc>
+        </value>
+        <value ident="x">
+          <desc lang="cs">zkratka, neznámý nebo neurčený slovní druh</desc>
+          <desc lang="en">abbreviation, unknown or undetermined part of speech</desc>
+        </value>
+        <value ident="z">
+          <desc lang="cs">číslovka tázací řadová "kolikátý"</desc>
+          <desc lang="en">interrogative numeral "kolikátý"</desc>
+        </value>
+        <value ident="}">
+          <desc lang="cs">číslovka psaná římskými číslicemi</desc>
+          <desc lang="en">numeral written using Roman numerals</desc>
+        </value>
+        <value ident="~">
+          <desc lang="cs">zkratka jako sloveso</desc>
+          <desc lang="en">abbreviation as a verb</desc>
+        </value>
+      </position>
+      <position index="2">
+        <label>
+          <desc lang="cs">Jmenný rod</desc>
+          <desc lang="en">Gender</desc>
+        </label>
+        <value ident="M">
+          <desc lang="cs">maskulinum animatum (rod mužský životný)</desc>
+          <desc lang="en">masculine animate</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">maskulinum inanimatum (rod mužský neživotný)</desc>
+          <desc lang="en">masculine inanimate</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">femininum (ženský rod)</desc>
+          <desc lang="en">feminine</desc>
+        </value>
+        <value ident="N">
+          <desc lang="cs">neutrum (střední rod)</desc>
+          <desc lang="en">neuter</desc>
+        </value>
+        <value ident="Y">
+          <desc lang="cs">masculinum (animatum nebo inanimatum)*</desc>
+          <desc lang="en">masculine (animate or inanimate)*</desc>
+        </value>
+        <value ident="H">
+          <desc lang="cs">femininum nebo neutrum (tedy nikoli maskulinum)*</desc>
+          <desc lang="en">feminine or neuter (non-masculine)*</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolný rod (F/M/I/N)</desc>
+          <desc lang="en">any gender (F/M/I/N)</desc>
+        </value>
+        <value ident="Z">
+          <desc lang="cs">'nikoli femininum' (tj. M/I/N)*</desc>
+          <desc lang="en">'non-feminine' (i.e. M/I/N)*</desc>
+        </value>
+        <value ident="Q">
+          <desc lang="cs">femininum singuláru nebo neutrum plurálu (pouze u příčestí a jmenných adjektiv)*
+                    </desc>
+          <desc lang="en">feminine singular or neuter plural (participles and nominal adjectives only)*</desc>
+        </value>
+        <value ident="T">
+          <desc lang="cs">masculinum inanimatum nebo femininum (jen plurál u příčestí a jmenných adjektiv)*
+                    </desc>
+          <desc lang="en">masculine inanimate or feminine (participles and nominal adjectives plural only)*
+                    </desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="3">
+        <label>
+          <desc lang="cs">Číslo</desc>
+          <desc lang="en">Number</desc>
+        </label>
+        <value ident="S">
+          <desc lang="cs">singulár (jednotné číslo)</desc>
+          <desc lang="en">singular</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">plurál (množné číslo)</desc>
+          <desc lang="en">plural</desc>
+        </value>
+        <value ident="D">
+          <desc lang="cs">duál (pouze 7. pád feminin)</desc>
+          <desc lang="en">dual (feminine instrumental only)</desc>
+        </value>
+        <value ident="W">
+          <desc lang="cs">pouze v kombinaci s jmenným rodem 'Q' (singulár pro feminina, plurál pro
+                        neutra)*
+                    </desc>
+          <desc lang="en">only in combination with gender 'Q' (singular feminine, plural neuter)*
+                    </desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolné číslo (P/S/D)</desc>
+          <desc lang="en">any number(P/S/D)</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="4">
+        <label>
+          <desc lang="cs">Pád</desc>
+          <desc lang="en">Case</desc>
+        </label>
+        <value ident="1">
+          <desc lang="cs">nominativ (1. pád)</desc>
+          <desc lang="en">nominative</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">genitiv (2. pád)</desc>
+          <desc lang="en">genitive</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">dativ (3. pád)</desc>
+          <desc lang="en">dative</desc>
+        </value>
+        <value ident="4">
+          <desc lang="cs">akuzativ (4. pád)</desc>
+          <desc lang="en">accusative</desc>
+        </value>
+        <value ident="5">
+          <desc lang="cs">vokativ (5. pád)</desc>
+          <desc lang="en">vocative</desc>
+        </value>
+        <value ident="6">
+          <desc lang="cs">lokativ (6. pád)</desc>
+          <desc lang="en">locative</desc>
+        </value>
+        <value ident="7">
+          <desc lang="cs">instrumentál (7. pád)</desc>
+          <desc lang="en">instrumental</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolný pád (1/2/3/4/5/6/7)*</desc>
+          <desc lang="en">any case (1/2/3/4/5/6/7)*</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="5">
+        <label>
+          <desc lang="cs">Přivlastňovací rod</desc>
+          <desc lang="en">Possessor's gender</desc>
+        </label>
+        <value ident="M">
+          <desc lang="cs">maskulinum animatum (rod mužský životný)</desc>
+          <desc lang="en">masculine animate</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">maskulinum inanimatum (rod mužský neživotný)</desc>
+          <desc lang="en">masculine inanimate</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">femininum (ženský rod)</desc>
+          <desc lang="en">feminine</desc>
+        </value>
+        <value ident="N">
+          <desc lang="cs">neutrum (střední rod)</desc>
+          <desc lang="en">neuter</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolný rod (F/M/I/N)</desc>
+          <desc lang="en">any gender (F/M/I/N)</desc>
+        </value>
+        <value ident="Z">
+          <desc lang="cs">'nikoli femininum' (tj. M/I/N; u přivlastňovacích adjektiv)*</desc>
+          <desc lang="en">'non-feminine' (i.e. M/I/N; possessive adjectives)*</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="6">
+        <label>
+          <desc lang="cs">Přivlastňovací číslo</desc>
+          <desc lang="en">Possessor's number</desc>
+        </label>
+        <value ident="S">
+          <desc lang="cs">singulár (jednotné číslo)</desc>
+          <desc lang="en">singular</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">plurál (množné číslo)</desc>
+          <desc lang="en">plural</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="7">
+        <label>
+          <desc lang="cs">Osoba</desc>
+          <desc lang="en">Person</desc>
+        </label>
+        <value ident="1">
+          <desc lang="cs">1. osoba</desc>
+          <desc lang="en">1st person</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">2. osoba</desc>
+          <desc lang="en">2nd person</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">3. osoba</desc>
+          <desc lang="en">3rd person</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolná osoba (1/2/3)*</desc>
+          <desc lang="en">any person (1/2/3)*</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="8">
+        <label>
+          <desc lang="cs">Čas</desc>
+          <desc lang="en">Tense</desc>
+        </label>
+        <value ident="R">
+          <desc lang="cs">minulý čas</desc>
+          <desc lang="en">past</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">prézens (přítomný čas)</desc>
+          <desc lang="en">present</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">futurum (budoucí čas)</desc>
+          <desc lang="en">future</desc>
+        </value>
+        <value ident="H">
+          <desc lang="cs">minulost nebo přítomnost (P/R)*</desc>
+          <desc lang="en">past or present (P/R)*</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolný čas (F/R/P)*</desc>
+          <desc lang="en">any tense (F/R/P)*</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="9">
+        <label>
+          <desc lang="cs">Stupeň</desc>
+          <desc lang="en">Degree of comparison</desc>
+        </label>
+        <value ident="1">
+          <desc lang="cs">1. stupeň</desc>
+          <desc lang="en">positive</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">2. stupeň</desc>
+          <desc lang="en">comparative</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">3. stupeň</desc>
+          <desc lang="en">superlative</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="10">
+        <label>
+          <desc lang="cs">Negace</desc>
+          <desc lang="en">Negation</desc>
+        </label>
+        <value ident="A">
+          <desc lang="cs">afirmativ (bez negativní předpony "ne-")</desc>
+          <desc lang="en">affirmative (without negative prefix "ne-")</desc>
+        </value>
+        <value ident="N">
+          <desc lang="cs">negace (tvar s negativní předponou "ne-")</desc>
+          <desc lang="en">negated (with negative prefix "ne-")</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="11">
+        <label>
+          <desc lang="cs">Aktivum/pasivum</desc>
+          <desc lang="en">Active/passive voice</desc>
+        </label>
+        <value ident="A">
+          <desc lang="cs">aktivum nebo 'nikoli pasivum'</desc>
+          <desc lang="en">active or 'non-passive'</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">pasivum</desc>
+          <desc lang="en">passive</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="12">
+        <label>
+          <desc lang="cs">Nepoužito</desc>
+          <desc lang="en">Reserved</desc>
+        </label>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="13">
+        <label>
+          <desc lang="cs">Nepoužito</desc>
+          <desc lang="en">Reserved</desc>
+        </label>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="14">
+        <label>
+          <desc lang="cs">Varianta, stylový příznak apod.</desc>
+          <desc lang="en">Variant, style indication etc.</desc>
+        </label>
+        <value ident="1">
+          <desc lang="cs">varianta, víceméně rovnocenná ("méně častá")</desc>
+          <desc lang="en">variant, more or less equivalent ("less frequent")</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">řídká, archaická nebo knižní varianta</desc>
+          <desc lang="en">rare, archaic or bookish variant</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">velmi archaický tvar, též archaický a hovorový</desc>
+          <desc lang="en">very archaic, also archaic and colloquial</desc>
+        </value>
+        <value ident="4">
+          <desc lang="cs">velmi archaický nebo knižní tvar, pouze spisovný (ve své době)</desc>
+          <desc lang="en">very archaic or bookish, only standard (at the time)</desc>
+        </value>
+        <value ident="5">
+          <desc lang="cs">hovorový tvar, ale tolerovaný ve veřejných projevech</desc>
+          <desc lang="en">colloquial, but tolerated in public</desc>
+        </value>
+        <value ident="6">
+          <desc lang="cs">hovorový tvar (koncovka standardní obecné češtiny)</desc>
+          <desc lang="en">colloquial (standard common Czech suffix)</desc>
+        </value>
+        <value ident="7">
+          <desc lang="cs">hovorový tvar (koncovka standardní obecné češtiny), varianta k '6'</desc>
+          <desc lang="en">colloquial (standard common Czech suffix), variant to '6'</desc>
+        </value>
+        <value ident="8">
+          <desc lang="cs">zkratky</desc>
+          <desc lang="en">abbreviations</desc>
+        </value>
+        <value ident="9">
+          <desc lang="cs">speciální použití (tvary zájmen po předložkách apod.)</desc>
+          <desc lang="en">special uses (pronouns after prepositions etc.)</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se ("základní", standardní tvar)</desc>
+          <desc lang="en">not applicable ("basic", standard variant)</desc>
+        </value>
+      </position>
+      <position index="15">
+        <label>
+          <desc lang="cs">Vid</desc>
+          <desc lang="en">Aspect</desc>
+        </label>
+        <value ident="P">
+          <desc lang="cs">perfektivum (dokonavé sloveso)</desc>
+          <desc lang="en">perfective</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">imperfektivum (nedokonavé sloveso)</desc>
+          <desc lang="en">imperfective</desc>
+        </value>
+        <value ident="B">
+          <desc lang="cs">obouvidé sloveso</desc>
+          <desc lang="en">bi-aspectual</desc>
+        </value>
+      </position>
+    </tagset>
+    <tagset ident="cs_cnc2020" num_pos="15">
+      <position index="0">
+        <label>
+          <desc lang="cs">Slovní druh</desc>
+          <desc lang="en">Part of speech</desc>
+        </label>
+        <value ident="N">
+          <desc lang="cs">substantivum (podstatné jméno)</desc>
+          <desc lang="en">noun</desc>
+        </value>
+        <value ident="A">
+          <desc lang="cs">adjektivum (přídavné jméno)</desc>
+          <desc lang="en">adjective</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">pronomen (zájmeno)</desc>
+          <desc lang="en">pronoun</desc>
+        </value>
+        <value ident="C">
+          <desc lang="cs">numerál (číslovka, nebo číselný výraz s číslicemi)</desc>
+          <desc lang="en">numeral</desc>
+        </value>
+        <value ident="V">
+          <desc lang="cs">verbum (sloveso)</desc>
+          <desc lang="en">verb</desc>
+        </value>
+        <value ident="D">
+          <desc lang="cs">adverbium (příslovce)</desc>
+          <desc lang="en">adverb</desc>
+        </value>
+        <value ident="R">
+          <desc lang="cs">prepozice (předložka)</desc>
+          <desc lang="en">preposition</desc>
+        </value>
+        <value ident="J">
+          <desc lang="cs">konjunkce (spojka)</desc>
+          <desc lang="en">conjunction</desc>
+        </value>
+        <value ident="T">
+          <desc lang="cs">partikule (částice)</desc>
+          <desc lang="en">particle</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">interjekce (citoslovce)</desc>
+          <desc lang="en">interjection</desc>
+        </value>
+        <value ident="S">
+          <desc lang="cs">segment</desc>
+          <desc lang="en">segment</desc>
+        </value>
+        <value ident="B">
+          <desc lang="cs">zkratka</desc>
+          <desc lang="en">acronym/abbreviation</desc>
+        </value>
+        <value ident="Z">
+          <desc lang="cs">interpunkce, hranice věty</desc>
+          <desc lang="en">punctuation</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">cizí slovo</desc>
+          <desc lang="en">foreign word</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">neznámý nebo neurčený slovní druh</desc>
+          <desc lang="en">unknown or undetermined part of speech</desc>
+        </value>
+      </position>
+      <position index="1">
+        <label>
+          <desc lang="cs">Detailní určení slovního druhu</desc>
+          <desc lang="en">Detailed part of speech</desc>
+        </label>
+        <value ident="%">
+          <desc lang="cs">cizí slovo</desc>
+          <desc lang="en">foreign word</desc>
+        </value>
+        <value ident="*">
+          <desc lang="cs">spojka: operátor („plus“, „minus“, „x“)</desc>
+          <desc lang="en">conjunction: operator ("plus", "minus", "x")</desc>
+        </value>
+        <value ident=",">
+          <desc lang="cs">spojka podřadicí (vč. „aby“ a „kdyby“ ve všech tvarech)</desc>
+          <desc lang="en">subordinating conjunction (incl. "aby" and "kdyby" in all their forms)</desc>
+        </value>
+        <value ident=":">
+          <desc lang="cs">interpunkce všeobecně</desc>
+          <desc lang="en">punctuation, general</desc>
+        </value>
+        <value ident="=">
+          <desc lang="cs">číslo psané arabskými číslicemi</desc>
+          <desc lang="en">number written using Arabic numerals</desc>
+        </value>
+        <value ident="^">
+          <desc lang="cs">spojka souřadicí</desc>
+          <desc lang="en">coordinating conjunction</desc>
+        </value>
+        <value ident="}">
+          <desc lang="cs">číslo psané římskými číslicemi</desc>
+          <desc lang="en">number written using Roman numerals</desc>
+        </value>
+        <value ident="@">
+          <desc lang="cs">morfologickou analýzou nerozpoznaný tvar</desc>
+          <desc lang="en">unrecognized word form</desc>
+        </value>
+        <value ident="0">
+          <desc lang="cs">nekoncová interpunkce (tečka za zkratkou, číslicí apod.)</desc>
+          <desc lang="en">non sentence-final punctuation (abbreviation dot etc.)</desc>
+        </value>
+        <value ident="1">
+          <desc lang="cs">vztažné přivlastňovací zájmeno („jehož“, „jejíž“)</desc>
+          <desc lang="en">relative possessive pronoun ("jehož", "jejíž")</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">prefixoid (samostatně stojící předpona nebo předpona oddělená spojovníkem)</desc>
+          <desc lang="en">prefixoid (a prefix appearing independently or delimited with hyphen)</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">číslovka násobná neurčitá a tázací (adjektivní typ: „mnohonásobný“, „kolikanásobný“)</desc>
+          <desc lang="en">multiplicative numeral, either indefinite or interrogative (adjectival type: "mnohonásobný", "kolikanásobný")</desc>
+        </value>
+        <value ident="4">
+          <desc lang="cs">vztažné nebo tázací zájmeno s adjektivním skloňováním (obou typů: „jaký“, „který“, „čí“)</desc>
+          <desc lang="en">relative or interrogative pronoun with adjectival declension (both types: "jaký", "který", "čí")</desc>
+        </value>
+        <value ident="5">
+          <desc lang="cs">zájmeno „on“, „oni“ ve tvarech po předložce (tj. „n-“: „něj“, „něho“, „nich“)</desc>
+          <desc lang="en">pronoun "on", "oni" in forms following a preposition ("n-" forms: "něj", "něho", "nich")</desc>
+        </value>
+        <value ident="6">
+          <desc lang="cs">reflexívní zájmeno „se“ v dlouhých tvarech („sebe“, „sobě“, „sebou“)</desc>
+          <desc lang="en">reflexive pronoun "se" in long forms ("sebe", "sobě", "sebou")</desc>
+        </value>
+        <value ident="7">
+          <desc lang="cs">reflexívní zájmeno „se“, „si“ pouze v těchto tvarech, a dále „ses“, „sis“</desc>
+          <desc lang="en">reflexive pronoun "se", "si" in these forms only, including "ses", "sis"</desc>
+        </value>
+        <value ident="8">
+          <desc lang="cs">přivlastňovací zájmeno „svůj“</desc>
+          <desc lang="en">possessive pronoun "svůj"</desc>
+        </value>
+        <value ident="9">
+          <desc lang="cs">vztažné zájmeno „jenž“, „již“ apod. po předložce („n-“: „něhož“, „níž“)</desc>
+          <desc lang="en">relative pronoun "jenž", "již" etc. following a preposiiton ("n-": "něhož", "níž")</desc>
+        </value>
+        <value ident="A">
+          <desc lang="cs">adjektivum obyčejné</desc>
+          <desc lang="en">adjective, general</desc>
+        </value>
+        <value ident="B">
+          <desc lang="cs">sloveso, tvar přítomného nebo budoucího času</desc>
+          <desc lang="en">present or future tense form of a verb</desc>
+        </value>
+        <value ident="C">
+          <desc lang="cs">adjektivum, jmenný tvar</desc>
+          <desc lang="en">adjective, nominal form</desc>
+        </value>
+        <value ident="D">
+          <desc lang="cs">zájmeno ukazovací („ten“, „onen“)</desc>
+          <desc lang="en">demonstrative pronoun ("ten", "onen")</desc>
+        </value>
+        <value ident="E">
+          <desc lang="cs">vztažné zájmeno „což“</desc>
+          <desc lang="en">relative pronoun "což"</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">součást předložky, která nikdy nestojí samostatně („narozdíl“, „vzhledem“)</desc>
+          <desc lang="en">part of conjunction that never appears independently ("narozdíl", "vzhledem")</desc>
+        </value>
+        <value ident="G">
+          <desc lang="cs">adjektivum odvozené od slovesného tvaru přítomného přechodníku</desc>
+          <desc lang="en">adjective derived from a verbal form of present transgressive</desc>
+        </value>
+        <value ident="H">
+          <desc lang="cs">krátký tvar osobního zájmena („mě“, „mi“, „ti“, „mu“)</desc>
+          <desc lang="en">personal pronoun, short form ("mě", "mi", "ti", "mu")</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">citoslovce</desc>
+          <desc lang="en">interjection</desc>
+        </value>
+        <value ident="J">
+          <desc lang="cs">vztažné zájmeno „jenž“, „již“ apod. bez předložky</desc>
+          <desc lang="en">relative pronoun "jenž", "již" etc. without a preposition</desc>
+        </value>
+        <value ident="K">
+          <desc lang="cs">zájmeno tázací nebo vztažné „kdo“, vč. tvarů s „-ž“ a „-s“</desc>
+          <desc lang="en">interrogative or relative pronoun "kdo", incl. forms ending with "-ž" a "-s"</desc>
+        </value>
+        <value ident="L">
+          <desc lang="cs">zájmeno neurčité „všechen“, „sám“</desc>
+          <desc lang="en">indefinite pronoun "všechen", "sám"</desc>
+        </value>
+        <value ident="M">
+          <desc lang="cs">adjektivum odvozené od slovesného tvaru minulého přechodníku</desc>
+          <desc lang="en">adjective derived from a verbal form of past transgressive</desc>
+        </value>
+        <value ident="N">
+          <desc lang="cs">substantivum obyčejné</desc>
+          <desc lang="en">noun, general</desc>
+        </value>
+        <value ident="O">
+          <desc lang="cs">samostatně stojící zájmeno „svůj“, „nesvůj“, „tentam“</desc>
+          <desc lang="en">pronoun "svůj", "nesvůj", "tentam" appearing independently</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">zájmeno osobní (vč. tvaru „tys“)</desc>
+          <desc lang="en">personal pronoun (incl. form "tys")</desc>
+        </value>
+        <value ident="Q">
+          <desc lang="cs">zájmeno tázací/vztažné „co“, „copak“, „cožpak“</desc>
+          <desc lang="en">interrogative/relative pronoun "co", "copak", "cožpak"</desc>
+        </value>
+        <value ident="R">
+          <desc lang="cs">předložka, obyčejná</desc>
+          <desc lang="en">preposition, general</desc>
+        </value>
+        <value ident="S">
+          <desc lang="cs">zájmeno přivlastňovací „můj“, „tvůj“, „jeho“ (vč. plurálu)</desc>
+          <desc lang="en">possessive pronoun "můj", "tvůj", "jeho" (incl. plural)</desc>
+        </value>
+        <value ident="T">
+          <desc lang="cs">částice</desc>
+          <desc lang="en">particle</desc>
+        </value>
+        <value ident="U">
+          <desc lang="cs">adjektivum přivlastňovací (na „-ův“ i „-in“)</desc>
+          <desc lang="en">possessive adjective (ending with "-ův" and "-in")</desc>
+        </value>
+        <value ident="V">
+          <desc lang="cs">předložka vokalizovaná („ve“, „pode“, „ku“)</desc>
+          <desc lang="en">vocalized preposition ("ve", "pode", "ku")</desc>
+        </value>
+        <value ident="W">
+          <desc lang="cs">zájmeno záporné („nic“, „nikdo“, „nijaký“, „žádný“)</desc>
+          <desc lang="en">negative pronoun ("nic", "nikdo", "nijaký", "žádný")</desc>
+        </value>
+        <value ident="Z">
+          <desc lang="cs">zájmeno neurčité („nějaký“, „některý“, „číkoli“, „cosi“)</desc>
+          <desc lang="en">indefinite pronoun ("nějaký", "některý", "číkoli", "cosi")</desc>
+        </value>
+        <value ident="a">
+          <desc lang="cs">číslovka základní neurčitá a tázací („mnoho“, „tolik“, „kolik“)</desc>
+          <desc lang="en">cardinal numeral indefinite and interrogative ("mnoho", "tolik", "kolik")</desc>
+        </value>
+        <value ident="b">
+          <desc lang="cs">příslovce (bez určení stupně a negace: „pozadu“, „naplocho“)</desc>
+          <desc lang="en">adverb (with no degree or negation: "pozadu", "naplocho")</desc>
+        </value>
+        <value ident="c">
+          <desc lang="cs">kondicionál slovesa „být“ („by“, „bych“, „bys“, „bychom“, „byste“)</desc>
+          <desc lang="en">conditional of the verb "být" ("by", "bych", "bys", "bychom", "byste")</desc>
+        </value>
+        <value ident="d">
+          <desc lang="cs">číslovka druhová a souborová („dvojí“, „obojí“, „čtverý“ včetně tvarů „dvoje“, „oboje“, „čtvery“; „obé“; „jedny“)</desc>
+          <desc lang="en">kind and set numeral ("dvojí", "obojí", "čtverý" incl. forms "dvoje", "oboje", "čtvery"; "obé"; "jedny")</desc>
+        </value>
+        <value ident="e">
+          <desc lang="cs">slovesný tvar přechodníku přítomného („-e“, „-íc“, „-íce“)</desc>
+          <desc lang="en">present transgressive form of a verb ("-e", "-íc", "-íce")</desc>
+        </value>
+        <value ident="f">
+          <desc lang="cs">sloveso, infinitiv</desc>
+          <desc lang="en">verb, infinitive</desc>
+        </value>
+        <value ident="g">
+          <desc lang="cs">příslovce (s určením stupně a negace; „velký“, „zajímavý“)</desc>
+          <desc lang="en">adverb (with a degree and negation: "velký", "zajímavý")</desc>
+        </value>
+        <value ident="h">
+          <desc lang="cs">číslovka druhová a souborová neurčitá a tázací</desc>
+          <desc lang="en">kind and set numeral indefinite or interrogative</desc>
+        </value>
+        <value ident="i">
+          <desc lang="cs">slovesný tvar rozkazovacího způsobu</desc>
+          <desc lang="en">imperative mood form of a verb</desc>
+        </value>
+        <value ident="j">
+          <desc lang="cs">číslovka úhrnná („čtvero“, „devatero“, „dvé“, „tré“)</desc>
+          <desc lang="en">summative numeral ("čtvero", "devatero", "dvé", "tré")</desc>
+        </value>
+        <value ident="k">
+          <desc lang="cs">číslovka úhrnná neurčitá a tázací („několikero“, „tolikero“, „kolikero“)</desc>
+          <desc lang="en">summative numeral indefinite or interrogative ("několikero", "tolikero", "kolikero")</desc>
+        </value>
+        <value ident="l">
+          <desc lang="cs">číslovka základní 1-4 vč. „nejeden“</desc>
+          <desc lang="en">cardinal numeral 1-4 incl. "nejeden"</desc>
+        </value>
+        <value ident="m">
+          <desc lang="cs">slovesný tvar přechodníku minulého, příp. (zastarale) přechodník přítomný dokonavý</desc>
+          <desc lang="en">past transgressive form of a verb, alt. (archaic) present transgressive of a perfective verb</desc>
+        </value>
+        <value ident="n">
+          <desc lang="cs">číslovka základní 5-99, i pokud je součástí složené číslovky psané dohromady („dvacetpět“, „stotřicet“, „pětapůl“)</desc>
+          <desc lang="en">cardinal numeral 5-99, even when part of a compound numeral ("dvacetpět", "stotřicet", "pětapůl")</desc>
+        </value>
+        <value ident="o">
+          <desc lang="cs">číslovka násobná neurčitá a tázací (adverbiální typ, včetně spřežek: „mnohokrát“, „několikanásobně“, „pokolikáté“)</desc>
+          <desc lang="en">multiplicative numeral, either indefinite or interrogative (adverbial type, incl. compounds: "mnohokrát", "několikanásobně", "pokolikáté")</desc>
+        </value>
+        <value ident="p">
+          <desc lang="cs">slovesný tvar minulého aktivního příčestí (včetně příklonného „-s“)</desc>
+          <desc lang="en">past active participle form of a verb (incl. enclitic "-s")</desc>
+        </value>
+        <value ident="q">
+          <desc lang="cs">archaický slovesný tvar minulého aktivního příčestí (zakončení „-ť“)</desc>
+          <desc lang="en">archaic past active participle form of a verb (ending with "-ť")</desc>
+        </value>
+        <value ident="r">
+          <desc lang="cs">číslovka řadová</desc>
+          <desc lang="en">ordinal numeral</desc>
+        </value>
+        <value ident="s">
+          <desc lang="cs">slovesný tvar pasívního příčestí (vč. příklonného „-s“)</desc>
+          <desc lang="en">passive participle form of a verb (incl. enclitic "-s")</desc>
+        </value>
+        <value ident="t">
+          <desc lang="cs">archaický slovesný tvar přítomného nebo budoucího času (zakončení „-ť“)</desc>
+          <desc lang="en">archaic present or future tense form of a verb (ending with "-ť")</desc>
+        </value>
+        <value ident="u">
+          <desc lang="cs">číslovka násobná (adjektivní typ: „dvojitý“, „osminásobný“)</desc>
+          <desc lang="en">multiplicative numeral (adjectival type: "dvojitý", "osminásobný")</desc>
+        </value>
+        <value ident="v">
+          <desc lang="cs">číslovka násobná (adverbiální typ, včetně spřežek: „pětkrát“, „osminásobně“, „trojnásob“, „jednou“)</desc>
+          <desc lang="en">multiplicative numeral (adverbial type, incl. compounds: "pětkrát", "osminásobně", "trojnásob", "jednou")</desc>
+        </value>
+        <value ident="w">
+          <desc lang="cs">číslovka řadová neurčitá a tázací</desc>
+          <desc lang="en">ordinal numeral indefinite or interrogative</desc>
+        </value>
+        <value ident="y">
+          <desc lang="cs">číslovka dílová („půl“, „polovic“, „polovina“)</desc>
+          <desc lang="en">proportional numeral ("půl", "polovic", "polovina")</desc>
+        </value>
+        <value ident="z">
+          <desc lang="cs">číslovka základní se substantivním skloňováním („sto“, „milion“, „nula“)</desc>
+          <desc lang="en">cardinal numeral with noun declension ("sto", "milion", "nula")</desc>
+        </value>
+      </position>
+      <position index="2">
+        <label>
+          <desc lang="cs">Jmenný rod</desc>
+          <desc lang="en">Gender</desc>
+        </label>
+        <value ident="M">
+          <desc lang="cs">maskulinum animatum (rod mužský životný)</desc>
+          <desc lang="en">masculine animate</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">maskulinum inanimatum (rod mužský neživotný)</desc>
+          <desc lang="en">masculine inanimate</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">femininum (ženský rod)</desc>
+          <desc lang="en">feminine</desc>
+        </value>
+        <value ident="N">
+          <desc lang="cs">neutrum (střední rod)</desc>
+          <desc lang="en">neuter</desc>
+        </value>
+        <value ident="Y">
+          <desc lang="cs">masculinum (animatum nebo inanimatum)*</desc>
+          <desc lang="en">masculine (animate or inanimate)*</desc>
+        </value>
+        <value ident="H">
+          <desc lang="cs">femininum nebo neutrum (tedy nikoli maskulinum)*</desc>
+          <desc lang="en">feminine or neuter (non-masculine)*</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolný rod (F/M/I/N)</desc>
+          <desc lang="en">any gender (F/M/I/N)</desc>
+        </value>
+        <value ident="Z">
+          <desc lang="cs">'nikoli femininum' (tj. M/I/N)*</desc>
+          <desc lang="en">'non-feminine' (i.e. M/I/N)*</desc>
+        </value>
+        <value ident="Q">
+          <desc lang="cs">femininum singuláru nebo neutrum plurálu (pouze u příčestí a jmenných adjektiv)*
+                    </desc>
+          <desc lang="en">feminine singular or neuter plural (participles and nominal adjectives only)*</desc>
+        </value>
+        <value ident="T">
+          <desc lang="cs">masculinum inanimatum nebo femininum (jen plurál u příčestí a jmenných adjektiv)*
+                    </desc>
+          <desc lang="en">masculine inanimate or feminine (participles and nominal adjectives plural only)*
+                    </desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="3">
+        <label>
+          <desc lang="cs">Číslo</desc>
+          <desc lang="en">Number</desc>
+        </label>
+        <value ident="S">
+          <desc lang="cs">singulár (jednotné číslo)</desc>
+          <desc lang="en">singular</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">plurál (množné číslo)</desc>
+          <desc lang="en">plural</desc>
+        </value>
+        <value ident="D">
+          <desc lang="cs">duál (pouze 7. pád feminin)</desc>
+          <desc lang="en">dual (feminine instrumental only)</desc>
+        </value>
+        <value ident="W">
+          <desc lang="cs">pouze v kombinaci s jmenným rodem 'Q' (singulár pro feminina, plurál pro
+                        neutra)*
+                    </desc>
+          <desc lang="en">only in combination with gender 'Q' (singular feminine, plural neuter)*
+                    </desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolné číslo (P/S/D)</desc>
+          <desc lang="en">any number(P/S/D)</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="4">
+        <label>
+          <desc lang="cs">Pád</desc>
+          <desc lang="en">Case</desc>
+        </label>
+        <value ident="1">
+          <desc lang="cs">nominativ (1. pád)</desc>
+          <desc lang="en">nominative</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">genitiv (2. pád)</desc>
+          <desc lang="en">genitive</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">dativ (3. pád)</desc>
+          <desc lang="en">dative</desc>
+        </value>
+        <value ident="4">
+          <desc lang="cs">akuzativ (4. pád)</desc>
+          <desc lang="en">accusative</desc>
+        </value>
+        <value ident="5">
+          <desc lang="cs">vokativ (5. pád)</desc>
+          <desc lang="en">vocative</desc>
+        </value>
+        <value ident="6">
+          <desc lang="cs">lokativ (6. pád)</desc>
+          <desc lang="en">locative</desc>
+        </value>
+        <value ident="7">
+          <desc lang="cs">instrumentál (7. pád)</desc>
+          <desc lang="en">instrumental</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolný pád (1/2/3/4/5/6/7)*</desc>
+          <desc lang="en">any case (1/2/3/4/5/6/7)*</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="5">
+        <label>
+          <desc lang="cs">Přivlastňovací rod</desc>
+          <desc lang="en">Possessor's gender</desc>
+        </label>
+        <value ident="M">
+          <desc lang="cs">maskulinum animatum (rod mužský životný)</desc>
+          <desc lang="en">masculine animate</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">maskulinum inanimatum (rod mužský neživotný)</desc>
+          <desc lang="en">masculine inanimate</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">femininum (ženský rod)</desc>
+          <desc lang="en">feminine</desc>
+        </value>
+        <value ident="N">
+          <desc lang="cs">neutrum (střední rod)</desc>
+          <desc lang="en">neuter</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolný rod (F/M/I/N)</desc>
+          <desc lang="en">any gender (F/M/I/N)</desc>
+        </value>
+        <value ident="Z">
+          <desc lang="cs">'nikoli femininum' (tj. M/I/N; u přivlastňovacích adjektiv)*</desc>
+          <desc lang="en">'non-feminine' (i.e. M/I/N; possessive adjectives)*</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="6">
+        <label>
+          <desc lang="cs">Přivlastňovací číslo</desc>
+          <desc lang="en">Possessor's number</desc>
+        </label>
+        <value ident="S">
+          <desc lang="cs">singulár (jednotné číslo)</desc>
+          <desc lang="en">singular</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">plurál (množné číslo)</desc>
+          <desc lang="en">plural</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="7">
+        <label>
+          <desc lang="cs">Osoba</desc>
+          <desc lang="en">Person</desc>
+        </label>
+        <value ident="1">
+          <desc lang="cs">1. osoba</desc>
+          <desc lang="en">1st person</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">2. osoba</desc>
+          <desc lang="en">2nd person</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">3. osoba</desc>
+          <desc lang="en">3rd person</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolná osoba (1/2/3)*</desc>
+          <desc lang="en">any person (1/2/3)*</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="8">
+        <label>
+          <desc lang="cs">Čas</desc>
+          <desc lang="en">Tense</desc>
+        </label>
+        <value ident="R">
+          <desc lang="cs">minulý čas</desc>
+          <desc lang="en">past</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">prézens (přítomný čas)</desc>
+          <desc lang="en">present</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">futurum (budoucí čas)</desc>
+          <desc lang="en">future</desc>
+        </value>
+        <value ident="H">
+          <desc lang="cs">minulost nebo přítomnost (P/R)*</desc>
+          <desc lang="en">past or present (P/R)*</desc>
+        </value>
+        <value ident="X">
+          <desc lang="cs">libovolný čas (F/R/P)*</desc>
+          <desc lang="en">any tense (F/R/P)*</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="9">
+        <label>
+          <desc lang="cs">Stupeň</desc>
+          <desc lang="en">Degree of comparison</desc>
+        </label>
+        <value ident="1">
+          <desc lang="cs">1. stupeň</desc>
+          <desc lang="en">positive</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">2. stupeň</desc>
+          <desc lang="en">comparative</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">3. stupeň</desc>
+          <desc lang="en">superlative</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="10">
+        <label>
+          <desc lang="cs">Negace</desc>
+          <desc lang="en">Negation</desc>
+        </label>
+        <value ident="A">
+          <desc lang="cs">afirmativ (bez negativní předpony "ne-")</desc>
+          <desc lang="en">affirmative (without negative prefix "ne-")</desc>
+        </value>
+        <value ident="N">
+          <desc lang="cs">negace (tvar s negativní předponou "ne-")</desc>
+          <desc lang="en">negated (with negative prefix "ne-")</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="11">
+        <label>
+          <desc lang="cs">Aktivum/pasivum</desc>
+          <desc lang="en">Active/passive voice</desc>
+        </label>
+        <value ident="A">
+          <desc lang="cs">aktivum nebo 'nikoli pasivum'</desc>
+          <desc lang="en">active or 'non-passive'</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">pasivum</desc>
+          <desc lang="en">passive</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="12">
+        <label>
+          <desc lang="cs">Vid</desc>
+          <desc lang="en">Aspect</desc>
+        </label>
+        <value ident="P">
+          <desc lang="cs">perfektivum (dokonavé sloveso)</desc>
+          <desc lang="en">perfective</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">imperfektivum (nedokonavé sloveso)</desc>
+          <desc lang="en">imperfective</desc>
+        </value>
+        <value ident="B">
+          <desc lang="cs">obouvidé sloveso</desc>
+          <desc lang="en">bi-aspectual</desc>
+        </value>
+      </position>
+      <position index="13">
+        <label>
+          <desc lang="cs">Nepoužito</desc>
+          <desc lang="en">Reserved</desc>
+        </label>
+        <value ident="-">
+          <desc lang="cs">neurčuje se</desc>
+          <desc lang="en">not applicable</desc>
+        </value>
+      </position>
+      <position index="14">
+        <label>
+          <desc lang="cs">Varianta, stylový příznak apod.</desc>
+          <desc lang="en">Variant, style indication etc.</desc>
+        </label>
+        <value ident="1">
+          <desc lang="cs">varianta, víceméně rovnocenná ("méně častá")</desc>
+          <desc lang="en">variant, more or less equivalent ("less frequent")</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">řídká, archaická nebo knižní varianta</desc>
+          <desc lang="en">rare, archaic or bookish variant</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">velmi archaický tvar, též archaický a hovorový</desc>
+          <desc lang="en">very archaic, also archaic and colloquial</desc>
+        </value>
+        <value ident="4">
+          <desc lang="cs">velmi archaický nebo knižní tvar, pouze spisovný (ve své době)</desc>
+          <desc lang="en">very archaic or bookish, only standard (at the time)</desc>
+        </value>
+        <value ident="5">
+          <desc lang="cs">hovorový tvar, ale tolerovaný ve veřejných projevech</desc>
+          <desc lang="en">colloquial, but tolerated in public</desc>
+        </value>
+        <value ident="6">
+          <desc lang="cs">hovorový tvar (koncovka standardní obecné češtiny)</desc>
+          <desc lang="en">colloquial (standard common Czech suffix)</desc>
+        </value>
+        <value ident="7">
+          <desc lang="cs">hovorový tvar (koncovka standardní obecné češtiny), varianta k '6'</desc>
+          <desc lang="en">colloquial (standard common Czech suffix), variant to '6'</desc>
+        </value>
+        <value ident="8">
+          <desc lang="cs">zkratky</desc>
+          <desc lang="en">abbreviations</desc>
+        </value>
+        <value ident="9">
+          <desc lang="cs">speciální použití (tvary zájmen po předložkách apod.)</desc>
+          <desc lang="en">special uses (pronouns after prepositions etc.)</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">neurčuje se ("základní", standardní tvar)</desc>
+          <desc lang="en">not applicable ("basic", standard variant)</desc>
+        </value>
+      </position>
+    </tagset>
+  </tagsets>
+</kontext>

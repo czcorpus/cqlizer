@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Descriptions of positional tagsets not covered by kontext_tagsets.xml
+  (same format). The verbtag descriptions come from the Alpha project
+  by Jiří Milička. The verbtag attribute describes whole (possibly compound)
+  verb forms, e.g. "jsem dělal" is tagged as past tense on the full verb
+  and as "A" (auxiliary) on the auxiliary verb.
+
+  A tagset with the `extends` attribute inherits all the descriptions
+  of the referred tagset and adds/overrides the listed ones.
+-->
+<kontext>
+  <tagsets>
+    <!-- cs_cnc2020 + spoken-language parts of speech (ORTOFON v3) -->
+    <tagset ident="cs_cnc2020_spk" num_pos="15" extends="cs_cnc2020">
+      <position index="0">
+        <value ident="E">
+          <desc lang="cs">fragment slova (useknuté slovo, např. „s*“, „ne*“)</desc>
+          <desc lang="en">word fragment (truncated word, e.g. "s*", "ne*")</desc>
+        </value>
+        <value ident="H">
+          <desc lang="cs">neverbální zvuk, hezitace</desc>
+          <desc lang="en">non-verbal sound, hesitation</desc>
+        </value>
+        <value ident="M">
+          <desc lang="cs">komentář přepisovatele</desc>
+          <desc lang="en">transcriber's comment</desc>
+        </value>
+        <value ident="W">
+          <desc lang="cs">specificky mluvené slovo („nj“, „nn“, „np“, „nm“, „no“)</desc>
+          <desc lang="en">spoken-specific word ("nj", "nn", "np", "nm", "no")</desc>
+        </value>
+      </position>
+    </tagset>
+    <tagset ident="verbtag" num_pos="6">
+      <position index="0">
+        <label>
+          <desc lang="cs">Druh slovesa</desc>
+          <desc lang="en">Verb kind</desc>
+        </label>
+        <value ident="V">
+          <desc lang="cs">plnovýznamové sloveso</desc>
+          <desc lang="en">full verb</desc>
+        </value>
+        <value ident="A">
+          <desc lang="cs">pomocné sloveso (součást složeného tvaru)</desc>
+          <desc lang="en">auxiliary verb (part of a compound form)</desc>
+        </value>
+        <value ident="-">
+          <desc lang="cs">nejde o sloveso</desc>
+          <desc lang="en">not a verb</desc>
+        </value>
+      </position>
+      <position index="1">
+        <label>
+          <desc lang="cs">Slovesný způsob</desc>
+          <desc lang="en">Mood</desc>
+        </label>
+        <value ident="D">
+          <desc lang="cs">indikativ</desc>
+          <desc lang="en">indicative</desc>
+        </value>
+        <value ident="C">
+          <desc lang="cs">kondicionál</desc>
+          <desc lang="en">conditional</desc>
+        </value>
+        <value ident="I">
+          <desc lang="cs">imperativ</desc>
+          <desc lang="en">imperative</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">infinitiv</desc>
+          <desc lang="en">infinitive</desc>
+        </value>
+        <value ident="T">
+          <desc lang="cs">přechodník</desc>
+          <desc lang="en">transgressive</desc>
+        </value>
+        <value ident="O">
+          <desc lang="cs">samostatné trpné příčestí (doplněk, přísudek bez spony)</desc>
+          <desc lang="en">standalone passive participle (complement, predicate without copula)</desc>
+        </value>
+      </position>
+      <position index="2">
+        <label>
+          <desc lang="cs">Slovesný rod</desc>
+          <desc lang="en">Voice</desc>
+        </label>
+        <value ident="A">
+          <desc lang="cs">činný rod</desc>
+          <desc lang="en">active</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">trpný rod</desc>
+          <desc lang="en">passive</desc>
+        </value>
+        <value ident="p">
+          <desc lang="cs">deverbativní adjektivum od trpného příčestí</desc>
+          <desc lang="en">deverbal adjective from a passive participle</desc>
+        </value>
+      </position>
+      <position index="3">
+        <label>
+          <desc lang="cs">Osoba</desc>
+          <desc lang="en">Person</desc>
+        </label>
+        <value ident="1">
+          <desc lang="cs">první osoba</desc>
+          <desc lang="en">1st person</desc>
+        </value>
+        <value ident="2">
+          <desc lang="cs">druhá osoba</desc>
+          <desc lang="en">2nd person</desc>
+        </value>
+        <value ident="3">
+          <desc lang="cs">třetí osoba</desc>
+          <desc lang="en">3rd person</desc>
+        </value>
+      </position>
+      <position index="4">
+        <label>
+          <desc lang="cs">Číslo</desc>
+          <desc lang="en">Number</desc>
+        </label>
+        <value ident="S">
+          <desc lang="cs">jednotné číslo</desc>
+          <desc lang="en">singular</desc>
+        </value>
+        <value ident="P">
+          <desc lang="cs">množné číslo</desc>
+          <desc lang="en">plural</desc>
+        </value>
+        <value ident="v">
+          <desc lang="cs">vykání</desc>
+          <desc lang="en">polite form (vykání)</desc>
+        </value>
+      </position>
+      <position index="5">
+        <label>
+          <desc lang="cs">Čas</desc>
+          <desc lang="en">Tense</desc>
+        </label>
+        <value ident="P">
+          <desc lang="cs">přítomný čas</desc>
+          <desc lang="en">present</desc>
+        </value>
+        <value ident="F">
+          <desc lang="cs">budoucí čas</desc>
+          <desc lang="en">future</desc>
+        </value>
+        <value ident="B">
+          <desc lang="cs">přítomný či budoucí čas (obouvidé sloveso)</desc>
+          <desc lang="en">present or future (biaspectual verb)</desc>
+        </value>
+        <value ident="R">
+          <desc lang="cs">minulý čas</desc>
+          <desc lang="en">past</desc>
+        </value>
+        <value ident="Q">
+          <desc lang="cs">předminulý čas</desc>
+          <desc lang="en">pluperfect</desc>
+        </value>
+      </position>
+    </tagset>
+  </tagsets>
+</kontext>

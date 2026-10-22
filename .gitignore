@@ -1,8 +1,8 @@
-cqlizer
-conf.json
-data/
-testdata/testing.sqlite
-venv/
-_models/
+/cqlizer
+/conf.json
+/data/
+/testdata/testing.sqlite
+/venv/
+/_models/
 
-cql_features*
+/cql_features*
