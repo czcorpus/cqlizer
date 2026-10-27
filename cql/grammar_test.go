@@ -112,3 +112,19 @@ func TestWithinNumber(t *testing.T) {
 	_, err := ParseCQL("#", q1)
 	assert.NoError(t, err)
 }
+
+// TestRawStringEscapes tests escaped characters in strict equality
+// (==) values - these used to fail with "unexpected type []uint8".
+func TestRawStringEscapes(t *testing.T) {
+	for _, q := range []string{
+		`[lemma=="a\"b"]`,
+		`[lemma=="a\\b"]`,
+		`[lemma=="a\.b"]`,
+		`[lemma=="\(a\)\|\$"]`,
+	} {
+		ast, err := ParseCQL("#", q)
+		if assert.NoError(t, err, q) {
+			assert.Equal(t, q, ast.CQL(), q)
+		}
+	}
+}

@@ -98,6 +98,7 @@ func TestCQL2DQDUnsupported(t *testing.T) {
 		`[word="a|"]`,                    // regexp
 		`[word="\."]`,                    // escaped char
 		`[word="\p{Lu}"]`,                // unicode class
+		`[lemma=="a\"b"]`,                // escaped char in a literal
 		`[word="a" & lemma="b"]`,         // AND inside a position
 		`[word="a" | lemma="b"]`,         // OR inside a position
 		`[word="a"][word="b"]`,           // more positions
