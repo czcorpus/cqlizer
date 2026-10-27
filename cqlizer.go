@@ -49,6 +49,7 @@ const (
 	actionRemoveZero       = "remove-zero"
 	actionAPIServer        = "server"
 	actionQueryTypeKey     = "query-type-key"
+	actionCQL2DQD          = "cql2dqd"
 
 	exitErrorGeneralFailure = iota
 	exitErrorImportFailed
@@ -92,6 +93,7 @@ func topLevelUsage() {
 	fmt.Fprintf(os.Stderr, "\t%s\tbenchmark queries with zero processing time (using MQuery)\n", actionBenchmarkMissing)
 	fmt.Fprintf(os.Stderr, "\t%s\t\t\tREPL for CQL evaluation\n", actionREPL)
 	fmt.Fprintf(os.Stderr, "\t%s\t\tmcp-server MCP (beta version) \n", actionMCPServer)
+	fmt.Fprintf(os.Stderr, "\t%s\t\t\ttranslate CQL query to DQD (LCP query language)\n", actionCQL2DQD)
 	fmt.Fprintf(os.Stderr, "\nUse `cqlizer help ACTION` for information about a specific action\n\n")
 }
 
@@ -308,6 +310,15 @@ func main() {
 		cmdQueryType.PrintDefaults()
 	}
 
+	cmdCQL2DQD := flag.NewFlagSet(actionCQL2DQD, flag.ExitOnError)
+	cql2dqdProps := cmdCQL2DQD.String("corpus-props", "", "a JSON file with corpus properties (layers, attribute mapping); applied on top of the defaults")
+	cmdCQL2DQD.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s cql2dqd [options] [query]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nIf no query is provided, it is read from stdin.\n")
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmdCQL2DQD.PrintDefaults()
+	}
+
 	action := actionHelp
 	if len(os.Args) > 1 {
 		action = os.Args[1]
@@ -331,6 +342,8 @@ func main() {
 			cmdMCP.PrintDefaults()
 		case actionREPL:
 			cmdREPL.PrintDefaults()
+		case actionCQL2DQD:
+			cmdCQL2DQD.Usage()
 		}
 	case actionVersion:
 		cmdVersion.Parse(os.Args[2:])
@@ -435,6 +448,9 @@ func main() {
 			}
 			fmt.Println(k)
 		}
+	case actionCQL2DQD:
+		cmdCQL2DQD.Parse(os.Args[2:])
+		runActionCQL2DQD(*cql2dqdProps, cmdCQL2DQD.Arg(0))
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown action, please use 'help' to get more information")
 	}

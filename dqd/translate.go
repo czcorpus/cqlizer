@@ -26,6 +26,12 @@ import (
 	"github.com/czcorpus/cqlizer/cql"
 )
 
+const (
+	defaultResultLabel = "res"
+	segmentLabel       = "s"
+	tokenLabelPrefix   = "t"
+)
+
 // UnsupportedFeature marks a CQL construct we're unable to
 // translate to DQD.
 type UnsupportedFeature struct {
@@ -36,31 +42,8 @@ func (err *UnsupportedFeature) Error() string {
 	return fmt.Sprintf("Unsupported feature %s", err.Feature)
 }
 
-// CorpusProps contains the corpus-schema-specific information CQL2DQD
-// needs but that a CQL query itself never carries - DQD's Layer/attribute
-// names are per-corpus (e.g. CQL "word" might be DQD "Token.form" in one
-// corpus and "Token.text" in another), so they can't be derived from the
-// query alone.
-//
-// TODO: stub - fields below are a first guess at the shape; fill in once
-// a real corpus config source is wired up.
-type CorpusProps struct {
-	// PosAttrLayer is the DQD layer CQL positional attributes belong to
-	// (almost always "Token").
-	PosAttrLayer string
-
-	// PosAttrs maps a CQL positional attribute name (e.g. "word") to its
-	// DQD attribute name (e.g. "form").
-	PosAttrs map[string]string
-
-	// Structures maps a CQL structure name (e.g. "text") to its DQD
-	// layer name (e.g. "Text"). This can't be a simple capitalize() -
-	// DQD layer names are corpus-defined, not derived from CQL names.
-	Structures map[string]string
-
-	// StructAttrs maps a CQL structure attribute name to its DQD
-	// attribute name, keyed by CQL structure name.
-	StructAttrs map[string]map[string]string
+func unsupported(feature string) error {
+	return &UnsupportedFeature{Feature: feature}
 }
 
 // ViewOptions controls the "results" block CQL2DQD generates - DQD
@@ -72,7 +55,7 @@ type CorpusProps struct {
 // extend once analysis/collocation output is supported.
 type ViewOptions struct {
 	// ResultLabel names the generated result entry (the label before
-	// "=>" in DQD source).
+	// "=>" in DQD source). If empty, "res" is used.
 	ResultLabel string
 }
 
@@ -87,7 +70,7 @@ func CQL2DQD(cp CorpusProps, vo ViewOptions, query string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to parse CQL query: %w", err)
 	}
-	t := &translator{corpusProps: cp, viewOpts: vo}
+	t := &translator{corpusProps: cp, viewOpts: vo, labelSeq: make(map[string]int)}
 	dq, err := t.translateQuery(q)
 	if err != nil {
 		return "", err
@@ -100,18 +83,23 @@ func CQL2DQD(cp CorpusProps, vo ViewOptions, query string) (string, error) {
 type translator struct {
 	corpusProps CorpusProps
 	viewOpts    ViewOptions
-	labelSeq    int
+
+	// labelSeq holds the last used number for each label prefix
+	labelSeq map[string]int
 }
 
 // nextLabel allocates a fresh DQD label (e.g. "t1", "t2", ...) - DQD
 // requires explicit labels that CQL positions don't carry.
 func (t *translator) nextLabel(prefix string) string {
-	t.labelSeq++
-	return fmt.Sprintf("%s%d", prefix, t.labelSeq)
+	t.labelSeq[prefix]++
+	return fmt.Sprintf("%s%d", prefix, t.labelSeq[prefix])
 }
 
 // translateQuery is the entry point of the AST walk, mapping a
-// cql.Query onto the IR in ir.go. Stubbed for now - the planned mapping:
+// cql.Query onto the IR in ir.go.
+//
+// Currently supported: a single position with at most one attribute
+// condition. The planned mapping for the rest:
 //
 //   - cql.Sequence            -> Sequence, one Unit per bracket position
 //   - AttValAnd ("&"-joined)  -> plain Unit.Constraints entries (DQD
@@ -123,5 +111,146 @@ func (t *translator) nextLabel(prefix string) string {
 //   - cql.GlobCond's freq(...) form -> ErrUnsupportedFeature (DQD only
 //     has frequency inside results_analysis, not as a query constraint)
 func (t *translator) translateQuery(q *cql.Query) (*Query, error) {
-	return nil, &UnsupportedFeature{Feature: "query translation (not implemented yet)"}
+	if q.GlobPart != nil {
+		return nil, unsupported("global conditions (& 1.attr = 2.attr)")
+	}
+	if len(q.WithinOrContaining) > 0 {
+		return nil, unsupported("within/containing")
+	}
+	if len(q.Sequence.Seq) != 1 {
+		return nil, unsupported("alternative sequences (seq1 | seq2)")
+	}
+	seq := q.Sequence.Seq[0]
+	if seq.Not != "" {
+		return nil, unsupported("negated sequence")
+	}
+	if len(seq.Repetition) != 1 {
+		return nil, unsupported("sequence of multiple positions")
+	}
+
+	segment := &Unit{Layer: t.corpusProps.SegmentLayer, Label: segmentLabel}
+	token, err := t.translateRepetition(seq.Repetition[0])
+	if err != nil {
+		return nil, err
+	}
+	resultLabel := t.viewOpts.ResultLabel
+	if resultLabel == "" {
+		resultLabel = defaultResultLabel
+	}
+	return &Query{
+		Items: []QueryItem{{Unit: segment}, {Unit: token}},
+		Results: []Result{{
+			Label: resultLabel,
+			Plain: &PlainResult{
+				Context:  []string{segment.Label},
+				Entities: []string{token.Label},
+			},
+		}},
+	}, nil
+}
+
+// translateRepetition translates a single CQL position (with its
+// optional repetition operator) into a Token unit being part of the
+// segment.
+func (t *translator) translateRepetition(rep *cql.Repetition) (*Unit, error) {
+	if rep.Variant1 == nil {
+		return nil, unsupported("structure tags (<s>, </s>) inside a sequence")
+	}
+	if rep.Variant1.RepOpt != nil {
+		return nil, unsupported("repetition (*, +, ?, {n,m})")
+	}
+	pos := rep.Variant1.AtomQuery.Position()
+	if pos == nil {
+		return nil, unsupported("parenthesized sub-query")
+	}
+	onePos := pos.OnePosition()
+	if onePos == nil {
+		return nil, unsupported("numbered position (1:[...])")
+	}
+	unit := &Unit{
+		Layer:  t.corpusProps.PosAttrLayer,
+		Label:  t.nextLabel(tokenLabelPrefix),
+		PartOf: []PartOf{{Kind: PartOfStream, Label: segmentLabel}},
+	}
+	switch {
+	case onePos.Variant1 != nil:
+		// [attr="value" ...] or empty []
+		if onePos.Variant1.AttValList == nil {
+			break
+		}
+		c, err := t.translateAttValList(onePos.Variant1.AttValList)
+		if err != nil {
+			return nil, err
+		}
+		unit.Constraints = append(unit.Constraints, c)
+
+	case onePos.Variant2 != nil:
+		// bare "value" applied to the default attribute
+		c, err := t.attrComparison(t.corpusProps.DefaultAttr, false, onePos.Variant2.RegExp)
+		if err != nil {
+			return nil, err
+		}
+		unit.Constraints = append(unit.Constraints, c)
+
+	default:
+		return nil, unsupported("this type of position (meet/union, ~ query)")
+	}
+	return unit, nil
+}
+
+func (t *translator) translateAttValList(avl *cql.AttValList) (Constraint, error) {
+	if len(avl.AttValAnd) != 1 || len(avl.AttValAnd[0].AttVal) != 1 {
+		return Constraint{}, unsupported("boolean operators (&, |) inside a position")
+	}
+	return t.translateAttVal(avl.AttValAnd[0].AttVal[0])
+}
+
+func (t *translator) translateAttVal(av *cql.AttVal) (Constraint, error) {
+	switch {
+	case av.Variant1 != nil:
+		// attr == "literal"
+		value := ""
+		if av.Variant1.RawString.SimpleString != nil {
+			value = av.Variant1.RawString.SimpleString.String()
+		}
+		if hasEscapes(value) {
+			return Constraint{}, unsupported("escaped characters in a value")
+		}
+		return t.comparison(av.Variant1.AttName.String(), av.Variant1.Not, value)
+
+	case av.Variant2 != nil:
+		// attr = "regexp"
+		if av.Variant2.Op.String() != "=" {
+			return Constraint{}, unsupported(fmt.Sprintf("operator %s", av.Variant2.Op))
+		}
+		return t.attrComparison(av.Variant2.AttName.String(), av.Variant2.Not, av.Variant2.RegExp)
+	}
+	return Constraint{}, unsupported("this type of attribute condition")
+}
+
+// attrComparison creates a comparison of a positional attribute with
+// a CQL regexp value.
+//
+// TODO: only regexps without any special characters (i.e. plain strings)
+// are supported for now.
+func (t *translator) attrComparison(cqlAttr string, not bool, rg *cql.RegExp) (Constraint, error) {
+	value, ok := plainRegExpValue(rg)
+	if !ok {
+		return Constraint{}, unsupported("regular expressions")
+	}
+	return t.comparison(cqlAttr, not, value)
+}
+
+func (t *translator) comparison(cqlAttr string, not bool, value string) (Constraint, error) {
+	dqdAttr, ok := t.corpusProps.PosAttrs[cqlAttr]
+	if !ok {
+		return Constraint{}, unsupported(
+			fmt.Sprintf("positional attribute '%s' (no mapping in corpus props)", cqlAttr))
+	}
+	return Constraint{Comparison: &Comparison{
+		Left:       Operand{Reference: &Reference{Value: dqdAttr}},
+		Not:        not,
+		Comparator: "=",
+		Right:      Operand{String: &StringLit{Value: value}},
+	}}, nil
 }
