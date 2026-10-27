@@ -99,7 +99,8 @@ func (t *translator) nextLabel(prefix string) string {
 // cql.Query onto the IR in ir.go.
 //
 // Currently supported: a single position with at most one attribute
-// condition. The planned mapping for the rest:
+// condition (value being a string, a literal or a regexp). The planned
+// mapping for the rest:
 //
 //   - cql.Sequence            -> Sequence, one Unit per bracket position
 //   - AttValAnd ("&"-joined)  -> plain Unit.Constraints entries (DQD
@@ -209,14 +210,7 @@ func (t *translator) translateAttVal(av *cql.AttVal) (Constraint, error) {
 	switch {
 	case av.Variant1 != nil:
 		// attr == "literal"
-		value := ""
-		if av.Variant1.RawString.SimpleString != nil {
-			value = av.Variant1.RawString.SimpleString.String()
-		}
-		if hasEscapes(value) {
-			return Constraint{}, unsupported("escaped characters in a value")
-		}
-		return t.comparison(av.Variant1.AttName.String(), av.Variant1.Not, value)
+		return t.comparison(av.Variant1.AttName.String(), av.Variant1.Not, literalOperand(av.Variant1.RawString))
 
 	case av.Variant2 != nil:
 		// attr = "regexp"
@@ -230,18 +224,15 @@ func (t *translator) translateAttVal(av *cql.AttVal) (Constraint, error) {
 
 // attrComparison creates a comparison of a positional attribute with
 // a CQL regexp value.
-//
-// TODO: only regexps without any special characters (i.e. plain strings)
-// are supported for now.
 func (t *translator) attrComparison(cqlAttr string, not bool, rg *cql.RegExp) (Constraint, error) {
-	value, ok := plainRegExpValue(rg)
-	if !ok {
-		return Constraint{}, unsupported("regular expressions")
+	value, err := regExpOperand(rg)
+	if err != nil {
+		return Constraint{}, err
 	}
 	return t.comparison(cqlAttr, not, value)
 }
 
-func (t *translator) comparison(cqlAttr string, not bool, value string) (Constraint, error) {
+func (t *translator) comparison(cqlAttr string, not bool, value Operand) (Constraint, error) {
 	dqdAttr, ok := t.corpusProps.PosAttrs[cqlAttr]
 	if !ok {
 		return Constraint{}, unsupported(
@@ -251,6 +242,6 @@ func (t *translator) comparison(cqlAttr string, not bool, value string) (Constra
 		Left:       Operand{Reference: &Reference{Value: dqdAttr}},
 		Not:        not,
 		Comparator: "=",
-		Right:      Operand{String: &StringLit{Value: value}},
+		Right:      value,
 	}}, nil
 }

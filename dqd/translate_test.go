@@ -48,7 +48,26 @@ var translateCases = []struct {
 	{`[tag="NNMS1-----A----"]`, singleTokenDQD("    xpos = \"NNMS1-----A----\"\n")},
 	{`[word=""]`, singleTokenDQD("    form = \"\"\n")},
 	{`[]`, singleTokenDQD("")},
-}
+	// regexps (anchored - DQD regexps match substrings, CQL ones the whole value)
+	{`[word="pes.*"]`, singleTokenDQD("    form = /^(pes.*)$/\n")},
+	{`"pes.*"`, singleTokenDQD("    form = /^(pes.*)$/\n")},
+	{`[word="pes|kočka"]`, singleTokenDQD("    form = /^(pes|kočka)$/\n")},
+	{`[word="pes|"]`, singleTokenDQD("    form = /^(pes|)$/\n")},
+	{`[word!="p.*"]`, singleTokenDQD("    form != /^(p.*)$/\n")},
+	{`[word="(?i)pes"]`, singleTokenDQD("    form = /^(pes)$/i\n")},
+	{`[word="(?i)p.*"]`, singleTokenDQD("    form = /^(p.*)$/i\n")},
+	{`[word="[[:alpha:]]+"]`, singleTokenDQD("    form = /^([[:alpha:]]+)$/\n")},
+	{`[word="(?!a)."]`, singleTokenDQD("    form = /^((?!a).)$/\n")},
+	{`[word="a/b.*"]`, singleTokenDQD("    form = /^(a/b.*)$/\n")},
+	{`[tag="N.{4}1.*"]`, singleTokenDQD("    xpos = /^(N.{4}1.*)$/\n")},
+	// escaped characters in regexps
+	{`[word="\."]`, singleTokenDQD("    form = \".\"\n")},
+	{`[word="a/b"]`, singleTokenDQD("    form = \"a/b\"\n")},
+	{`[word="a\"b"]`, singleTokenDQD("    form = /^(a\\\"b)$/\n")},
+	// literals (==)
+	{`[lemma=="a\.b"]`, singleTokenDQD("    lemma = \"a.b\"\n")},
+	{`[lemma=="a\"b"]`, singleTokenDQD("    lemma = /^a\"b$/\n")},
+	{`[lemma=="a\\b\.c"]`, singleTokenDQD("    lemma = /^a\\\\b\\.c$/\n")}}
 
 func TestCQL2DQD(t *testing.T) {
 	for _, tc := range translateCases {
@@ -94,11 +113,8 @@ kwic => plain
 
 func TestCQL2DQDUnsupported(t *testing.T) {
 	queries := []string{
-		`[word="p.*"]`,                   // regexp
-		`[word="a|"]`,                    // regexp
-		`[word="\."]`,                    // escaped char
 		`[word="\p{Lu}"]`,                // unicode class
-		`[lemma=="a\"b"]`,                // escaped char in a literal
+		`[word="a(?i)b"]`,                // non-leading inline flag
 		`[word="a" & lemma="b"]`,         // AND inside a position
 		`[word="a" | lemma="b"]`,         // OR inside a position
 		`[word="a"][word="b"]`,           // more positions
