@@ -67,7 +67,50 @@ var translateCases = []struct {
 	// literals (==)
 	{`[lemma=="a\.b"]`, singleTokenDQD("    lemma = \"a.b\"\n")},
 	{`[lemma=="a\"b"]`, singleTokenDQD("    lemma = /^a\"b$/\n")},
-	{`[lemma=="a\\b\.c"]`, singleTokenDQD("    lemma = /^a\\\\b\\.c$/\n")}}
+	{`[lemma=="a\\b\.c"]`, singleTokenDQD("    lemma = /^a\\\\b\\.c$/\n")},
+	// boolean logic inside a position
+	{`[lemma="pes" & tag="N.*"]`, singleTokenDQD(`    lemma = "pes"
+    xpos = /^(N.*)$/
+`)},
+	{`[lemma="pes" | lemma="kočka"]`, singleTokenDQD(`    OR
+        lemma = "pes"
+        lemma = "kočka"
+`)},
+	{`[(lemma="pes" | lemma="kočka") & tag="N.*"]`, singleTokenDQD(`    OR
+        lemma = "pes"
+        lemma = "kočka"
+    xpos = /^(N.*)$/
+`)},
+	{`[lemma="pes" & tag="N.*" | word="kočka"]`, singleTokenDQD(`    OR
+        AND
+            lemma = "pes"
+            xpos = /^(N.*)$/
+        form = "kočka"
+`)},
+	{`[!lemma="pes"]`, singleTokenDQD("    lemma != \"pes\"\n")},
+	{`[!lemma!="pes"]`, singleTokenDQD("    lemma = \"pes\"\n")},
+	{`[!(lemma="pes" | lemma="kočka")]`, singleTokenDQD(`    !
+        OR
+            lemma = "pes"
+            lemma = "kočka"
+`)},
+	{`[!(lemma="pes" & tag="N.*")]`, singleTokenDQD(`    !
+        AND
+            lemma = "pes"
+            xpos = /^(N.*)$/
+`)},
+	{`[(lemma="pes")]`, singleTokenDQD("    lemma = \"pes\"\n")},
+	{`[((lemma="a" & tag="b") & word="c")]`, singleTokenDQD(`    lemma = "a"
+    xpos = "b"
+    form = "c"
+`)},
+	{`[word="a" | (lemma="b" | lemma="c")]`, singleTokenDQD(`    OR
+        form = "a"
+        OR
+            lemma = "b"
+            lemma = "c"
+`)},
+}
 
 func TestCQL2DQD(t *testing.T) {
 	for _, tc := range translateCases {
@@ -115,8 +158,7 @@ func TestCQL2DQDUnsupported(t *testing.T) {
 	queries := []string{
 		`[word="\p{Lu}"]`,                // unicode class
 		`[word="a(?i)b"]`,                // non-leading inline flag
-		`[word="a" & lemma="b"]`,         // AND inside a position
-		`[word="a" | lemma="b"]`,         // OR inside a position
+		`[word="a" & ws(1,2)]`,           // ws() condition
 		`[word="a"][word="b"]`,           // more positions
 		`[word="a"]{2}`,                  // repetition
 		`[word="a"] within <s/>`,         // within
