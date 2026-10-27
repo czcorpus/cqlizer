@@ -662,6 +662,9 @@ RawString <-
         return &RawString{SimpleString: &SimpleString{Values: []ASTString{""}}}, nil
     }
 
+// TODO: SimpleString accepts only letters, digits and escaped characters,
+// so e.g. [lemma=="a.b"] or a literal containing "/" cannot be parsed even
+// though a literal value has no regexp meaning.
 SimpleString <-
     values:(AnyLetter / NO_RG_ESCAPED / NO_RG_SPEC)+ {
         ans := &SimpleString{
@@ -965,6 +968,8 @@ RG_OP <-
 
 RG_CARET <- "^"
 
+// TODO: an escaped backslash ("\\\\") is missing here, so e.g. [word="a\\b"]
+// cannot be parsed.
 RG_ESCAPED "escaped regexp character" <-
     "\\{" / "\\}" / "\\(" / "\\)" / "\\[" / "\\]" / "\\?" / "\\!" / "\\." / "\\\"" / "\\*" / "\\+" / "\\^" / "\\$" / "\\|"
 
