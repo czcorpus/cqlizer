@@ -110,6 +110,42 @@ var translateCases = []struct {
             lemma = "b"
             lemma = "c"
 `)},
+	// sequences
+	{`[lemma="dobrý"] [tag="N.*"]`, `Segment s
+sequence seq1
+    Token@s t1
+        lemma = "dobrý"
+    Token@s t2
+        xpos = /^(N.*)$/
+
+res => plain
+    context
+        s
+    entities
+        t1
+        t2
+`},
+	{`"velmi" [] [lemma="pes" | lemma="kočka"] [word!="a"]`, `Segment s
+sequence seq1
+    Token@s t1
+        form = "velmi"
+    Token@s t2
+    Token@s t3
+        OR
+            lemma = "pes"
+            lemma = "kočka"
+    Token@s t4
+        form != "a"
+
+res => plain
+    context
+        s
+    entities
+        t1
+        t2
+        t3
+        t4
+`},
 }
 
 func TestCQL2DQD(t *testing.T) {
@@ -159,7 +195,9 @@ func TestCQL2DQDUnsupported(t *testing.T) {
 		`[word="\p{Lu}"]`,                // unicode class
 		`[word="a(?i)b"]`,                // non-leading inline flag
 		`[word="a" & ws(1,2)]`,           // ws() condition
-		`[word="a"][word="b"]`,           // more positions
+		`![word="a"][word="b"]`,          // negated sequence
+		`[word="a"][word="b.*"]{2}`,      // repetition in a sequence
+		`[word="a"][foo="b"]`,            // unknown attribute in a sequence
 		`[word="a"]{2}`,                  // repetition
 		`[word="a"] within <s/>`,         // within
 		`1:[word="a"] & 1.tag = 1.lemma`, // numbered position, global condition

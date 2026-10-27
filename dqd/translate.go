@@ -30,6 +30,7 @@ const (
 	defaultResultLabel = "res"
 	segmentLabel       = "s"
 	tokenLabelPrefix   = "t"
+	seqLabelPrefix     = "seq"
 )
 
 // UnsupportedFeature marks a CQL construct we're unable to
@@ -98,10 +99,9 @@ func (t *translator) nextLabel(prefix string) string {
 // translateQuery is the entry point of the AST walk, mapping a
 // cql.Query onto the IR in ir.go.
 //
-// Currently supported: a single position with attribute conditions
+// Currently supported: a sequence of positions with attribute conditions
 // combined using &, |, ! and parentheses. The planned mapping for the rest:
 //
-//   - cql.Sequence            -> Sequence, one Unit per bracket position
 //   - cql.WithinOrContaining  -> a Unit for the structure + PartOf on
 //     each enclosed Token
 //   - cql.MuPart (union/meet) -> ErrUnsupportedFeature (no DQD primitive)
@@ -117,16 +117,8 @@ func (t *translator) translateQuery(q *cql.Query) (*Query, error) {
 	if len(q.Sequence.Seq) != 1 {
 		return nil, unsupported("alternative sequences (seq1 | seq2)")
 	}
-	seq := q.Sequence.Seq[0]
-	if seq.Not != "" {
-		return nil, unsupported("negated sequence")
-	}
-	if len(seq.Repetition) != 1 {
-		return nil, unsupported("sequence of multiple positions")
-	}
-
 	segment := &Unit{Layer: t.corpusProps.SegmentLayer, Label: segmentLabel}
-	token, err := t.translateRepetition(seq.Repetition[0])
+	item, tokenLabels, err := t.translateSeq(q.Sequence.Seq[0])
 	if err != nil {
 		return nil, err
 	}
@@ -135,15 +127,42 @@ func (t *translator) translateQuery(q *cql.Query) (*Query, error) {
 		resultLabel = defaultResultLabel
 	}
 	return &Query{
-		Items: []QueryItem{{Unit: segment}, {Unit: token}},
+		Items: []QueryItem{{Unit: segment}, item},
 		Results: []Result{{
 			Label: resultLabel,
 			Plain: &PlainResult{
 				Context:  []string{segment.Label},
-				Entities: []string{token.Label},
+				Entities: tokenLabels,
 			},
 		}},
 	}, nil
+}
+
+// translateSeq translates a sequence of CQL positions. A single position
+// is translated to a plain Token unit, multiple positions to a DQD sequence
+// of Token units. Labels of all the created tokens are returned too.
+func (t *translator) translateSeq(seq *cql.Seq) (QueryItem, []string, error) {
+	if seq.Not != "" {
+		return QueryItem{}, nil, unsupported("negated sequence")
+	}
+	units := make([]*Unit, len(seq.Repetition))
+	labels := make([]string, len(seq.Repetition))
+	for i, rep := range seq.Repetition {
+		unit, err := t.translateRepetition(rep)
+		if err != nil {
+			return QueryItem{}, nil, err
+		}
+		units[i] = unit
+		labels[i] = unit.Label
+	}
+	if len(units) == 1 {
+		return QueryItem{Unit: units[0]}, labels, nil
+	}
+	sequence := &Sequence{Label: t.nextLabel(seqLabelPrefix)}
+	for _, u := range units {
+		sequence.Members = append(sequence.Members, Member{Unit: u})
+	}
+	return QueryItem{Sequence: sequence}, labels, nil
 }
 
 // translateRepetition translates a single CQL position (with its
