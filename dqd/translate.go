@@ -98,14 +98,10 @@ func (t *translator) nextLabel(prefix string) string {
 // translateQuery is the entry point of the AST walk, mapping a
 // cql.Query onto the IR in ir.go.
 //
-// Currently supported: a single position with at most one attribute
-// condition (value being a string, a literal or a regexp). The planned
-// mapping for the rest:
+// Currently supported: a single position with attribute conditions
+// combined using &, |, ! and parentheses. The planned mapping for the rest:
 //
 //   - cql.Sequence            -> Sequence, one Unit per bracket position
-//   - AttValAnd ("&"-joined)  -> plain Unit.Constraints entries (DQD
-//     ANDs same-unit constraints implicitly, no LogicalExpression needed)
-//   - AttValList ("|"-joined) -> LogicalExpression{Op: LogicalOr}
 //   - cql.WithinOrContaining  -> a Unit for the structure + PartOf on
 //     each enclosed Token
 //   - cql.MuPart (union/meet) -> ErrUnsupportedFeature (no DQD primitive)
@@ -179,11 +175,11 @@ func (t *translator) translateRepetition(rep *cql.Repetition) (*Unit, error) {
 		if onePos.Variant1.AttValList == nil {
 			break
 		}
-		c, err := t.translateAttValList(onePos.Variant1.AttValList)
+		cs, err := t.translateAttValList(onePos.Variant1.AttValList)
 		if err != nil {
 			return nil, err
 		}
-		unit.Constraints = append(unit.Constraints, c)
+		unit.Constraints = cs
 
 	case onePos.Variant2 != nil:
 		// bare "value" applied to the default attribute
@@ -199,27 +195,88 @@ func (t *translator) translateRepetition(rep *cql.Repetition) (*Unit, error) {
 	return unit, nil
 }
 
-func (t *translator) translateAttValList(avl *cql.AttValList) (Constraint, error) {
-	if len(avl.AttValAnd) != 1 || len(avl.AttValAnd[0].AttVal) != 1 {
-		return Constraint{}, unsupported("boolean operators (&, |) inside a position")
+// The following translate* functions return a list of constraints
+// which are meant to be AND-ed. On the unit level, this is implicit in DQD
+// (constraints are just listed one by one), so e.g. [a="x" & b="y"] needs
+// no explicit AND. Only when such a list has to become a single argument
+// of OR/NOT, it is wrapped by asSingleConstraint.
+
+// translateAttValList translates attribute conditions joined by "|".
+func (t *translator) translateAttValList(avl *cql.AttValList) ([]Constraint, error) {
+	if len(avl.AttValAnd) == 1 {
+		return t.translateAttValAnd(avl.AttValAnd[0])
 	}
-	return t.translateAttVal(avl.AttValAnd[0].AttVal[0])
+	or := &LogicalExpression{Op: LogicalOr}
+	for _, ava := range avl.AttValAnd {
+		cs, err := t.translateAttValAnd(ava)
+		if err != nil {
+			return nil, err
+		}
+		or.Args = append(or.Args, asSingleConstraint(cs))
+	}
+	return []Constraint{{LogicalExpression: or}}, nil
 }
 
-func (t *translator) translateAttVal(av *cql.AttVal) (Constraint, error) {
+// translateAttValAnd translates attribute conditions joined by "&".
+func (t *translator) translateAttValAnd(ava *cql.AttValAnd) ([]Constraint, error) {
+	var ans []Constraint
+	for _, av := range ava.AttVal {
+		cs, err := t.translateAttVal(av)
+		if err != nil {
+			return nil, err
+		}
+		ans = append(ans, cs...)
+	}
+	return ans, nil
+}
+
+func (t *translator) translateAttVal(av *cql.AttVal) ([]Constraint, error) {
 	switch {
 	case av.Variant1 != nil:
 		// attr == "literal"
-		return t.comparison(av.Variant1.AttName.String(), av.Variant1.Not, literalOperand(av.Variant1.RawString))
+		c, err := t.comparison(av.Variant1.AttName.String(), av.Variant1.Not, literalOperand(av.Variant1.RawString))
+		return []Constraint{c}, err
 
 	case av.Variant2 != nil:
 		// attr = "regexp"
 		if av.Variant2.Op.String() != "=" {
-			return Constraint{}, unsupported(fmt.Sprintf("operator %s", av.Variant2.Op))
+			return nil, unsupported(fmt.Sprintf("operator %s", av.Variant2.Op))
 		}
-		return t.attrComparison(av.Variant2.AttName.String(), av.Variant2.Not, av.Variant2.RegExp)
+		c, err := t.attrComparison(av.Variant2.AttName.String(), av.Variant2.Not, av.Variant2.RegExp)
+		return []Constraint{c}, err
+
+	case av.Variant5 != nil:
+		// !attval
+		cs, err := t.translateAttVal(av.Variant5.AttVal)
+		if err != nil {
+			return nil, err
+		}
+		if len(cs) == 1 && cs[0].Comparison != nil {
+			// a negated comparison is just a comparison with negated
+			// operator (!attr="x" => attr != "x")
+			negated := *cs[0].Comparison
+			negated.Not = !negated.Not
+			return []Constraint{{Comparison: &negated}}, nil
+		}
+		return []Constraint{{LogicalExpression: &LogicalExpression{
+			Op:   LogicalNot,
+			Args: []Constraint{asSingleConstraint(cs)},
+		}}}, nil
+
+	case av.Variant6 != nil:
+		// (attval_list)
+		return t.translateAttValList(av.Variant6.AttValList)
 	}
-	return Constraint{}, unsupported("this type of attribute condition")
+	return nil, unsupported("this type of attribute condition (ws(), term(), swap(), ccoll(), #n)")
+}
+
+// asSingleConstraint turns a list of (implicitly AND-ed) constraints
+// into a single constraint.
+func asSingleConstraint(cs []Constraint) Constraint {
+	if len(cs) == 1 {
+		return cs[0]
+	}
+	return Constraint{LogicalExpression: &LogicalExpression{Op: LogicalAnd, Args: cs}}
 }
 
 // attrComparison creates a comparison of a positional attribute with
