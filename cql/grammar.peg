@@ -675,11 +675,17 @@ SimpleString <-
         return ans, nil
     }
 
+// note: NO_RG_SPEC and NO_RG_ESCAPED need an explicit action - without it, pigeon
+// returns []byte which SimpleString cannot handle
 NO_RG_SPEC <-
-    "\\{" / "\\}" / "\\(" / "\\)" / "\\[" / "\\]" / "\\?" / "\\!" / "\\." / "\\*" / "\\+" / "\\^" / "\\$" / "\\|"
+    ("\\{" / "\\}" / "\\(" / "\\)" / "\\[" / "\\]" / "\\?" / "\\!" / "\\." / "\\*" / "\\+" / "\\^" / "\\$" / "\\|") {
+        return string(c.text), nil
+    }
 
 NO_RG_ESCAPED <-
-    "\\\"" / "\\\\"
+    ("\\\"" / "\\\\") {
+        return string(c.text), nil
+    }
 
 
 // ---------------- Regular expression with balanced parentheses --------

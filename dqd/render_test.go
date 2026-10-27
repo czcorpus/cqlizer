@@ -17,9 +17,6 @@
 package dqd
 
 import (
-	"os"
-	"os/exec"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -290,23 +287,12 @@ func TestRenderPanicsOnInvalidIR(t *testing.T) {
 }
 
 // TestRenderedSyntax validates rendered queries against the reference
-// DQD grammar using scripts/dqd_check.py. It is skipped if the project's
-// Python virtualenv (with the lark package) or the grammar file
-// (not distributed with the project) is not available.
+// DQD grammar (see checkDQDSyntax).
 func TestRenderedSyntax(t *testing.T) {
-	const python = "../venv/bin/python"
-	if _, err := os.Stat(python); err != nil {
-		t.Skip("venv not available, skipping DQD syntax check")
-	}
-	if _, err := os.Stat("dqd_grammar.lark"); err != nil {
-		t.Skip("DQD grammar not available, skipping DQD syntax check")
-	}
+	skipIfNoDQDCheck(t)
 	for _, tc := range renderCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cmd := exec.Command(python, "../scripts/dqd_check.py")
-			cmd.Stdin = strings.NewReader(tc.query.String())
-			out, err := cmd.CombinedOutput()
-			assert.NoError(t, err, string(out))
+			checkDQDSyntax(t, tc.query.String())
 		})
 	}
 }
