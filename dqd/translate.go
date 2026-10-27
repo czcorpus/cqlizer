@@ -31,6 +31,8 @@ const (
 	segmentLabel       = "s"
 	tokenLabelPrefix   = "t"
 	seqLabelPrefix     = "seq"
+	repLabelPrefix     = "rep"
+	entitiesWildcard   = "*"
 )
 
 // UnsupportedFeature marks a CQL construct we're unable to
@@ -139,46 +141,122 @@ func (t *translator) translateQuery(q *cql.Query) (*Query, error) {
 }
 
 // translateSeq translates a sequence of CQL positions. A single position
-// is translated to a plain Token unit, multiple positions to a DQD sequence
-// of Token units. Labels of all the created tokens are returned too.
+// is translated to a plain Token unit (or a sequence with repetition if
+// the position is repeated), multiple positions to a DQD sequence.
+// Labels of the created entities (for the plain result) are returned too.
 func (t *translator) translateSeq(seq *cql.Seq) (QueryItem, []string, error) {
-	if seq.Not != "" {
-		return QueryItem{}, nil, unsupported("negated sequence")
+	members, labels, err := t.translateSeqMembers(seq)
+	if err != nil {
+		return QueryItem{}, nil, err
 	}
-	units := make([]*Unit, len(seq.Repetition))
-	labels := make([]string, len(seq.Repetition))
-	for i, rep := range seq.Repetition {
-		unit, err := t.translateRepetition(rep)
-		if err != nil {
-			return QueryItem{}, nil, err
+	if len(labels) == 0 {
+		// all the tokens are inside repetitions, so there is nothing
+		// we could reference - the wildcard is always allowed
+		labels = []string{entitiesWildcard}
+	}
+	if len(members) == 1 {
+		if members[0].Unit != nil {
+			return QueryItem{Unit: members[0].Unit}, labels, nil
 		}
-		units[i] = unit
-		labels[i] = unit.Label
+		return QueryItem{Sequence: members[0].Sequence}, labels, nil
 	}
-	if len(units) == 1 {
-		return QueryItem{Unit: units[0]}, labels, nil
-	}
-	sequence := &Sequence{Label: t.nextLabel(seqLabelPrefix)}
-	for _, u := range units {
-		sequence.Members = append(sequence.Members, Member{Unit: u})
-	}
+	sequence := &Sequence{Label: t.nextLabel(seqLabelPrefix), Members: members}
 	return QueryItem{Sequence: sequence}, labels, nil
 }
 
-// translateRepetition translates a single CQL position (with its
-// optional repetition operator) into a Token unit being part of the
-// segment.
-func (t *translator) translateRepetition(rep *cql.Repetition) (*Unit, error) {
+// translateSeqMembers translates positions of a CQL sequence
+// into members of a DQD sequence.
+func (t *translator) translateSeqMembers(seq *cql.Seq) ([]Member, []string, error) {
+	if seq.Not != "" {
+		return nil, nil, unsupported("negated sequence")
+	}
+	var members []Member
+	var labels []string
+	for _, rep := range seq.Repetition {
+		m, l, err := t.translateRepetition(rep)
+		if err != nil {
+			return nil, nil, err
+		}
+		members = append(members, m...)
+		labels = append(labels, l...)
+	}
+	return members, labels, nil
+}
+
+// translateRepetition translates a single CQL position or a parenthesized
+// sub-sequence, with an optional repetition operator.
+//
+// DQD supports repetition only for a whole sequence, so a repeated
+// item is wrapped in its own (labeled) sequence with repetition. In such
+// case, no entity labels are returned - LCP does not allow referencing
+// repeated sequences and anything inside them from results ("Label ...
+// cannot be referenced (is not declared or scope-bound)"), only top-level
+// units and (non-repeated) sequences with their direct member units.
+func (t *translator) translateRepetition(rep *cql.Repetition) ([]Member, []string, error) {
 	if rep.Variant1 == nil {
-		return nil, unsupported("structure tags (<s>, </s>) inside a sequence")
+		return nil, nil, unsupported("structure tags (<s>, </s>) inside a sequence")
 	}
-	if rep.Variant1.RepOpt != nil {
-		return nil, unsupported("repetition (*, +, ?, {n,m})")
+	members, labels, err := t.translateAtomQuery(rep.Variant1.AtomQuery)
+	if err != nil {
+		return nil, nil, err
 	}
-	pos := rep.Variant1.AtomQuery.Position()
-	if pos == nil {
-		return nil, unsupported("parenthesized sub-query")
+	if rep.Variant1.RepOpt == nil {
+		return members, labels, nil
 	}
+	sequence := &Sequence{
+		Label:      t.nextLabel(repLabelPrefix),
+		Repetition: translateRepOpt(rep.Variant1.RepOpt),
+		Members:    members,
+	}
+	return []Member{{Sequence: sequence}}, nil, nil
+}
+
+// translateRepOpt translates CQL repetition operators *, +, ?, {n}, {n,},
+// {n,m} to DQD min..max repetition.
+func translateRepOpt(ro *cql.RepOpt) *Repetition {
+	if ro.Variant2 != nil {
+		ans := &Repetition{Min: ro.Variant2.From.String(), Max: ro.Variant2.From.String()}
+		if ro.Variant2.HasComma {
+			ans.Max = "*"
+			if ro.Variant2.To != "" {
+				ans.Max = ro.Variant2.To.String()
+			}
+		}
+		return ans
+	}
+	switch ro.Variant1.Value {
+	case "*":
+		return &Repetition{Min: "0", Max: "*"}
+	case "+":
+		return &Repetition{Min: "1", Max: "*"}
+	case "?":
+		return &Repetition{Min: "0", Max: "1"}
+	}
+	panic(fmt.Sprintf("unknown CQL repetition operator %s", ro.Variant1.Value))
+}
+
+// translateAtomQuery translates a single position or a parenthesized
+// sub-sequence (its positions are returned as separate members).
+func (t *translator) translateAtomQuery(aq *cql.AtomQuery) ([]Member, []string, error) {
+	if sub := aq.Sequence(); sub != nil {
+		if len(aq.WithinContainingBlocks()) > 0 {
+			return nil, nil, unsupported("within/containing inside a parenthesized sub-query")
+		}
+		if len(sub.Seq) != 1 {
+			return nil, nil, unsupported("alternative sequences (seq1 | seq2)")
+		}
+		return t.translateSeqMembers(sub.Seq[0])
+	}
+	unit, err := t.translatePosition(aq.Position())
+	if err != nil {
+		return nil, nil, err
+	}
+	return []Member{{Unit: unit}}, []string{unit.Label}, nil
+}
+
+// translatePosition translates a single CQL position into a Token unit
+// being part of the segment.
+func (t *translator) translatePosition(pos *cql.Position) (*Unit, error) {
 	onePos := pos.OnePosition()
 	if onePos == nil {
 		return nil, unsupported("numbered position (1:[...])")

@@ -36,6 +36,17 @@ res => plain
 `
 }
 
+// queryDQD creates the expected output for a query with the default
+// corpus props, a provided body (everything after the segment) and
+// listed result entities.
+func queryDQD(body string, entities ...string) string {
+	ans := "Segment s\n" + body + "\nres => plain\n    context\n        s\n    entities\n"
+	for _, e := range entities {
+		ans += "        " + e + "\n"
+	}
+	return ans
+}
+
 var translateCases = []struct {
 	cql      string
 	expected string
@@ -146,6 +157,56 @@ res => plain
         t3
         t4
 `},
+	// repetition
+	{`[word="a"]{2}`, queryDQD(`sequence rep1 2..2
+    Token@s t1
+        form = "a"
+`, "*")},
+	{`[tag="A.*"]+ [tag="N.*"]`, queryDQD(`sequence seq1
+    sequence rep1 1..*
+        Token@s t1
+            xpos = /^(A.*)$/
+    Token@s t2
+        xpos = /^(N.*)$/
+`, "t2")},
+	{`[lemma="dobrý"] []{0,3} [lemma="pes"]`, queryDQD(`sequence seq1
+    Token@s t1
+        lemma = "dobrý"
+    sequence rep1 0..3
+        Token@s t2
+    Token@s t3
+        lemma = "pes"
+`, "t1", "t3")},
+	{`"a" []? []* [word="b"]{2,}`, queryDQD(`sequence seq1
+    Token@s t1
+        form = "a"
+    sequence rep1 0..1
+        Token@s t2
+    sequence rep2 0..*
+        Token@s t3
+    sequence rep3 2..*
+        Token@s t4
+            form = "b"
+`, "t1")},
+	// parenthesized sub-sequences
+	{`([word="a"])`, singleTokenDQD("    form = \"a\"\n")},
+	{`[word="a"] ([word="b"] [word="c"])`, queryDQD(`sequence seq1
+    Token@s t1
+        form = "a"
+    Token@s t2
+        form = "b"
+    Token@s t3
+        form = "c"
+`, "t1", "t2", "t3")},
+	{`[word="a"] ([word="b"] []{1,2}){2}`, queryDQD(`sequence seq1
+    Token@s t1
+        form = "a"
+    sequence rep2 2..2
+        Token@s t2
+            form = "b"
+        sequence rep1 1..2
+            Token@s t3
+`, "t1")},
 }
 
 func TestCQL2DQD(t *testing.T) {
@@ -196,16 +257,15 @@ func TestCQL2DQDUnsupported(t *testing.T) {
 		`[word="a(?i)b"]`,                // non-leading inline flag
 		`[word="a" & ws(1,2)]`,           // ws() condition
 		`![word="a"][word="b"]`,          // negated sequence
-		`[word="a"][word="b.*"]{2}`,      // repetition in a sequence
+		`([word="a"] within <s/>){2}`,    // within in a sub-query
+		`([word="a"] | [word="b"]){2}`,   // alternatives in a sub-query
 		`[word="a"][foo="b"]`,            // unknown attribute in a sequence
-		`[word="a"]{2}`,                  // repetition
 		`[word="a"] within <s/>`,         // within
 		`1:[word="a"] & 1.tag = 1.lemma`, // numbered position, global condition
 		`[foo="a"]`,                      // attribute without mapping
 		`[word<="a"]`,                    // other operator
 		`<s>[word="a"]`,                  // structure tag in a sequence
 		`[word="a"] | [word="b"]`,        // alternative sequences
-		`([word="a"])`,                   // parenthesized sub-query
 	}
 	for _, q := range queries {
 		t.Run(q, func(t *testing.T) {
