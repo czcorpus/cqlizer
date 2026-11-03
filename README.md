@@ -119,6 +119,14 @@ command-line flags):
 - **`CORPUS_STRUCTURE_TOOL_ENABLED`** - Set to `1` to expose the `get_corpus_structure`
   tool, which lets clients list all positional attributes and structures of a corpus.
   Disabled by default.
+- **`LCP_LAYER_INFO_DIR`** - Optional directory with layer info JSON files of LCP (LiRI
+  Corpus Platform) corpora, one file per corpus named `<corpus_id>.json`. A corpus with
+  such a file is treated as an LCP one: `get_corpus_structure` describes it in terms of
+  CQL as translated to DQD (incl. possible values of categorical attributes),
+  `cql_validate` also checks the query can be translated to DQD, and the tagset tools
+  (`build_tag_condition`, `tagset_reference`) are not available for it. Other corpora
+  are looked up in `REGISTRY_PATH`. Setting this variable also enables the `cql_to_dqd`
+  tool translating CQL queries for LCP corpora to DQD.
 
 ### Server-Specific Model Training
 

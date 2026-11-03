@@ -83,11 +83,19 @@ See TODOs in `cql/grammar.peg` (and `dqd/values.go`):
 
 ## NLQL integration notes
 
-- NLQL's "DQD via CQL" mode calls `dqd.CQL2DQD` - it has to pass
-  `CorpusPropsFromLayerInfo` of the selected corpus (layer info is stored
-  in NLQL's `dqd_layer_info` table).
+- Layer infos of LCP corpora are stored as JSON files (`<corpus>.json`) in
+  a directory configured for the cqlizer MCP server (`LCP_LAYER_INFO_DIR`).
+- NLQL's "DQD via CQL" mode converts the model's CQL using the MCP tool
+  `cql_to_dqd` - so validation (`cql_validate`) and conversion always run
+  the same cqlizer version and NLQL needs no layer infos of its own. With
+  DQD as the target language, the corpus is expected to be an LCP one (no
+  fallback to default props).
 - Attribute names are expected to be the corpus' real names (the model
   fetches corpus info first); the only alias is `word` -> `form`.
-- NLQL should be able to switch between CNC and LiRI corpora, so the corpus
-  info MCP tool (`get_corpus_structure`) has to support both kinds - for LCP,
-  it can be built on `dqd.LayerInfo`. Not available yet.
+- The cqlizer MCP tools support both Manatee and LCP corpora (routed by the
+  existence of a layer info file): `get_corpus_structure` describes LCP
+  corpora in terms of CQL (incl. values of categorical attributes),
+  `cql_validate` checks the translation to DQD, the tagset tools refuse LCP
+  corpora.
+- Remaining: NLQL's corpus catalog (`find_corpora`) does not know LCP corpora
+  yet.

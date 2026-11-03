@@ -109,6 +109,19 @@ func Init(
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 
 			corpusID := request.GetString("corpus_id", "")
+			if li, isLCP, err := corpInfoProv.GetLCPLayerInfo(corpusID); isLCP {
+				if err != nil {
+					return mcp.NewToolResultErrorFromErr("failed to find corpus", err), nil
+				}
+				issues, err := validateLCPQuery(corpusID, li, request.GetString("q", ""))
+				if err != nil {
+					return mcp.NewToolResultErrorFromErr("failed to validate query", err), nil
+				}
+				if len(issues) > 0 {
+					return mcp.NewToolResultError(strings.Join(issues, "\n")), nil
+				}
+				return mcp.NewToolResultText("query OK"), nil
+			}
 			corpInfo, err := corpInfoProv.GetRegistry(corpusID)
 			if err != nil {
 				return mcp.NewToolResultErrorFromErr("failed to find corpus", err), nil
@@ -159,6 +172,16 @@ func Init(
 			),
 			func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				corpusID := request.GetString("corpus_id", "")
+				if li, isLCP, err := corpInfoProv.GetLCPLayerInfo(corpusID); isLCP {
+					if err != nil {
+						return mcp.NewToolResultErrorFromErr("failed to find corpus", err), nil
+					}
+					info, err := lcpCorpusInfo(corpusID, li)
+					if err != nil {
+						return mcp.NewToolResultErrorFromErr("failed to describe corpus", err), nil
+					}
+					return mcp.NewToolResultText(info.AsMarkdown()), nil
+				}
 				registry, err := corpInfoProv.GetRegistry(corpusID)
 				if err != nil {
 					return mcp.NewToolResultErrorFromErr("failed to find corpus", err), nil
@@ -203,6 +226,31 @@ func Init(
 				}
 
 				return mcp.NewToolResultText(ans.AsMarkdown()), nil
+			},
+		)
+	}
+
+	if corpInfoProv.HasLCPCorpora() {
+		srv.AddTool(
+			mcp.NewTool("cql_to_dqd",
+				mcp.WithDescription("Translate a CQL query for an LCP corpus to DQD (the query language of LCP)"),
+				mcp.WithString("corpus_id", mcp.Required(), mcp.Description("An ID of an LCP corpus the query is for")),
+				mcp.WithString("q", mcp.Required(), mcp.Description("CQL query string")),
+			),
+			func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				corpusID := request.GetString("corpus_id", "")
+				li, isLCP, err := corpInfoProv.GetLCPLayerInfo(corpusID)
+				if !isLCP {
+					return mcp.NewToolResultErrorf("%s is not an LCP corpus", corpusID), nil
+				}
+				if err != nil {
+					return mcp.NewToolResultErrorFromErr("failed to find corpus", err), nil
+				}
+				ans, err := translateLCPQuery(corpusID, li, request.GetString("q", ""))
+				if err != nil {
+					return mcp.NewToolResultErrorFromErr("failed to translate query", err), nil
+				}
+				return mcp.NewToolResultText(ans), nil
 			},
 		)
 	}
