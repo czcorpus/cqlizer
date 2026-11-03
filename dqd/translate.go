@@ -102,25 +102,31 @@ func (t *translator) nextLabel(prefix string) string {
 // cql.Query onto the IR in ir.go.
 //
 // Currently supported: a sequence of positions with attribute conditions
-// combined using &, |, ! and parentheses. The planned mapping for the rest:
+// combined using &, |, ! and parentheses, repetitions, "within" structures
+// and "<structure/> containing ..." (see structures.go). Not supported
+// (among others):
 //
-//   - cql.WithinOrContaining  -> a Unit for the structure + PartOf on
-//     each enclosed Token
-//   - cql.MuPart (union/meet) -> ErrUnsupportedFeature (no DQD primitive)
-//   - cql.GlobCond's freq(...) form -> ErrUnsupportedFeature (DQD only
-//     has frequency inside results_analysis, not as a query constraint)
+//   - cql.MuPart (union/meet) - no DQD primitive
+//   - cql.GlobCond's freq(...) form - DQD only has frequency inside
+//     results_analysis, not as a query constraint
 func (t *translator) translateQuery(q *cql.Query) (*Query, error) {
 	if q.GlobPart != nil {
 		return nil, unsupported("global conditions (& 1.attr = 2.attr)")
 	}
-	if len(q.WithinOrContaining) > 0 {
-		return nil, unsupported("within/containing")
-	}
 	if len(q.Sequence.Seq) != 1 {
 		return nil, unsupported("alternative sequences (seq1 | seq2)")
 	}
-	segment := &Unit{Layer: t.corpusProps.SegmentLayer, Label: segmentLabel}
-	item, tokenLabels, err := t.translateSeq(q.Sequence.Seq[0])
+	parts := &queryParts{
+		segment: &Unit{Layer: t.corpusProps.SegmentLayer, Label: segmentLabel},
+	}
+	var entities []string
+	var err error
+	if target := structureTag(q.Sequence.Seq[0]); target != nil {
+		entities, err = t.translateStructureQuery(parts, target, q.WithinOrContaining)
+
+	} else {
+		entities, err = t.translateTokenQuery(parts, q.Sequence.Seq[0], q.WithinOrContaining)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -129,12 +135,12 @@ func (t *translator) translateQuery(q *cql.Query) (*Query, error) {
 		resultLabel = defaultResultLabel
 	}
 	return &Query{
-		Items: []QueryItem{{Unit: segment}, item},
+		Items: parts.assemble(),
 		Results: []Result{{
 			Label: resultLabel,
 			Plain: &PlainResult{
-				Context:  []string{segment.Label},
-				Entities: tokenLabels,
+				Context:  []string{parts.segment.Label},
+				Entities: entities,
 			},
 		}},
 	}, nil
@@ -272,7 +278,7 @@ func (t *translator) translatePosition(pos *cql.Position) (*Unit, error) {
 		if onePos.Variant1.AttValList == nil {
 			break
 		}
-		cs, err := t.translateAttValList(onePos.Variant1.AttValList)
+		cs, err := t.translateAttValList(onePos.Variant1.AttValList, t.posAttr)
 		if err != nil {
 			return nil, err
 		}
@@ -280,7 +286,7 @@ func (t *translator) translatePosition(pos *cql.Position) (*Unit, error) {
 
 	case onePos.Variant2 != nil:
 		// bare "value" applied to the default attribute
-		c, err := t.attrComparison(t.corpusProps.DefaultAttr, false, onePos.Variant2.RegExp)
+		c, err := t.attrComparison(t.posAttr, t.corpusProps.DefaultAttr, false, onePos.Variant2.RegExp)
 		if err != nil {
 			return nil, err
 		}
@@ -297,15 +303,32 @@ func (t *translator) translatePosition(pos *cql.Position) (*Unit, error) {
 // (constraints are just listed one by one), so e.g. [a="x" & b="y"] needs
 // no explicit AND. Only when such a list has to become a single argument
 // of OR/NOT, it is wrapped by asSingleConstraint.
+//
+// The same functions are used for positional attributes ([lemma="x"]) and
+// for structural attributes (<doc txtype="x"/>) - the attrs argument maps
+// CQL attribute names to DQD ones.
+
+// attrResolver maps a CQL attribute name to a DQD one.
+type attrResolver func(cqlAttr string) (string, error)
+
+// posAttr is an attrResolver for positional attributes.
+func (t *translator) posAttr(cqlAttr string) (string, error) {
+	dqdAttr, ok := t.corpusProps.PosAttrs[cqlAttr]
+	if !ok {
+		return "", unsupported(
+			fmt.Sprintf("positional attribute '%s' (no mapping in corpus props)", cqlAttr))
+	}
+	return dqdAttr, nil
+}
 
 // translateAttValList translates attribute conditions joined by "|".
-func (t *translator) translateAttValList(avl *cql.AttValList) ([]Constraint, error) {
+func (t *translator) translateAttValList(avl *cql.AttValList, attrs attrResolver) ([]Constraint, error) {
 	if len(avl.AttValAnd) == 1 {
-		return t.translateAttValAnd(avl.AttValAnd[0])
+		return t.translateAttValAnd(avl.AttValAnd[0], attrs)
 	}
 	or := &LogicalExpression{Op: LogicalOr}
 	for _, ava := range avl.AttValAnd {
-		cs, err := t.translateAttValAnd(ava)
+		cs, err := t.translateAttValAnd(ava, attrs)
 		if err != nil {
 			return nil, err
 		}
@@ -315,10 +338,10 @@ func (t *translator) translateAttValList(avl *cql.AttValList) ([]Constraint, err
 }
 
 // translateAttValAnd translates attribute conditions joined by "&".
-func (t *translator) translateAttValAnd(ava *cql.AttValAnd) ([]Constraint, error) {
+func (t *translator) translateAttValAnd(ava *cql.AttValAnd, attrs attrResolver) ([]Constraint, error) {
 	var ans []Constraint
 	for _, av := range ava.AttVal {
-		cs, err := t.translateAttVal(av)
+		cs, err := t.translateAttVal(av, attrs)
 		if err != nil {
 			return nil, err
 		}
@@ -327,11 +350,11 @@ func (t *translator) translateAttValAnd(ava *cql.AttValAnd) ([]Constraint, error
 	return ans, nil
 }
 
-func (t *translator) translateAttVal(av *cql.AttVal) ([]Constraint, error) {
+func (t *translator) translateAttVal(av *cql.AttVal, attrs attrResolver) ([]Constraint, error) {
 	switch {
 	case av.Variant1 != nil:
 		// attr == "literal"
-		c, err := t.comparison(av.Variant1.AttName.String(), av.Variant1.Not, literalOperand(av.Variant1.RawString))
+		c, err := t.comparison(attrs, av.Variant1.AttName.String(), av.Variant1.Not, literalOperand(av.Variant1.RawString))
 		return []Constraint{c}, err
 
 	case av.Variant2 != nil:
@@ -339,12 +362,12 @@ func (t *translator) translateAttVal(av *cql.AttVal) ([]Constraint, error) {
 		if av.Variant2.Op.String() != "=" {
 			return nil, unsupported(fmt.Sprintf("operator %s", av.Variant2.Op))
 		}
-		c, err := t.attrComparison(av.Variant2.AttName.String(), av.Variant2.Not, av.Variant2.RegExp)
+		c, err := t.attrComparison(attrs, av.Variant2.AttName.String(), av.Variant2.Not, av.Variant2.RegExp)
 		return []Constraint{c}, err
 
 	case av.Variant5 != nil:
 		// !attval
-		cs, err := t.translateAttVal(av.Variant5.AttVal)
+		cs, err := t.translateAttVal(av.Variant5.AttVal, attrs)
 		if err != nil {
 			return nil, err
 		}
@@ -362,7 +385,7 @@ func (t *translator) translateAttVal(av *cql.AttVal) ([]Constraint, error) {
 
 	case av.Variant6 != nil:
 		// (attval_list)
-		return t.translateAttValList(av.Variant6.AttValList)
+		return t.translateAttValList(av.Variant6.AttValList, attrs)
 	}
 	return nil, unsupported("this type of attribute condition (ws(), term(), swap(), ccoll(), #n)")
 }
@@ -376,21 +399,20 @@ func asSingleConstraint(cs []Constraint) Constraint {
 	return Constraint{LogicalExpression: &LogicalExpression{Op: LogicalAnd, Args: cs}}
 }
 
-// attrComparison creates a comparison of a positional attribute with
+// attrComparison creates a comparison of an attribute with
 // a CQL regexp value.
-func (t *translator) attrComparison(cqlAttr string, not bool, rg *cql.RegExp) (Constraint, error) {
+func (t *translator) attrComparison(attrs attrResolver, cqlAttr string, not bool, rg *cql.RegExp) (Constraint, error) {
 	value, err := regExpOperand(rg)
 	if err != nil {
 		return Constraint{}, err
 	}
-	return t.comparison(cqlAttr, not, value)
+	return t.comparison(attrs, cqlAttr, not, value)
 }
 
-func (t *translator) comparison(cqlAttr string, not bool, value Operand) (Constraint, error) {
-	dqdAttr, ok := t.corpusProps.PosAttrs[cqlAttr]
-	if !ok {
-		return Constraint{}, unsupported(
-			fmt.Sprintf("positional attribute '%s' (no mapping in corpus props)", cqlAttr))
+func (t *translator) comparison(attrs attrResolver, cqlAttr string, not bool, value Operand) (Constraint, error) {
+	dqdAttr, err := attrs(cqlAttr)
+	if err != nil {
+		return Constraint{}, err
 	}
 	return Constraint{Comparison: &Comparison{
 		Left:       Operand{Reference: &Reference{Value: dqdAttr}},

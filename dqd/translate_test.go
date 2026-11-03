@@ -260,7 +260,14 @@ func TestCQL2DQDUnsupported(t *testing.T) {
 		`([word="a"] within <s/>){2}`,    // within in a sub-query
 		`([word="a"] | [word="b"]){2}`,   // alternatives in a sub-query
 		`[word="a"][foo="b"]`,            // unknown attribute in a sequence
-		`[word="a"] within <s/>`,         // within
+		`[word="a"] !within <s/>`,        // negated within
+		`[word="a"] within [word="b"]`,   // within a query
+		`[word="a"] within 5`,            // within a number of tokens
+		`[word="a"] containing "b"`,      // containing after a token query
+		`<s/>`,                           // a structure alone
+		`<s/> containing <doc/>`,         // containing a structure
+		`<foo/> containing "a"`,          // unknown structure
+		`"a" within <doc foo="x"/>`,      // unknown structure attribute
 		`1:[word="a"] & 1.tag = 1.lemma`, // numbered position, global condition
 		`[foo="a"]`,                      // attribute without mapping
 		`[word<="a"]`,                    // other operator
