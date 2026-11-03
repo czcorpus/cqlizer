@@ -46,14 +46,27 @@ type CorpusProps struct {
 	// DQD attribute name (e.g. "form").
 	PosAttrs map[string]string `json:"posAttrs"`
 
-	// Structures maps a CQL structure name (e.g. "text") to its DQD
-	// layer name (e.g. "Text"). This can't be a simple capitalize() -
-	// DQD layer names are corpus-defined, not derived from CQL names.
-	Structures map[string]string `json:"structures"`
+	// Structures maps a CQL structure name (e.g. "doc") to its DQD
+	// properties.
+	Structures map[string]StructProps `json:"structures"`
+}
 
-	// StructAttrs maps a CQL structure attribute name to its DQD
-	// attribute name, keyed by CQL structure name.
-	StructAttrs map[string]map[string]string `json:"structAttrs"`
+// StructProps describes how a CQL structure maps to DQD.
+type StructProps struct {
+	// Layer is the DQD layer of the structure (e.g. "Document"). It can't
+	// be derived from the CQL name - DQD layer names are corpus-defined.
+	Layer string `json:"layer"`
+
+	// ContainsSegments tells whether the structure is above the segment
+	// layer (e.g. a document containing sentences) - in such case, the
+	// segment is part of the structure. Otherwise (e.g. a named entity
+	// inside a sentence), the structure is part of the segment and the
+	// tokens are part of the structure. A structure with the same layer
+	// as CorpusProps.SegmentLayer is the segment itself.
+	ContainsSegments bool `json:"containsSegments"`
+
+	// Attrs maps CQL structural attribute names to DQD attribute names.
+	Attrs map[string]string `json:"attrs"`
 }
 
 // DefaultCorpusProps returns props matching a typical LCP corpus
@@ -69,8 +82,10 @@ func DefaultCorpusProps() CorpusProps {
 			"tag":   "xpos",
 			"upos":  "upos",
 		},
-		Structures:  map[string]string{},
-		StructAttrs: map[string]map[string]string{},
+		Structures: map[string]StructProps{
+			"s":   {Layer: "Segment"},
+			"doc": {Layer: "Document", ContainsSegments: true},
+		},
 	}
 }
 
@@ -102,7 +117,7 @@ const (
 // cqlComparableAttrTypes lists types of layer attributes which can be
 // compared with a value using CQL's attr="value" (i.e. a string or a regexp).
 // E.g. dictionaries (like "ufeat") or labels cannot be expressed this way.
-var cqlComparableAttrTypes = []string{"text", "categorical"}
+var cqlComparableAttrTypes = []string{"text", "categorical", "string"}
 
 // CorpusPropsFromLayerInfo creates corpus props from LCP layer info.
 //
@@ -112,7 +127,9 @@ var cqlComparableAttrTypes = []string{"text", "categorical"}
 // attribute "word" which is mapped to "form" (if the corpus has such an
 // attribute and does not have its own "word").
 //
-// TODO: structures and their attributes are not filled in yet.
+// For the same reason, span layers become CQL structures of the same
+// name and their attributes (including the meta ones which DQD refers to
+// just by their names) are mapped to themselves.
 func CorpusPropsFromLayerInfo(li *LayerInfo) (CorpusProps, error) {
 	tokenLayer, err := li.firstClassLayer("token", li.FirstClass.Token)
 	if err != nil {
@@ -126,8 +143,7 @@ func CorpusPropsFromLayerInfo(li *LayerInfo) (CorpusProps, error) {
 		SegmentLayer: li.FirstClass.Segment,
 		DefaultAttr:  cqlWordAttr,
 		PosAttrs:     make(map[string]string),
-		Structures:   map[string]string{},
-		StructAttrs:  map[string]map[string]string{},
+		Structures:   make(map[string]StructProps),
 	}
 	for name, attr := range tokenLayer.Attributes {
 		if slices.Contains(cqlComparableAttrTypes, attr.Type) {
@@ -139,7 +155,41 @@ func CorpusPropsFromLayerInfo(li *LayerInfo) (CorpusProps, error) {
 			ans.PosAttrs[cqlWordAttr] = dqdFormAttr
 		}
 	}
+	for name, layer := range li.Layers {
+		if layer.LayerType != LayerTypeSpan {
+			continue
+		}
+		sp := StructProps{
+			Layer:            name,
+			ContainsSegments: li.containsLayer(name, ans.SegmentLayer),
+			Attrs:            make(map[string]string),
+		}
+		for _, attrs := range []map[string]*LayerAttr{layer.Attributes, layer.Meta} {
+			for aname, attr := range attrs {
+				if slices.Contains(cqlComparableAttrTypes, attr.Type) {
+					sp.Attrs[aname] = aname
+				}
+			}
+		}
+		ans.Structures[name] = sp
+	}
 	return ans, nil
+}
+
+// containsLayer tells whether layer outer contains (directly or
+// indirectly) layer inner.
+func (li *LayerInfo) containsLayer(outer, inner string) bool {
+	visited := map[string]bool{outer: true}
+	for curr := li.Layers[outer]; curr != nil && curr.Contains != ""; curr = li.Layers[curr.Contains] {
+		if curr.Contains == inner {
+			return true
+		}
+		if visited[curr.Contains] {
+			return false // a cycle - should not happen in valid data
+		}
+		visited[curr.Contains] = true
+	}
+	return false
 }
 
 // firstClassLayer returns a main layer (as specified in FirstClass)

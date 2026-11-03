@@ -68,6 +68,20 @@ func printLayerInfo(w io.Writer, li *dqd.LayerInfo) {
 				fmt.Fprintf(w, "        %s (-> %s)\n", name, cp.PosAttrs[name])
 			}
 		}
+		fmt.Fprintf(w, "    CQL structures:\n")
+		for _, name := range slices.Sorted(maps.Keys(cp.Structures)) {
+			sp := cp.Structures[name]
+			var position string
+			switch {
+			case sp.Layer == cp.SegmentLayer:
+				position = "the segment"
+			case sp.ContainsSegments:
+				position = "contains segments"
+			default:
+				position = "inside segments"
+			}
+			fmt.Fprintf(w, "        <%s> (%s): %s\n", name, position, strings.Join(slices.Sorted(maps.Keys(sp.Attrs)), ", "))
+		}
 	}
 
 	if len(li.GlobalAttrs) > 0 {
