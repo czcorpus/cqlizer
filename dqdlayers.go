@@ -51,6 +51,25 @@ func printLayerInfo(w io.Writer, li *dqd.LayerInfo) {
 		}
 	}
 
+	fmt.Fprintf(w, "\nCQL to DQD translation:\n")
+	cp, err := dqd.CorpusPropsFromLayerInfo(li)
+	if err != nil {
+		fmt.Fprintf(w, "    not available: %s\n", err)
+
+	} else {
+		fmt.Fprintf(w, "    token layer:   %s\n", cp.PosAttrLayer)
+		fmt.Fprintf(w, "    segment layer: %s\n", cp.SegmentLayer)
+		fmt.Fprintf(w, "    CQL attributes:\n")
+		for _, name := range slices.Sorted(maps.Keys(cp.PosAttrs)) {
+			if cp.PosAttrs[name] == name {
+				fmt.Fprintf(w, "        %s\n", name)
+
+			} else {
+				fmt.Fprintf(w, "        %s (-> %s)\n", name, cp.PosAttrs[name])
+			}
+		}
+	}
+
 	if len(li.GlobalAttrs) > 0 {
 		fmt.Fprintf(w, "\nglobal attributes:\n")
 		for _, name := range slices.Sorted(maps.Keys(li.GlobalAttrs)) {
