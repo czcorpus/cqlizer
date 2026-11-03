@@ -50,6 +50,7 @@ const (
 	actionAPIServer        = "server"
 	actionQueryTypeKey     = "query-type-key"
 	actionCQL2DQD          = "cql2dqd"
+	actionDQDLayers        = "dqd-layers"
 
 	exitErrorGeneralFailure = iota
 	exitErrorImportFailed
@@ -94,6 +95,7 @@ func topLevelUsage() {
 	fmt.Fprintf(os.Stderr, "\t%s\t\t\tREPL for CQL evaluation\n", actionREPL)
 	fmt.Fprintf(os.Stderr, "\t%s\t\tmcp-server MCP (beta version) \n", actionMCPServer)
 	fmt.Fprintf(os.Stderr, "\t%s\t\t\ttranslate CQL query to DQD (LCP query language)\n", actionCQL2DQD)
+	fmt.Fprintf(os.Stderr, "\t%s\t\tshow an overview of LCP corpus layer info (JSON)\n", actionDQDLayers)
 	fmt.Fprintf(os.Stderr, "\nUse `cqlizer help ACTION` for information about a specific action\n\n")
 }
 
@@ -319,6 +321,12 @@ func main() {
 		cmdCQL2DQD.PrintDefaults()
 	}
 
+	cmdDQDLayers := flag.NewFlagSet(actionDQDLayers, flag.ExitOnError)
+	cmdDQDLayers.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s dqd-layers layer_info.json\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nShow what was understood from LCP corpus layer info.\n")
+	}
+
 	action := actionHelp
 	if len(os.Args) > 1 {
 		action = os.Args[1]
@@ -344,6 +352,8 @@ func main() {
 			cmdREPL.PrintDefaults()
 		case actionCQL2DQD:
 			cmdCQL2DQD.Usage()
+		case actionDQDLayers:
+			cmdDQDLayers.Usage()
 		}
 	case actionVersion:
 		cmdVersion.Parse(os.Args[2:])
@@ -451,6 +461,13 @@ func main() {
 	case actionCQL2DQD:
 		cmdCQL2DQD.Parse(os.Args[2:])
 		runActionCQL2DQD(*cql2dqdProps, cmdCQL2DQD.Arg(0))
+	case actionDQDLayers:
+		cmdDQDLayers.Parse(os.Args[2:])
+		if cmdDQDLayers.NArg() < 1 {
+			cmdDQDLayers.Usage()
+			os.Exit(1)
+		}
+		runActionDQDLayers(cmdDQDLayers.Arg(0))
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown action, please use 'help' to get more information")
 	}

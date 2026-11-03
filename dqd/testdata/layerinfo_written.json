@@ -1,0 +1,72 @@
+{
+    "layer": {
+        "Token": {
+            "abstract": true,
+            "alignment": "bi",
+            "anchoring": {"time": false, "stream": true, "location": false},
+            "layerType": "unit",
+            "attributes": {
+                "form": {"type": "text", "isGlobal": false, "nullable": false},
+                "lemma": {"type": "text", "isGlobal": false, "nullable": true},
+                "upos": {"type": "categorical", "isGlobal": true, "nullable": false},
+                "xpos": {"name": "Sample tagset", "type": "categorical", "values": ["NN", "VB", "JJ"], "isGlobal": false, "nullable": true},
+                "ufeat": {"type": "dict", "isGlobal": false, "nullable": true}
+            }
+        },
+        "Token@de": {
+            "partOf": "Token",
+            "attributes": {
+                "xpos": {"name": "STTS", "type": "categorical", "values": ["NN", "ADJA"]}
+            }
+        },
+        "Segment": {
+            "abstract": false,
+            "contains": "Token",
+            "alignment": {"null": false, "unit": "central", "continuous": false},
+            "layerType": "span"
+        },
+        "Paragraph": {"contains": "Segment", "layerType": "span"},
+        "Division": {
+            "contains": "Paragraph",
+            "layerType": "span",
+            "attributes": {
+                "type": {"type": "categorical", "values": ["chapter", "section"]}
+            }
+        },
+        "Document": {
+            "abstract": false,
+            "contains": "Division",
+            "alignment": true,
+            "layerType": "span",
+            "attributes": {
+                "meta": {
+                    "title": {"type": "text", "nullable": true},
+                    "classCode": {"type": "text", "nullable": true},
+                    "year": {"type": "integer"}
+                },
+                "pubdate": {"type": "date", "nullable": false}
+            }
+        },
+        "NamedEntity": {
+            "contains": "Token",
+            "layerType": "span",
+            "attributes": {
+                "type": {"type": "categorical", "values": ["PER", "LOC", "ORG", "MISC"], "nullable": true}
+            }
+        },
+        "DepRel": {
+            "abstract": true,
+            "layerType": "relation",
+            "attributes": {
+                "udep": {"type": "categorical", "isGlobal": true, "nullable": false},
+                "source": {"name": "dependent", "entity": "Token", "nullable": false},
+                "target": {"name": "head", "entity": "Token", "nullable": true}
+            }
+        }
+    },
+    "glob_attr": {
+        "upos": ["ADJ", "ADP", "ADV", "NOUN", "VERB"],
+        "udep": ["amod", "nsubj", "obj", "root"]
+    },
+    "firstClass": {"token": "Token", "segment": "Segment", "document": "Document"}
+}
