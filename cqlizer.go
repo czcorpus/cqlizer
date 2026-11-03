@@ -314,6 +314,7 @@ func main() {
 
 	cmdCQL2DQD := flag.NewFlagSet(actionCQL2DQD, flag.ExitOnError)
 	cql2dqdProps := cmdCQL2DQD.String("corpus-props", "", "a JSON file with corpus properties (layers, attribute mapping); applied on top of the defaults")
+	cql2dqdLayerInfo := cmdCQL2DQD.String("layer-info", "", "a JSON file with LCP corpus layer info to derive corpus properties from (cannot be combined with -corpus-props)")
 	cmdCQL2DQD.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s cql2dqd [options] [query]\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\nIf no query is provided, it is read from stdin.\n")
@@ -460,7 +461,7 @@ func main() {
 		}
 	case actionCQL2DQD:
 		cmdCQL2DQD.Parse(os.Args[2:])
-		runActionCQL2DQD(*cql2dqdProps, cmdCQL2DQD.Arg(0))
+		runActionCQL2DQD(*cql2dqdProps, *cql2dqdLayerInfo, cmdCQL2DQD.Arg(0))
 	case actionDQDLayers:
 		cmdDQDLayers.Parse(os.Args[2:])
 		if cmdDQDLayers.NArg() < 1 {

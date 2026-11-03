@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 )
 
 // CorpusProps contains the corpus-schema-specific information CQL2DQD
@@ -87,4 +88,69 @@ func LoadCorpusProps(path string) (CorpusProps, error) {
 		return ans, fmt.Errorf("failed to load corpus props: %w", err)
 	}
 	return ans, nil
+}
+
+const (
+	// cqlWordAttr is the CQL attribute for word forms. It is also the attribute
+	// a bare regexp position ("dog") applies to.
+	cqlWordAttr = "word"
+
+	// dqdFormAttr is the usual name of the word form attribute in LCP corpora
+	dqdFormAttr = "form"
+)
+
+// cqlComparableAttrTypes lists types of layer attributes which can be
+// compared with a value using CQL's attr="value" (i.e. a string or a regexp).
+// E.g. dictionaries (like "ufeat") or labels cannot be expressed this way.
+var cqlComparableAttrTypes = []string{"text", "categorical"}
+
+// CorpusPropsFromLayerInfo creates corpus props from LCP layer info.
+//
+// We expect a CQL query to use the real attribute names of the corpus
+// (i.e. a query writer has examined the corpus info first), so the token
+// attributes are mapped to themselves. The only exception is the CQL
+// attribute "word" which is mapped to "form" (if the corpus has such an
+// attribute and does not have its own "word").
+//
+// TODO: structures and their attributes are not filled in yet.
+func CorpusPropsFromLayerInfo(li *LayerInfo) (CorpusProps, error) {
+	tokenLayer, err := li.firstClassLayer("token", li.FirstClass.Token)
+	if err != nil {
+		return CorpusProps{}, err
+	}
+	if _, err := li.firstClassLayer("segment", li.FirstClass.Segment); err != nil {
+		return CorpusProps{}, err
+	}
+	ans := CorpusProps{
+		PosAttrLayer: li.FirstClass.Token,
+		SegmentLayer: li.FirstClass.Segment,
+		DefaultAttr:  cqlWordAttr,
+		PosAttrs:     make(map[string]string),
+		Structures:   map[string]string{},
+		StructAttrs:  map[string]map[string]string{},
+	}
+	for name, attr := range tokenLayer.Attributes {
+		if slices.Contains(cqlComparableAttrTypes, attr.Type) {
+			ans.PosAttrs[name] = name
+		}
+	}
+	if _, ok := ans.PosAttrs[cqlWordAttr]; !ok {
+		if _, ok := ans.PosAttrs[dqdFormAttr]; ok {
+			ans.PosAttrs[cqlWordAttr] = dqdFormAttr
+		}
+	}
+	return ans, nil
+}
+
+// firstClassLayer returns a main layer (as specified in FirstClass)
+// making sure it is really defined.
+func (li *LayerInfo) firstClassLayer(role, name string) (*LayerDef, error) {
+	if name == "" {
+		return nil, fmt.Errorf("layer info does not specify the %s layer (firstClass.%s)", role, role)
+	}
+	layer, ok := li.Layers[name]
+	if !ok {
+		return nil, fmt.Errorf("the %s layer %s (firstClass.%s) is not defined in layer info", role, name, role)
+	}
+	return layer, nil
 }
