@@ -84,11 +84,12 @@ See TODOs in `cql/grammar.peg` (and `dqd/values.go`):
 ## NLQL integration notes
 
 - Layer infos of LCP corpora are stored as JSON files (`<corpus>.json`) in
-  a directory - used both by NLQL (`lcpLayerInfoDir`) and by the cqlizer MCP
-  server (`LCP_LAYER_INFO_DIR`).
-- NLQL's "DQD via CQL" mode converts using `CorpusPropsFromLayerInfo` of the
-  corpus selected by the model. With DQD as the target language, the corpus
-  is expected to be an LCP one (no fallback to default props).
+  a directory configured for the cqlizer MCP server (`LCP_LAYER_INFO_DIR`).
+- NLQL's "DQD via CQL" mode converts the model's CQL using the MCP tool
+  `cql_to_dqd` - so validation (`cql_validate`) and conversion always run
+  the same cqlizer version and NLQL needs no layer infos of its own. With
+  DQD as the target language, the corpus is expected to be an LCP one (no
+  fallback to default props).
 - Attribute names are expected to be the corpus' real names (the model
   fetches corpus info first); the only alias is `word` -> `form`.
 - The cqlizer MCP tools support both Manatee and LCP corpora (routed by the

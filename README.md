@@ -125,7 +125,8 @@ command-line flags):
   CQL as translated to DQD (incl. possible values of categorical attributes),
   `cql_validate` also checks the query can be translated to DQD, and the tagset tools
   (`build_tag_condition`, `tagset_reference`) are not available for it. Other corpora
-  are looked up in `REGISTRY_PATH`.
+  are looked up in `REGISTRY_PATH`. Setting this variable also enables the `cql_to_dqd`
+  tool translating CQL queries for LCP corpora to DQD.
 
 ### Server-Specific Model Training
 

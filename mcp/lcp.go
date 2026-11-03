@@ -121,6 +121,15 @@ func lcpCorpusInfo(corpusID string, li *dqd.LayerInfo) (*corpusInfo, error) {
 	return ans, nil
 }
 
+// translateLCPQuery translates a CQL query for an LCP corpus to DQD.
+func translateLCPQuery(corpusID string, li *dqd.LayerInfo, query string) (string, error) {
+	cp, err := dqd.CorpusPropsFromLayerInfo(li)
+	if err != nil {
+		return "", fmt.Errorf("invalid layer info of LCP corpus %s: %w", corpusID, err)
+	}
+	return dqd.CQL2DQD(cp, dqd.ViewOptions{}, query)
+}
+
 // isPlainValue tells whether a CQL value matches just itself
 func isPlainValue(v string) bool {
 	return !strings.ContainsAny(v, rgSpecialChars)

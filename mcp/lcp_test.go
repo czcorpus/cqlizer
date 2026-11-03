@@ -143,3 +143,28 @@ func TestValidateLCPQuery(t *testing.T) {
 	_, err := validateLCPQuery("written", li, `[lemma=`)
 	assert.Error(t, err)
 }
+
+func TestTranslateLCPQuery(t *testing.T) {
+	assert.True(t, newTestProvider(t).HasLCPCorpora())
+	assert.False(t, NewCorpInfoProvider(t.TempDir(), "").HasLCPCorpora())
+
+	li := loadWritten(t)
+	ans, err := translateLCPQuery("written", li, `"dog" within <Document classCode="S.*"/>`)
+	require.NoError(t, err)
+	assert.Equal(t, `Document document1
+    classCode = /^(S.*)$/
+Segment@document1 s
+Token@s t1
+    form = "dog"
+
+res => plain
+    context
+        s
+    entities
+        t1
+`, ans)
+
+	_, err = translateLCPQuery("written", li, `"dog" !within <Document/>`)
+	var uf *dqd.UnsupportedFeature
+	assert.ErrorAs(t, err, &uf)
+}

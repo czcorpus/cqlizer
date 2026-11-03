@@ -230,6 +230,31 @@ func Init(
 		)
 	}
 
+	if corpInfoProv.HasLCPCorpora() {
+		srv.AddTool(
+			mcp.NewTool("cql_to_dqd",
+				mcp.WithDescription("Translate a CQL query for an LCP corpus to DQD (the query language of LCP)"),
+				mcp.WithString("corpus_id", mcp.Required(), mcp.Description("An ID of an LCP corpus the query is for")),
+				mcp.WithString("q", mcp.Required(), mcp.Description("CQL query string")),
+			),
+			func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				corpusID := request.GetString("corpus_id", "")
+				li, isLCP, err := corpInfoProv.GetLCPLayerInfo(corpusID)
+				if !isLCP {
+					return mcp.NewToolResultErrorf("%s is not an LCP corpus", corpusID), nil
+				}
+				if err != nil {
+					return mcp.NewToolResultErrorFromErr("failed to find corpus", err), nil
+				}
+				ans, err := translateLCPQuery(corpusID, li, request.GetString("q", ""))
+				if err != nil {
+					return mcp.NewToolResultErrorFromErr("failed to translate query", err), nil
+				}
+				return mcp.NewToolResultText(ans), nil
+			},
+		)
+	}
+
 	if len(rfEnsemble) > 0 {
 		srv.AddTool(
 			mcp.NewTool("cql_eval_complexity",

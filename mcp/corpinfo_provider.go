@@ -71,6 +71,11 @@ func (cp *CorpInfoProvider) GetRegistry(corpname string) (*parser.Document, erro
 	return doc, nil
 }
 
+// HasLCPCorpora tells whether LCP corpora are configured.
+func (cp *CorpInfoProvider) HasLCPCorpora() bool {
+	return cp.lcpLayerInfoDirPath != ""
+}
+
 // GetLCPLayerInfo returns layer info of an LCP corpus. If the corpus is not
 // an LCP one (or LCP corpora are not configured), isLCP is false.
 func (cp *CorpInfoProvider) GetLCPLayerInfo(corpname string) (li *dqd.LayerInfo, isLCP bool, err error) {
