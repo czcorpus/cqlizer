@@ -1,0 +1,47 @@
+{
+    "layer": {
+        "Token": {
+            "anchoring": {"time": true, "stream": true, "location": false},
+            "layerType": "unit",
+            "attributes": {
+                "form": {"type": "text", "nullable": false},
+                "lemma": {"type": "text", "nullable": true},
+                "pos": {"type": "categorical", "values": ["NOM", "VER", "ADJ"], "nullable": true}
+            }
+        },
+        "Utterance": {
+            "contains": "Token",
+            "anchoring": {"time": true, "stream": true, "location": false},
+            "layerType": "span",
+            "attributes": {
+                "text": {"type": "text", "nullable": false},
+                "speaker": {"ref": "speaker"}
+            }
+        },
+        "Interview": {
+            "contains": "Utterance",
+            "layerType": "span",
+            "attributes": {
+                "genre": {"type": "categorical", "values": ["formal", "informal"], "nullable": false}
+            }
+        },
+        "Gesture": {
+            "anchoring": {"time": true, "stream": false, "location": false},
+            "layerType": "unit",
+            "attributes": {
+                "gesture": {"type": "categorical", "values": ["nod", "smile"]},
+                "speaker": {"ref": "speaker"}
+            }
+        }
+    },
+    "firstClass": {"token": "Token", "segment": "Utterance"},
+    "globalAttributes": {
+        "speaker": {
+            "type": "dict",
+            "keys": {
+                "region": {"type": "text"},
+                "birthYear": {"type": "text"}
+            }
+        }
+    }
+}
