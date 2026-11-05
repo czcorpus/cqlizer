@@ -108,11 +108,16 @@ See TODOs in `cql/grammar.peg` (and `dqd/values.go`):
   1. cqlizer: DQD tools with `layer_info` (done; `cql_to_dqd` still accepts
      just `corpus_id` for the current NLQL)
   2. NLQL: latest layer info per corpus; built-in `get_corpus_structure` /
-     `cql_validate` routing CNC corpora to cqlizer's CNC tools and LCP ones
-     to the DQD tools (with the pinned layer info); cqlizer's tools hidden
-     from the model
+     `cql_validate` / `cql_to_dqd` routing CNC corpora to cqlizer's CNC
+     tools and LCP ones to the DQD tools; cqlizer's tools hidden from the
+     model (done for ad-hoc/API translations, NLQL branch
+     dqd_layer_infos_from_db). Pinning the query's layer info in battery
+     runs comes with DQD conversion in battery runs (see below).
+     Note: layer infos imported before the "Corpus name" column have no
+     corpus name, the LiRI battery must be re-imported to be found.
   3. cqlizer: remove LCP routing from the CNC tools and `LCP_LAYER_INFO_DIR`
-     based lookups (`cql_to_dqd` then requires `layer_info`)
+     based lookups (`cql_to_dqd` then requires `layer_info`); the tagset
+     tools then cannot tell an LCP corpus (they just won't find it)
   4. later: what to do with NLQL's `lcp-catalog.json` (`find_corpora`)
 - The CQL system prompt (sysprompt_v6) hard-codes CNC defaults (syn2020,
   "word always present") - may push the model to CNC corpora with DQD as the
