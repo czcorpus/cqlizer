@@ -126,7 +126,19 @@ command-line flags):
   `cql_validate` also checks the query can be translated to DQD, and the tagset tools
   (`build_tag_condition`, `tagset_reference`) are not available for it. Other corpora
   are looked up in `REGISTRY_PATH`. Setting this variable also enables the `cql_to_dqd`
-  tool translating CQL queries for LCP corpora to DQD.
+  tool (without `layer_info`, see below). This routing is going to be removed in favor
+  of the DQD tools.
+- **`DQD_TOOLS_ENABLED`** - Set to `1` to expose tools working with CQL for LCP corpora
+  translated to DQD. Instead of looking the corpus up, they take its layer info (JSON)
+  in the `layer_info` argument, so the caller decides which corpora exist and which
+  version of their layer info applies (`corpus_id` is just a label in the output).
+  They are meant for applications (e.g. NLQL) rather than for models directly:
+  - `dqd_corpus_structure(corpus_id, layer_info)` - the corpus in terms of CQL as
+    translated to DQD (attributes, structures, values of categorical attributes)
+  - `dqd_validate_cql(corpus_id, q, layer_info)` - checks a CQL query can be translated
+    to DQD and plain values of categorical attributes are valid
+  - `cql_to_dqd(corpus_id, q, layer_info)` - translates a CQL query to DQD; without
+    `layer_info`, the corpus is looked up in `LCP_LAYER_INFO_DIR` (deprecated)
 
 ### Server-Specific Model Training
 
