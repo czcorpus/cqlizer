@@ -207,6 +207,7 @@ func runActionMCPServer(version apiserver.VersionInfo) {
 		corpusInfo,
 		rfEnsemble,
 		os.Getenv("CORPUS_STRUCTURE_TOOL_ENABLED") == "1",
+		os.Getenv("DQD_TOOLS_ENABLED") == "1",
 		conf,
 	)
 }

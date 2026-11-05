@@ -99,3 +99,29 @@ See TODOs in `cql/grammar.peg` (and `dqd/values.go`):
   corpora.
 - Remaining: NLQL's corpus catalog (`find_corpora`) does not know LCP corpora
   yet.
+- Layer infos are moving to NLQL (decided 2026-11-05): NLQL's DB
+  (`dqd_layer_info`, filled by battery import) is the only source; battery
+  runs use the layer info of the query, ad-hoc/API translations the one from
+  the most recently imported battery file containing the corpus. cqlizer
+  stays catalog-free - the DQD tools (`DQD_TOOLS_ENABLED`) take the layer
+  info as an argument. Steps:
+  1. cqlizer: DQD tools with `layer_info` (done; `cql_to_dqd` still accepts
+     just `corpus_id` for the current NLQL)
+  2. NLQL: latest layer info per corpus; built-in `get_corpus_structure` /
+     `cql_validate` / `cql_to_dqd` routing CNC corpora to cqlizer's CNC
+     tools and LCP ones to the DQD tools; cqlizer's tools hidden from the
+     model (done for ad-hoc/API translations, NLQL branch
+     dqd_layer_infos_from_db). Pinning the query's layer info in battery
+     runs comes with DQD conversion in battery runs (see below).
+     Note: layer infos imported before the "Corpus name" column have no
+     corpus name, the LiRI battery must be re-imported to be found.
+  3. cqlizer: remove LCP routing from the CNC tools and `LCP_LAYER_INFO_DIR`
+     based lookups (`cql_to_dqd` then requires `layer_info`); the tagset
+     tools then cannot tell an LCP corpus (they just won't find it)
+  4. later: what to do with NLQL's `lcp-catalog.json` (`find_corpora`)
+- The CQL system prompt (sysprompt_v6) hard-codes CNC defaults (syn2020,
+  "word always present") - may push the model to CNC corpora with DQD as the
+  target.
+- Battery runs never convert to DQD (CQL is recorded and compared as CQL) -
+  a LiRI battery with a CQL prompt needs `cql_to_dqd` conversion and DQD
+  comparison.
