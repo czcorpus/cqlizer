@@ -105,8 +105,9 @@ See TODOs in `cql/grammar.peg` (and `dqd/values.go`):
   the most recently imported battery file containing the corpus. cqlizer
   stays catalog-free - the DQD tools (`DQD_TOOLS_ENABLED`) take the layer
   info as an argument. Steps:
-  1. cqlizer: DQD tools with `layer_info` (done; `cql_to_dqd` still accepts
-     just `corpus_id` for the current NLQL)
+  1. cqlizer: DQD tools with `layer_info` (done; the former `cql_to_dqd`
+     is now `dqd_translate_cql`, requires `layer_info` and is available only
+     with `DQD_TOOLS_ENABLED` - the model-facing `cql_to_dqd` is NLQL's own)
   2. NLQL: latest layer info per corpus; built-in `get_corpus_structure` /
      `cql_validate` / `cql_to_dqd` routing CNC corpora to cqlizer's CNC
      tools and LCP ones to the DQD tools; cqlizer's tools hidden from the
@@ -116,7 +117,7 @@ See TODOs in `cql/grammar.peg` (and `dqd/values.go`):
      Note: layer infos imported before the "Corpus name" column have no
      corpus name, the LiRI battery must be re-imported to be found.
   3. cqlizer: remove LCP routing from the CNC tools and `LCP_LAYER_INFO_DIR`
-     based lookups (`cql_to_dqd` then requires `layer_info`); the tagset
+     based lookups; the tagset
      tools then cannot tell an LCP corpus (they just won't find it)
   4. later: what to do with NLQL's `lcp-catalog.json` (`find_corpora`)
 - The CQL system prompt (sysprompt_v6) hard-codes CNC defaults (syn2020,

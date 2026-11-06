@@ -52,18 +52,15 @@ func callTool(t *testing.T, handler server.ToolHandlerFunc, args map[string]any)
 }
 
 func TestAddDQDTools(t *testing.T) {
-	registered := func(prov *CorpInfoProvider, enabled bool) []string {
+	registered := func(enabled bool) []string {
 		srv := server.NewMCPServer("test", "0")
-		addDQDTools(srv, prov, enabled)
+		addDQDTools(srv, enabled)
 		return slices.Sorted(maps.Keys(srv.ListTools()))
 	}
-	noLCP := NewCorpInfoProvider(t.TempDir(), "")
-
-	assert.Empty(t, registered(noLCP, false))
-	assert.Equal(t, []string{cqlToDQDToolName}, registered(newTestProvider(t), false))
-	all := []string{cqlToDQDToolName, dqdCorpusStructureToolName, dqdValidateCQLToolName}
-	assert.Equal(t, all, registered(noLCP, true))
-	assert.Equal(t, all, registered(newTestProvider(t), true))
+	assert.Empty(t, registered(false))
+	assert.Equal(t,
+		[]string{DQDCorpusStructureToolName, DQDTranslateCQLToolName, DQDValidateCQLToolName},
+		registered(true))
 }
 
 func TestDQDCorpusStructure(t *testing.T) {
@@ -101,26 +98,21 @@ func TestDQDValidateCQL(t *testing.T) {
 	assert.Contains(t, out, "missing layer_info")
 }
 
-func TestCQLToDQD(t *testing.T) {
+func TestDQDTranslateCQL(t *testing.T) {
 	expected := "Segment s\nToken@s t1\n    form = \"dog\"\n"
-	handler := newCQLToDQDHandler(newTestProvider(t))
 
-	// layer info passed by the caller (the corpus need not be configured)
-	out, isErr := callTool(t, handler, map[string]any{
+	// the corpus need not be configured anywhere
+	out, isErr := callTool(t, handleDQDTranslateCQL, map[string]any{
 		"corpus_id": "other", "q": `"dog"`, "layer_info": writtenLayerInfoJSON(t)})
 	assert.False(t, isErr)
 	assert.Contains(t, out, expected)
 
-	// deprecated - layer info found in the configured directory
-	out, isErr = callTool(t, handler, map[string]any{"corpus_id": "written", "q": `"dog"`})
-	assert.False(t, isErr)
-	assert.Contains(t, out, expected)
-
-	out, isErr = callTool(t, handler, map[string]any{"corpus_id": "other", "q": `"dog"`})
+	// no lookup of a configured LCP corpus without layer_info
+	out, isErr = callTool(t, handleDQDTranslateCQL, map[string]any{"corpus_id": "written", "q": `"dog"`})
 	assert.True(t, isErr)
 	assert.Contains(t, out, "missing layer_info")
 
-	out, isErr = callTool(t, handler, map[string]any{
+	out, isErr = callTool(t, handleDQDTranslateCQL, map[string]any{
 		"corpus_id": "written", "q": `"dog"`, "layer_info": `{"layer": `})
 	assert.True(t, isErr)
 	assert.Contains(t, out, "invalid layer_info")
