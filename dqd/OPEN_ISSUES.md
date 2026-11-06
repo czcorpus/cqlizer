@@ -83,20 +83,20 @@ See TODOs in `cql/grammar.peg` (and `dqd/values.go`):
 
 ## NLQL integration notes
 
-- Layer infos of LCP corpora are stored as JSON files (`<corpus>.json`) in
-  a directory configured for the cqlizer MCP server (`LCP_LAYER_INFO_DIR`).
+- Layer infos of LCP corpora are owned by NLQL (its DB) and passed to the
+  DQD tools (`DQD_TOOLS_ENABLED`) along with each request - cqlizer does
+  not look LCP corpora up anywhere.
 - NLQL's "DQD via CQL" mode converts the model's CQL using the MCP tool
-  `cql_to_dqd` - so validation (`cql_validate`) and conversion always run
-  the same cqlizer version and NLQL needs no layer infos of its own. With
-  DQD as the target language, the corpus is expected to be an LCP one (no
-  fallback to default props).
+  `dqd_translate_cql` - so validation (`dqd_validate_cql`) and conversion
+  always run the same cqlizer version. With DQD as the target language,
+  the corpus is expected to be an LCP one (no fallback to default props).
 - Attribute names are expected to be the corpus' real names (the model
   fetches corpus info first); the only alias is `word` -> `form`.
-- The cqlizer MCP tools support both Manatee and LCP corpora (routed by the
-  existence of a layer info file): `get_corpus_structure` describes LCP
-  corpora in terms of CQL (incl. values of categorical attributes),
-  `cql_validate` checks the translation to DQD, the tagset tools refuse LCP
-  corpora.
+- The CNC tools (`get_corpus_structure`, `cql_validate`, the tagset tools)
+  know Manatee corpora only. Their LCP counterparts are the DQD tools:
+  `dqd_corpus_structure` describes an LCP corpus in terms of CQL (incl.
+  values of categorical attributes), `dqd_validate_cql` checks the
+  translation to DQD. NLQL routes the model's calls by corpus.
 - Remaining: NLQL's corpus catalog (`find_corpora`) does not know LCP corpora
   yet.
 - Layer infos are moving to NLQL (decided 2026-11-05): NLQL's DB
@@ -117,8 +117,8 @@ See TODOs in `cql/grammar.peg` (and `dqd/values.go`):
      Note: layer infos imported before the "Corpus name" column have no
      corpus name, the LiRI battery must be re-imported to be found.
   3. cqlizer: remove LCP routing from the CNC tools and `LCP_LAYER_INFO_DIR`
-     based lookups; the tagset
-     tools then cannot tell an LCP corpus (they just won't find it)
+     based lookups (done); the tagset tools cannot tell an LCP corpus
+     anymore (they just won't find it)
   4. later: what to do with NLQL's `lcp-catalog.json` (`find_corpora`)
 - The CQL system prompt (sysprompt_v6) hard-codes CNC defaults (syn2020,
   "word always present") - may push the model to CNC corpora with DQD as the

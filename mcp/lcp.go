@@ -38,10 +38,6 @@ const maxListedValues = 30
 // rgSpecialChars are characters making a CQL value a regular expression
 const rgSpecialChars = `.[]()*+?{}|^$\`
 
-// lcpTagsetToolsMsg is returned by the tagset tools for LCP corpora
-const lcpTagsetToolsMsg = "%s is an LCP corpus - tagset tools are not available for it. " +
-	"Use the attribute values listed by get_corpus_structure instead."
-
 // lcpAttrValues returns all the possible values of an attribute (if known).
 func lcpAttrValues(li *dqd.LayerInfo, la *dqd.LayerAttr) []string {
 	if la == nil {

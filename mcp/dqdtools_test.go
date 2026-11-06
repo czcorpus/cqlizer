@@ -107,7 +107,7 @@ func TestDQDTranslateCQL(t *testing.T) {
 	assert.False(t, isErr)
 	assert.Contains(t, out, expected)
 
-	// no lookup of a configured LCP corpus without layer_info
+	// no lookup of the corpus without layer_info
 	out, isErr = callTool(t, handleDQDTranslateCQL, map[string]any{"corpus_id": "written", "q": `"dog"`})
 	assert.True(t, isErr)
 	assert.Contains(t, out, "missing layer_info")

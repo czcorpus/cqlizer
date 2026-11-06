@@ -116,9 +116,6 @@ func addTagsetTools(srv *server.MCPServer, corpInfoProv *CorpInfoProvider, conf 
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			corpusID := request.GetString("corpus_id", "")
-			if _, isLCP, _ := corpInfoProv.GetLCPLayerInfo(corpusID); isLCP {
-				return mcp.NewToolResultErrorf(lcpTagsetToolsMsg, corpusID), nil
-			}
 			reg, err := corpInfoProv.GetRegistry(corpusID)
 			if err != nil {
 				return mcp.NewToolResultErrorFromErr("failed to find corpus", err), nil
@@ -154,9 +151,6 @@ func addTagsetTools(srv *server.MCPServer, corpInfoProv *CorpInfoProvider, conf 
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			corpusID := request.GetString("corpus_id", "")
-			if _, isLCP, _ := corpInfoProv.GetLCPLayerInfo(corpusID); isLCP {
-				return mcp.NewToolResultErrorf(lcpTagsetToolsMsg, corpusID), nil
-			}
 			reg, err := corpInfoProv.GetRegistry(corpusID)
 			if err != nil {
 				return mcp.NewToolResultErrorFromErr("failed to find corpus", err), nil
