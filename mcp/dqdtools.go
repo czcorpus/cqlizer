@@ -35,9 +35,9 @@ import (
 // than directly by a model, which is not expected to handle layer infos.
 
 const (
-	dqdCorpusStructureToolName = "dqd_corpus_structure"
-	dqdValidateCQLToolName     = "dqd_validate_cql"
-	cqlToDQDToolName           = "cql_to_dqd"
+	DQDCorpusStructureToolName = "dqd_corpus_structure"
+	DQDValidateCQLToolName     = "dqd_validate_cql"
+	DQDTranslateCQLToolName    = "dqd_translate_cql"
 )
 
 var (
@@ -107,74 +107,51 @@ func handleDQDValidateCQL(ctx context.Context, request mcp.CallToolRequest) (*mc
 	return mcp.NewToolResultText("query OK"), nil
 }
 
-// newCQLToDQDHandler creates the cql_to_dqd handler. Without layer_info,
-// the handler looks the corpus up in the LCP layer info directory (if
-// configured) - this is deprecated and kept only until existing callers
-// switch to passing layer_info.
-func newCQLToDQDHandler(corpInfoProv *CorpInfoProvider) server.ToolHandlerFunc {
-	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		corpusID := request.GetString("corpus_id", "")
-		li, err := layerInfoFromRequest(request)
-		if err != nil {
-			return mcp.NewToolResultErrorFromErr("invalid layer_info", err), nil
-		}
-		if li == nil {
-			var isLCP bool
-			li, isLCP, err = corpInfoProv.GetLCPLayerInfo(corpusID)
-			if !isLCP {
-				return mcp.NewToolResultErrorf("missing layer_info (and %s is not a configured LCP corpus)", corpusID), nil
-			}
-			if err != nil {
-				return mcp.NewToolResultErrorFromErr("failed to find corpus", err), nil
-			}
-		}
-		ans, err := translateLCPQuery(corpusID, li, request.GetString("q", ""))
-		if err != nil {
-			return mcp.NewToolResultErrorFromErr("failed to translate query", err), nil
-		}
-		return mcp.NewToolResultText(ans), nil
+func handleDQDTranslateCQL(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	li, errRes := requireLayerInfo(request)
+	if li == nil {
+		return errRes, nil
 	}
+	ans, err := translateLCPQuery(request.GetString("corpus_id", ""), li, request.GetString("q", ""))
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("failed to translate query", err), nil
+	}
+	return mcp.NewToolResultText(ans), nil
 }
 
-// addDQDTools registers the DQD tools. With dqdToolsEnabled false, only
-// the deprecated form of cql_to_dqd (without layer_info) is available,
-// and only if LCP corpora are configured (see CorpInfoProvider.HasLCPCorpora).
-func addDQDTools(srv *server.MCPServer, corpInfoProv *CorpInfoProvider, dqdToolsEnabled bool) {
-	if dqdToolsEnabled {
-		srv.AddTool(
-			mcp.NewTool(dqdCorpusStructureToolName,
-				mcp.WithDescription(
-					"Describe an LCP corpus in terms of CQL as translated to DQD (attributes and "+
-						"structures usable in CQL, values of categorical attributes)"),
-				dqdCorpusIDArg,
-				dqdLayerInfoArg(true),
-			),
-			handleDQDCorpusStructure,
-		)
-		srv.AddTool(
-			mcp.NewTool(dqdValidateCQLToolName,
-				mcp.WithDescription(
-					"Validate a CQL query for an LCP corpus - check it can be translated to DQD "+
-						"and that plain values of categorical attributes are valid"),
-				dqdCorpusIDArg,
-				dqdQueryArg,
-				dqdLayerInfoArg(true),
-			),
-			handleDQDValidateCQL,
-		)
+// addDQDTools registers the DQD tools (if dqdToolsEnabled)
+func addDQDTools(srv *server.MCPServer, dqdToolsEnabled bool) {
+	if !dqdToolsEnabled {
+		return
 	}
-	if dqdToolsEnabled || corpInfoProv.HasLCPCorpora() {
-		srv.AddTool(
-			mcp.NewTool(cqlToDQDToolName,
-				mcp.WithDescription(
-					"Translate a CQL query for an LCP corpus to DQD (the query language of LCP). "+
-						"Without layer_info, the corpus is looked up among configured LCP corpora "+
-						"(deprecated)."),
-				dqdCorpusIDArg,
-				dqdQueryArg,
-				dqdLayerInfoArg(false),
-			),
-			newCQLToDQDHandler(corpInfoProv),
-		)
-	}
+	srv.AddTool(
+		mcp.NewTool(DQDCorpusStructureToolName,
+			mcp.WithDescription(
+				"Describe an LCP corpus in terms of CQL as translated to DQD (attributes and "+
+					"structures usable in CQL, values of categorical attributes)"),
+			dqdCorpusIDArg,
+			dqdLayerInfoArg(true),
+		),
+		handleDQDCorpusStructure,
+	)
+	srv.AddTool(
+		mcp.NewTool(DQDValidateCQLToolName,
+			mcp.WithDescription(
+				"Validate a CQL query for an LCP corpus - check it can be translated to DQD "+
+					"and that plain values of categorical attributes are valid"),
+			dqdCorpusIDArg,
+			dqdQueryArg,
+			dqdLayerInfoArg(true),
+		),
+		handleDQDValidateCQL,
+	)
+	srv.AddTool(
+		mcp.NewTool(DQDTranslateCQLToolName,
+			mcp.WithDescription("Translate a CQL query for an LCP corpus to DQD (the query language of LCP)"),
+			dqdCorpusIDArg,
+			dqdQueryArg,
+			dqdLayerInfoArg(true),
+		),
+		handleDQDTranslateCQL,
+	)
 }

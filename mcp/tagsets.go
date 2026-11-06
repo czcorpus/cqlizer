@@ -32,6 +32,11 @@ import (
 	regParser "github.com/czcorpus/rexplorer/parser"
 )
 
+const (
+	BuildTagConditionToolName = "build_tag_condition"
+	TagsetReferenceToolName   = "tagset_reference"
+)
+
 // newCorpusContext describes a corpus for the tagsets package
 // based on its configuration and registry
 func newCorpusContext(corpusProps feats.CorpusProps, reg *regParser.Document) tagsets.CorpusContext {
@@ -94,7 +99,7 @@ func corpusPropsOf(conf *cnf.Conf, corpusID string) feats.CorpusProps {
 // addTagsetTools registers tools providing tagset knowledge
 func addTagsetTools(srv *server.MCPServer, corpInfoProv *CorpInfoProvider, conf *cnf.Conf) {
 	srv.AddTool(
-		mcp.NewTool("build_tag_condition",
+		mcp.NewTool(BuildTagConditionToolName,
 			mcp.WithDescription(
 				"Translate a morphological description in Universal Dependencies terms (UPOS and features) "+
 					"into a CQL condition using the tagset of a corpus - e.g. a Czech positional tag "+
@@ -139,7 +144,7 @@ func addTagsetTools(srv *server.MCPServer, corpInfoProv *CorpInfoProvider, conf 
 	)
 
 	srv.AddTool(
-		mcp.NewTool("tagset_reference",
+		mcp.NewTool(TagsetReferenceToolName,
 			mcp.WithDescription(
 				"Describe the tagset of a corpus attribute: positions and values of positional tags "+
 					"(e.g. `tag`, `verbtag`), Universal Dependencies parts of speech, features or relations"),

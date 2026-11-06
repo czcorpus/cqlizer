@@ -40,6 +40,10 @@ type MCPMode string
 const (
 	ModeStdio MCPMode = "stdio"
 	ModeHttp  MCPMode = "http"
+
+	CorpusStructureToolName   = "get_corpus_structure"
+	ValidateCQLToolName       = "cql_validate"
+	CQLEvalComplexityToolName = "cql_eval_complexity"
 )
 
 func (m MCPMode) Validate() error {
@@ -102,7 +106,7 @@ func Init(
 	srv := server.NewMCPServer("cqlizer-mcp", version.Version, server.WithHooks(mcptools.DefaultLoggingHooks()))
 
 	srv.AddTool(
-		mcp.NewTool("cql_validate",
+		mcp.NewTool(ValidateCQLToolName,
 			mcp.WithDescription("Validate CQL syntax, check attributes support and validate attribute values against known tagsets (e.g. Universal Dependencies upos, feats, deprel)"),
 			mcp.WithString("corpus_id", mcp.Required(), mcp.Description("An ID of a corpus to apply CQL to")),
 			mcp.WithString("q", mcp.Required(), mcp.Description("CQL query string")),
@@ -167,7 +171,7 @@ func Init(
 
 	if corpusStructToolEnabled {
 		srv.AddTool(
-			mcp.NewTool("get_corpus_structure",
+			mcp.NewTool(CorpusStructureToolName,
 				mcp.WithDescription("Get all attributes and structures of a specified corpus"),
 				mcp.WithString("corpus_id", mcp.Required(), mcp.Description("An ID of a corpus to apply CQL to")),
 			),
@@ -231,11 +235,11 @@ func Init(
 		)
 	}
 
-	addDQDTools(srv, corpInfoProv, dqdToolsEnabled)
+	addDQDTools(srv, dqdToolsEnabled)
 
 	if len(rfEnsemble) > 0 {
 		srv.AddTool(
-			mcp.NewTool("cql_eval_complexity",
+			mcp.NewTool(CQLEvalComplexityToolName,
 				mcp.WithDescription("Evaluate query as either fast or slow."),
 				mcp.WithString("corpus_id", mcp.Required(), mcp.Description("An ID of a corpus to apply CQL to")),
 				mcp.WithInteger("corpus_size", mcp.Description("Corpus size (in tokens), if not set, the tool will try to find the size")),
