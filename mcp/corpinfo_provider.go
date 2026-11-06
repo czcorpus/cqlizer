@@ -17,17 +17,14 @@
 package mcp
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sync"
 
-	"github.com/czcorpus/cqlizer/dqd"
 	"github.com/czcorpus/rexplorer/parser"
 )
-
-const lcpLayerInfoFileSuffix = ".json"
 
 // corpusIDRegexp limits corpus IDs used as file names. The IDs come
 // from a model, so they must not be able to point outside the configured
@@ -41,25 +38,36 @@ func validateCorpusID(corpusID string) error {
 	return nil
 }
 
-// CorpInfoProvider provides information about corpora of two kinds:
-//   - Manatee corpora described by registry files (the default)
-//   - LCP corpora described by layer info JSON files (<corpus>.json) in
-//     a separate directory - a corpus is considered an LCP one if it has
-//     such a file (see GetLCPLayerInfo)
+// CorpInfoProvider provides information about Manatee corpora described
+// by registry files. LCP corpora are unknown to it - the DQD tools get
+// their layer infos from the caller (see addDQDTools).
+//
+// Parsed registries are cached for the provider's lifetime - a changed
+// registry file takes effect after a restart. The provider is safe for
+// concurrent use (MCP tool handlers may run concurrently).
 type CorpInfoProvider struct {
-	registryDirPath     string
-	lcpLayerInfoDirPath string
-	regCache            map[string]*parser.Document
+	registryDirPath string
+	regCacheMu      sync.RWMutex
+	// regCache contains parsed registries shared by all callers, so they
+	// must be treated as read-only
+	regCache map[string]*parser.Document
 }
 
+// GetRegistry returns the parsed registry of a corpus. Failures are not
+// cached - a missing registry file may be added later.
 func (cp *CorpInfoProvider) GetRegistry(corpname string) (*parser.Document, error) {
 	if err := validateCorpusID(corpname); err != nil {
 		return nil, err
 	}
+	cp.regCacheMu.RLock()
 	curr, ok := cp.regCache[corpname]
+	cp.regCacheMu.RUnlock()
 	if ok {
 		return curr, nil
 	}
+	// Loading outside the lock means concurrent first requests for the same
+	// corpus may parse its registry more than once. That is harmless (the
+	// results are equal) and keeps slow file reads from blocking other corpora.
 	data, err := os.ReadFile(filepath.Join(cp.registryDirPath, corpname))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read registry file for %s: %w", corpname, err)
@@ -68,37 +76,20 @@ func (cp *CorpInfoProvider) GetRegistry(corpname string) (*parser.Document, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse registry file for %s: %w", corpname, err)
 	}
+	cp.regCacheMu.Lock()
+	defer cp.regCacheMu.Unlock()
+	if curr, ok := cp.regCache[corpname]; ok {
+		// another request was faster - keep a single shared instance
+		return curr, nil
+	}
+	cp.regCache[corpname] = doc
 	return doc, nil
 }
 
-// HasLCPCorpora tells whether LCP corpora are configured.
-func (cp *CorpInfoProvider) HasLCPCorpora() bool {
-	return cp.lcpLayerInfoDirPath != ""
-}
-
-// GetLCPLayerInfo returns layer info of an LCP corpus. If the corpus is not
-// an LCP one (or LCP corpora are not configured), isLCP is false.
-func (cp *CorpInfoProvider) GetLCPLayerInfo(corpname string) (li *dqd.LayerInfo, isLCP bool, err error) {
-	if cp.lcpLayerInfoDirPath == "" || validateCorpusID(corpname) != nil {
-		return nil, false, nil
-	}
-	path := filepath.Join(cp.lcpLayerInfoDirPath, corpname+lcpLayerInfoFileSuffix)
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		return nil, false, nil
-	}
-	li, err = dqd.LoadLayerInfo(path)
-	if err != nil {
-		return nil, true, fmt.Errorf("failed to load layer info of LCP corpus %s: %w", corpname, err)
-	}
-	return li, true, nil
-}
-
-// NewCorpInfoProvider creates a provider of corpora information. An empty
-// lcpLayerInfoPath means no LCP corpora are available.
-func NewCorpInfoProvider(registryPath, lcpLayerInfoPath string) *CorpInfoProvider {
+// NewCorpInfoProvider creates a provider of corpora information.
+func NewCorpInfoProvider(registryPath string) *CorpInfoProvider {
 	return &CorpInfoProvider{
-		registryDirPath:     registryPath,
-		lcpLayerInfoDirPath: lcpLayerInfoPath,
-		regCache:            make(map[string]*parser.Document),
+		registryDirPath: registryPath,
+		regCache:        make(map[string]*parser.Document),
 	}
 }

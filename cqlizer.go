@@ -195,11 +195,7 @@ func runActionMCPServer(version apiserver.VersionInfo) {
 		)
 	}
 
-	lcpLayerInfoPath := os.Getenv("LCP_LAYER_INFO_DIR")
-	if lcpLayerInfoPath != "" {
-		log.Info().Str("path", lcpLayerInfoPath).Msg("LCP corpora enabled")
-	}
-	corpusInfo := mcp.NewCorpInfoProvider(registryPath, lcpLayerInfoPath)
+	corpusInfo := mcp.NewCorpInfoProvider(registryPath)
 	mcp.Init(
 		mode,
 		listenAddress,

@@ -17,8 +17,6 @@
 package mcp
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/czcorpus/cqlizer/dqd"
@@ -26,53 +24,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newTestProvider creates a provider with LCP corpus "written" (a copy
-// of the dqd package test fixture) and a broken LCP corpus.
-func newTestProvider(t *testing.T) *CorpInfoProvider {
-	dir := t.TempDir()
-	data, err := os.ReadFile("../dqd/testdata/layerinfo_written.json")
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "written.json"), data, 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "broken.json"), []byte(`{"layer": `), 0o644))
-	return NewCorpInfoProvider(t.TempDir(), dir)
-}
-
 func loadWritten(t *testing.T) *dqd.LayerInfo {
-	li, isLCP, err := newTestProvider(t).GetLCPLayerInfo("written")
+	li, err := dqd.LoadLayerInfo("../dqd/testdata/layerinfo_written.json")
 	require.NoError(t, err)
-	require.True(t, isLCP)
 	return li
-}
-
-func TestGetLCPLayerInfo(t *testing.T) {
-	prov := newTestProvider(t)
-
-	li, isLCP, err := prov.GetLCPLayerInfo("written")
-	assert.NoError(t, err)
-	assert.True(t, isLCP)
-	assert.Equal(t, "Segment", li.FirstClass.Segment)
-
-	// not LCP corpora
-	for _, corpusID := range []string{"syn2020", "", "../written", "sub/written"} {
-		_, isLCP, err = prov.GetLCPLayerInfo(corpusID)
-		assert.NoError(t, err, corpusID)
-		assert.False(t, isLCP, corpusID)
-	}
-	_, isLCP, _ = NewCorpInfoProvider(t.TempDir(), "").GetLCPLayerInfo("written")
-	assert.False(t, isLCP)
-
-	// an LCP corpus with broken layer info
-	_, isLCP, err = prov.GetLCPLayerInfo("broken")
-	assert.True(t, isLCP)
-	assert.Error(t, err)
-}
-
-func TestGetRegistryInvalidCorpusID(t *testing.T) {
-	prov := newTestProvider(t)
-	for _, corpusID := range []string{"", "../etc", "a/b", ".hidden"} {
-		_, err := prov.GetRegistry(corpusID)
-		assert.ErrorContains(t, err, "invalid corpus ID", corpusID)
-	}
 }
 
 func TestLCPCorpusInfo(t *testing.T) {
@@ -145,9 +100,6 @@ func TestValidateLCPQuery(t *testing.T) {
 }
 
 func TestTranslateLCPQuery(t *testing.T) {
-	assert.True(t, newTestProvider(t).HasLCPCorpora())
-	assert.False(t, NewCorpInfoProvider(t.TempDir(), "").HasLCPCorpora())
-
 	li := loadWritten(t)
 	ans, err := translateLCPQuery("written", li, `"dog" within <Document classCode="S.*"/>`)
 	require.NoError(t, err)

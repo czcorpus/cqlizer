@@ -119,18 +119,12 @@ command-line flags):
 - **`CORPUS_STRUCTURE_TOOL_ENABLED`** - Set to `1` to expose the `get_corpus_structure`
   tool, which lets clients list all positional attributes and structures of a corpus.
   Disabled by default.
-- **`LCP_LAYER_INFO_DIR`** - Optional directory with layer info JSON files of LCP (LiRI
-  Corpus Platform) corpora, one file per corpus named `<corpus_id>.json`. A corpus with
-  such a file is treated as an LCP one: `get_corpus_structure` describes it in terms of
-  CQL as translated to DQD (incl. possible values of categorical attributes),
-  `cql_validate` also checks the query can be translated to DQD, and the tagset tools
-  (`build_tag_condition`, `tagset_reference`) are not available for it. Other corpora
-  are looked up in `REGISTRY_PATH`. This routing is going to be removed in favor of the
-  DQD tools.
-- **`DQD_TOOLS_ENABLED`** - Set to `1` to expose tools working with CQL for LCP corpora
-  translated to DQD. Instead of looking the corpus up, they take its layer info (JSON)
-  in the `layer_info` argument, so the caller decides which corpora exist and which
-  version of their layer info applies (`corpus_id` is just a label in the output).
+- **`DQD_TOOLS_ENABLED`** - Set to `1` to expose tools working with CQL for LCP (LiRI
+  Corpus Platform) corpora translated to DQD. The other tools know Manatee corpora
+  (`REGISTRY_PATH`) only. Instead of looking the corpus up, the DQD tools take its
+  layer info (JSON) in the `layer_info` argument, so the caller decides which corpora
+  exist and which version of their layer info applies (`corpus_id` is just a label in
+  the output).
   They are meant for applications (e.g. NLQL) rather than for models directly:
   - `dqd_corpus_structure(corpus_id, layer_info)` - the corpus in terms of CQL as
     translated to DQD (attributes, structures, values of categorical attributes)
