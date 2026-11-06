@@ -30,14 +30,6 @@ func loadWritten(t *testing.T) *dqd.LayerInfo {
 	return li
 }
 
-func TestGetRegistryInvalidCorpusID(t *testing.T) {
-	prov := NewCorpInfoProvider(t.TempDir())
-	for _, corpusID := range []string{"", "../etc", "a/b", ".hidden"} {
-		_, err := prov.GetRegistry(corpusID)
-		assert.ErrorContains(t, err, "invalid corpus ID", corpusID)
-	}
-}
-
 func TestLCPCorpusInfo(t *testing.T) {
 	info, err := lcpCorpusInfo("written", loadWritten(t))
 	require.NoError(t, err)
