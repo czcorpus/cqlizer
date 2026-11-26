@@ -18,7 +18,9 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"math"
 	"net/http"
 	"strings"
@@ -107,50 +109,13 @@ func Init(
 
 	srv.AddTool(
 		mcp.NewTool(ValidateCQLToolName,
-			mcp.WithDescription("Validate CQL syntax, check attributes support and validate attribute values against known tagsets (e.g. Universal Dependencies upos, feats, deprel)"),
+			mcp.WithDescription("Validate CQL syntax, check attributes support and validate attribute values against known tagsets (e.g. Universal Dependencies upos, feats, deprel). For a corpus unknown to CQLizer, only the syntax is checked."),
 			mcp.WithString("corpus_id", mcp.Required(), mcp.Description("An ID of a corpus to apply CQL to")),
 			mcp.WithString("q", mcp.Required(), mcp.Description("CQL query string")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-
-			corpusID := request.GetString("corpus_id", "")
-			corpInfo, err := corpInfoProv.GetRegistry(corpusID)
-			if err != nil {
-				return mcp.NewToolResultErrorFromErr("failed to find corpus", err), nil
-			}
-
-			query, err := cql.ParseCQL("", request.GetString("q", ""))
-			if err != nil {
-				return mcp.NewToolResultErrorFromErr("failed to parse query", err), nil
-			}
-
-			qProps := query.ExtractProps()
-			for _, prop := range qProps {
-				if prop.IsPosattr() && !posattrExists(prop.Name, corpInfo) {
-					return mcp.NewToolResultErrorf("unsupported positional attribute `%s`", prop.Name), nil
-				}
-				if prop.IsStructure() && !structExists(prop.Structure, corpInfo) {
-					return mcp.NewToolResultErrorf("unsupported structure <%s>", prop.Structure), nil
-				}
-				if prop.IsStructAttr() && !structAttrExists(prop.Structure, prop.Name, corpInfo) {
-					return mcp.NewToolResultErrorf("unsupported structural attribute <%s %s=\"...\">", prop.Structure, prop.Name), nil
-				}
-			}
-
-			issues := checkTagsets(corpusID, qProps, corpusPropsOf(conf, corpusID), corpInfo)
-			if hasTagsetErrors(issues) {
-				return mcp.NewToolResultError(formatTagsetIssues(
-					"The query is syntactically valid, but some attribute values cannot match as intended:",
-					issues,
-				)), nil
-			}
-			if len(issues) > 0 {
-				return mcp.NewToolResultText(formatTagsetIssues(
-					"query OK, but please check the following:",
-					issues,
-				)), nil
-			}
-			return mcp.NewToolResultText("query OK"), nil
+			return validateCQL(
+				corpInfoProv, conf, request.GetString("corpus_id", ""), request.GetString("q", "")), nil
 		},
 	)
 
@@ -298,4 +263,58 @@ func Init(
 		log.Fatal().Str("mode", mode.String()).Msg("invalid mode")
 	}
 
+}
+
+// validateCQL validates a query for a corpus. If the corpus is not available
+// (no registry file), only the syntax is checked.
+func validateCQL(
+	corpInfoProv *CorpInfoProvider,
+	conf *cnf.Conf,
+	corpusID, q string,
+) *mcp.CallToolResult {
+	corpInfo, err := corpInfoProv.GetRegistry(corpusID)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		// e.g. an invalid corpus ID or a broken registry
+		return mcp.NewToolResultErrorFromErr("failed to find corpus", err)
+	}
+
+	query, perr := cql.ParseCQL("", q)
+	if perr != nil {
+		return mcp.NewToolResultErrorFromErr("failed to parse query", perr)
+	}
+	if err != nil {
+		// the corpus is not known here (e.g. a client of a different
+		// MQuery/KonText instance), so at least the syntax is checked
+		return mcp.NewToolResultText(fmt.Sprintf(
+			"query syntax OK, but corpus `%s` is unknown to CQLizer, so its attributes, "+
+				"structures and values were not checked", corpusID))
+	}
+
+	qProps := query.ExtractProps()
+	for _, prop := range qProps {
+		if prop.IsPosattr() && !posattrExists(prop.Name, corpInfo) {
+			return mcp.NewToolResultErrorf("unsupported positional attribute `%s`", prop.Name)
+		}
+		if prop.IsStructure() && !structExists(prop.Structure, corpInfo) {
+			return mcp.NewToolResultErrorf("unsupported structure <%s>", prop.Structure)
+		}
+		if prop.IsStructAttr() && !structAttrExists(prop.Structure, prop.Name, corpInfo) {
+			return mcp.NewToolResultErrorf("unsupported structural attribute <%s %s=\"...\">", prop.Structure, prop.Name)
+		}
+	}
+
+	issues := checkTagsets(corpusID, qProps, corpusPropsOf(conf, corpusID), corpInfo)
+	if hasTagsetErrors(issues) {
+		return mcp.NewToolResultError(formatTagsetIssues(
+			"The query is syntactically valid, but some attribute values cannot match as intended:",
+			issues,
+		))
+	}
+	if len(issues) > 0 {
+		return mcp.NewToolResultText(formatTagsetIssues(
+			"query OK, but please check the following:",
+			issues,
+		))
+	}
+	return mcp.NewToolResultText("query OK")
 }

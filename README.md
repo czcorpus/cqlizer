@@ -107,7 +107,8 @@ command-line flags):
 - **`REGISTRY_PATH`** - Path to the Manatee corpora registry directory, used to look up
   corpus structure (positional attributes, structures, structural attributes) for the
   `cql_validate` and `get_corpus_structure` tools. Defaults to
-  `/var/opt/manatee/registry`.
+  `/var/opt/manatee/registry`. For a corpus without a registry file there, `cql_validate`
+  checks just the query syntax (e.g. for clients of a different MQuery/KonText instance).
 - **`MODE`** - Transport mode for the MCP server: `stdio` or `http`. Defaults to `stdio`.
 - **`LISTEN_ADDRESS`** - Address the server listens on when `MODE=http` (e.g.
   `localhost:8080`). Ignored in `stdio` mode. Defaults to `localhost:8080`.
